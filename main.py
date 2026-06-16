@@ -759,7 +759,7 @@ def main():
     _check_python()
 
     if os.environ.get("DLAB_DAEMON") != "1":
-        lab_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        lab_root = os.path.dirname(os.path.abspath(__file__))
         config_path = os.path.join(lab_root, "config.json")
         from core.config_validator import run_validator, format_report
         report = run_validator(config_path)

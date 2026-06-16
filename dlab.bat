@@ -1,21 +1,18 @@
 @echo off
+chcp 65001 >nul 2>&1
 title Digital Lab
+setlocal EnableDelayedExpansion
 
 set "LAB_ROOT=%~dp0"
 if "%LAB_ROOT:~-1%"=="\" set "LAB_ROOT=%LAB_ROOT:~0,-1%"
-set "PYTHONPATH=%LAB_ROOT%;%PYTHONPATH%"
-cd /d "%LAB_ROOT%"
 
 set "PYTHON="
 
-py -c "exit(0)" >nul 2>&1
-if not errorlevel 1 set "PYTHON=py" & goto :run
-
-python3 -c "exit(0)" >nul 2>&1
-if not errorlevel 1 set "PYTHON=python3" & goto :run
-
 python -c "exit(0)" >nul 2>&1
-if not errorlevel 1 set "PYTHON=python" & goto :run
+if not errorlevel 1 (
+    set "PYTHON=python"
+    goto :run
+)
 
 for %%d in (
     "%LOCALAPPDATA%\Programs\Python\Python314"
@@ -23,25 +20,16 @@ for %%d in (
     "%LOCALAPPDATA%\Programs\Python\Python312"
     "%LOCALAPPDATA%\Programs\Python\Python311"
     "%LOCALAPPDATA%\Programs\Python\Python310"
-    "%LOCALAPPDATA%\Programs\Python\Python39"
-    "%LOCALAPPDATA%\Programs\Python\Python38"
-    "%LOCALAPPDATA%\Programs\Python\Python37"
     "%ProgramFiles%\Python314"
     "%ProgramFiles%\Python313"
     "%ProgramFiles%\Python312"
     "%ProgramFiles%\Python311"
     "%ProgramFiles%\Python310"
-    "%ProgramFiles%\Python39"
-    "%ProgramFiles%\Python38"
-    "%ProgramFiles%\Python37"
     "C:\Python314"
     "C:\Python313"
     "C:\Python312"
     "C:\Python311"
     "C:\Python310"
-    "C:\Python39"
-    "C:\Python38"
-    "C:\Python37"
 ) do (
     if exist "%%d\python.exe" (
         set "PYTHON=%%d\python.exe"
@@ -49,15 +37,21 @@ for %%d in (
     )
 )
 
-echo [ERROR] Python 3.7+ not found
-echo Please install from https://www.python.org/downloads/
+echo [ERROR] Python 3.10+ not found
+echo.
+echo Please install Python from https://www.python.org/downloads/
+echo Make sure to check "Add Python to PATH" during installation.
+echo.
 pause
-exit /b 1
+exit /b
 
 :run
-if "%~1"=="" (
-    "%PYTHON%" "%LAB_ROOT%\main.py"
-    pause
-) else (
-    "%PYTHON%" "%LAB_ROOT%\main.py" %*
+cd /d "%LAB_ROOT%"
+"%PYTHON%" "%LAB_ROOT%\main.py"
+if %errorlevel% neq 0 (
+    echo.
+    echo ============================================
+    echo [ERROR] Program exited with code %errorlevel%
+    echo ============================================
 )
+pause
