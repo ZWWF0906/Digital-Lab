@@ -1,6 +1,10 @@
 @echo off
 title Digital Lab
-cd /d "%~dp0"
+
+set "LAB_ROOT=%~dp0"
+if "%LAB_ROOT:~-1%"=="\" set "LAB_ROOT=%LAB_ROOT:~0,-1%"
+set "PYTHONPATH=%LAB_ROOT%;%PYTHONPATH%"
+cd /d "%LAB_ROOT%"
 
 set "PYTHON="
 
@@ -14,18 +18,24 @@ python -c "exit(0)" >nul 2>&1
 if not errorlevel 1 set "PYTHON=python" & goto :run
 
 for %%d in (
+    "%LOCALAPPDATA%\Programs\Python\Python314"
+    "%LOCALAPPDATA%\Programs\Python\Python313"
     "%LOCALAPPDATA%\Programs\Python\Python312"
     "%LOCALAPPDATA%\Programs\Python\Python311"
     "%LOCALAPPDATA%\Programs\Python\Python310"
     "%LOCALAPPDATA%\Programs\Python\Python39"
     "%LOCALAPPDATA%\Programs\Python\Python38"
     "%LOCALAPPDATA%\Programs\Python\Python37"
+    "%ProgramFiles%\Python314"
+    "%ProgramFiles%\Python313"
     "%ProgramFiles%\Python312"
     "%ProgramFiles%\Python311"
     "%ProgramFiles%\Python310"
     "%ProgramFiles%\Python39"
     "%ProgramFiles%\Python38"
     "%ProgramFiles%\Python37"
+    "C:\Python314"
+    "C:\Python313"
     "C:\Python312"
     "C:\Python311"
     "C:\Python310"
@@ -46,8 +56,8 @@ exit /b 1
 
 :run
 if "%~1"=="" (
-    "%PYTHON%" main.py
+    "%PYTHON%" "%LAB_ROOT%\main.py"
     pause
 ) else (
-    "%PYTHON%" main.py %*
+    "%PYTHON%" "%LAB_ROOT%\main.py" %*
 )
