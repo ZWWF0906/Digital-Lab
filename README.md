@@ -8,6 +8,7 @@
 ### 快速开始
 
 ```bash
+需提前安装好Python，系统版本至少是Windows 7
 pip install -r requirements.txt
 python main.py                     # 交互式菜单
 python main.py dashboard           # Web 仪表盘 → http://127.0.0.1:8080
