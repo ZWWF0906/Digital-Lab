@@ -1,0 +1,476 @@
+{"timestamp": "2026-06-10T23:10:36", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 6.2, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:10:36", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 77.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:10:36", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:11:23", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 8.0, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:11:23", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 76.9, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:11:23", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:12:25", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 25308, "interval": 60}}
+{"timestamp": "2026-06-10T23:12:25", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 25308}}
+{"timestamp": "2026-06-10T23:13:19", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 25308}}
+{"timestamp": "2026-06-10T23:14:10", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 6104, "interval": 60}}
+{"timestamp": "2026-06-10T23:14:10", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 6104}}
+{"timestamp": "2026-06-10T23:16:41", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 6104}}
+{"timestamp": "2026-06-10T23:17:03", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 9624, "interval": 30}}
+{"timestamp": "2026-06-10T23:17:03", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 9624}}
+{"timestamp": "2026-06-10T23:17:19", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 9624}}
+{"timestamp": "2026-06-10T23:18:01", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 21164, "interval": 30}}
+{"timestamp": "2026-06-10T23:18:01", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 21164}}
+{"timestamp": "2026-06-10T23:18:08", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 21164}}
+{"timestamp": "2026-06-10T23:18:31", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 7.9, "threshold": 50, "test": true}}
+{"timestamp": "2026-06-10T23:18:31", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 77.4, "threshold": 60, "test": true}}
+{"timestamp": "2026-06-10T23:18:31", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 65, "test": true}}
+{"timestamp": "2026-06-10T23:19:28", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 8.2, "threshold": 50, "test": true}}
+{"timestamp": "2026-06-10T23:19:28", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 76.9, "threshold": 60, "test": true}}
+{"timestamp": "2026-06-10T23:19:28", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 65, "test": true}}
+{"timestamp": "2026-06-10T23:25:56", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 11.8, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:25:56", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 74.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:25:56", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:26:02", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 9.6, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:26:02", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 74.0, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:26:02", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:26:30", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 3396, "interval": 60}}
+{"timestamp": "2026-06-10T23:26:30", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 3396}}
+{"timestamp": "2026-06-10T23:28:49", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 5.2, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:28:49", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 73.9, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:28:49", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:28:57", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 22.0, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:28:57", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 74.7, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:28:57", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:32:39", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 12.3, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:32:39", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 72.0, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:32:39", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:32:54", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 23152, "interval": 2}}
+{"timestamp": "2026-06-10T23:32:55", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 23152}}
+{"timestamp": "2026-06-10T23:36:07", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 23152}}
+{"timestamp": "2026-06-10T23:39:06", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 4.3, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-10T23:39:06", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 70.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-10T23:39:06", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-10T23:39:37", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 35216, "interval": 2}}
+{"timestamp": "2026-06-10T23:39:37", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 35216}}
+{"timestamp": "2026-06-11T00:00:23", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 34648, "interval": 2}}
+{"timestamp": "2026-06-11T00:00:23", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 34648}}
+{"timestamp": "2026-06-11T00:08:32", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 86.0, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:08:32", "level": "INFO", "message": "采集 #461: 内存:86%"}
+{"timestamp": "2026-06-11T00:08:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:47", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:08:47", "level": "INFO", "message": "采集 #42: 内存:85%"}
+{"timestamp": "2026-06-11T00:08:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:49", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.0, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:08:49", "level": "INFO", "message": "采集 #136: 内存:85%"}
+{"timestamp": "2026-06-11T00:08:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:53", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:57", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:08:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 88.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 90.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:04", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:08", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:12", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:09:19", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:12", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:19", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:23", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:27", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:34", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:38", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:42", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:45", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:45", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:49", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:50", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:53", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:10:57", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:04", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:08", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:19", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:23", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:34", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:38", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:45", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:49", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:11:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:04", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:19", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:34", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:45", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:54", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:55", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:12:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:10", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:25", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:33", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:13:33", "level": "INFO", "message": "采集 #541: 内存:85%"}
+{"timestamp": "2026-06-11T00:13:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:40", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:52", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.9, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:13:52", "level": "INFO", "message": "采集 #217: 内存:86%"}
+{"timestamp": "2026-06-11T00:13:55", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:56", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 86.0, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-11T00:13:56", "level": "INFO", "message": "采集 #47: 内存:86%"}
+{"timestamp": "2026-06-11T00:13:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:13:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:10", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:25", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:40", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:41", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:52", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:55", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:55", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:57", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:14:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:10", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:10", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:21", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:25", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:25", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.8, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:33", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:36", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:40", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:40", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:15:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:16:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:16:03", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-11T00:16:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T00:16:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-11T14:05:38", "level": "WARN", "message": "字段 log_level 取值非法, 已用默认值替换"}
+{"timestamp": "2026-06-11T14:05:38", "level": "WARN", "message": "字段 dashboard_port 类型错误 (str), 已用默认值替换"}
+{"timestamp": "2026-06-11T14:05:38", "level": "WARN", "message": "字段 monitor_threshold_cpu 值超出范围, 已截断"}
+{"timestamp": "2026-06-11T14:05:38", "level": "WARN", "message": "缺少字段 monitor_interval, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 tools_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 logs_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 experiments_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 notes_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 archive_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 interface_dir, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "字段 log_level 取值非法, 已用默认值替换"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 log_max_days, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 log_format, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "缺少字段 auto_organize_enabled, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:28", "level": "WARN", "message": "字段 auto_organize_interval 值超出范围, 已截断"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "字段 dashboard_port 类型错误 (str), 已用默认值替换"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 dashboard_host, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_threshold_cpu, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_threshold_memory, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "字段 monitor_threshold_disk 值超出范围, 已截断"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_alert_cooldown, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_interval, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_db_path, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_pid_path, 已填充默认值"}
+{"timestamp": "2026-06-11T14:07:29", "level": "WARN", "message": "缺少字段 monitor_log_path, 已填充默认值"}
+{"timestamp": "2026-06-11T14:16:42", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:16:42", "level": "ERROR", "message": "内存队列恢复写入失败", "data": {"count": 1}}
+{"timestamp": "2026-06-11T14:16:44", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:16:44", "level": "INFO", "message": "内存队列写入成功", "data": {"count": 2}}
+{"timestamp": "2026-06-11T14:16:58", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:16:58", "level": "ERROR", "message": "内存队列恢复写入失败", "data": {"count": 1}}
+{"timestamp": "2026-06-11T14:17:00", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:17:00", "level": "INFO", "message": "内存队列写入成功", "data": {"count": 2}}
+{"timestamp": "2026-06-11T14:17:42", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:17:42", "level": "ERROR", "message": "内存队列恢复写入失败", "data": {"count": 1}}
+{"timestamp": "2026-06-11T14:17:44", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:17:44", "level": "INFO", "message": "内存队列写入成功", "data": {"count": 2}}
+{"timestamp": "2026-06-11T14:17:59", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:17:59", "level": "ERROR", "message": "内存队列恢复写入失败", "data": {"count": 1}}
+{"timestamp": "2026-06-11T14:18:01", "level": "ERROR", "message": "SQLite 写入失败 (3次重试耗尽), 已缓存到内存队列"}
+{"timestamp": "2026-06-11T14:18:01", "level": "INFO", "message": "内存队列写入成功", "data": {"count": 2}}
+{"timestamp": "2026-06-11T14:18:20", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 3.2, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-11T14:18:20", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 64.5, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-11T14:18:20", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.1, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-11T14:18:28", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 6.8, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-11T14:18:28", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 64.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-11T14:18:28", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 84.1, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-12T20:11:52", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 39092, "interval": 2}}
+{"timestamp": "2026-06-12T20:11:52", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 39092}}
+{"timestamp": "2026-06-12T20:18:06", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 19.7, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-12T20:18:06", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 70.9, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-12T20:18:06", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 78.8, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-13T19:48:46", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 2928, "interval": 60}}
+{"timestamp": "2026-06-13T19:48:46", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 2928}}
+{"timestamp": "2026-06-13T20:01:08", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.1, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T20:01:08", "level": "INFO", "message": "采集 #13: 内存:85%"}
+{"timestamp": "2026-06-13T20:04:13", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.8, "threshold": 85}}
+{"timestamp": "2026-06-13T20:05:15", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 90.5, "threshold": 85}}
+{"timestamp": "2026-06-13T20:06:17", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 88.4, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T20:06:17", "level": "INFO", "message": "采集 #18: 内存:88%"}
+{"timestamp": "2026-06-13T20:38:11", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.5, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T20:38:11", "level": "INFO", "message": "采集 #49: 内存:86%"}
+{"timestamp": "2026-06-13T20:39:12", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:16:15", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.0, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:16:15", "level": "INFO", "message": "采集 #86: 内存:85%"}
+{"timestamp": "2026-06-13T21:20:22", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.7, "threshold": 85}}
+{"timestamp": "2026-06-13T21:21:24", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.6, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:21:24", "level": "INFO", "message": "采集 #91: 内存:86%"}
+{"timestamp": "2026-06-13T21:22:26", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:23:27", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:24:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-13T21:25:31", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-13T21:27:34", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:27:34", "level": "INFO", "message": "采集 #97: 内存:85%"}
+{"timestamp": "2026-06-13T21:28:36", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:29:50", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 46336, "interval": 60}}
+{"timestamp": "2026-06-13T21:29:51", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 46336}}
+{"timestamp": "2026-06-13T21:32:43", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.1, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:32:43", "level": "INFO", "message": "采集 #102: 内存:85%"}
+{"timestamp": "2026-06-13T21:32:57", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.1, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:32:57", "level": "INFO", "message": "采集 #4: 内存:85%"}
+{"timestamp": "2026-06-13T21:33:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-13T21:35:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-13T21:36:02", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-13T21:36:50", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:37:04", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-13T21:37:52", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.4, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:37:52", "level": "INFO", "message": "采集 #107: 内存:85%"}
+{"timestamp": "2026-06-13T21:38:06", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.9, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:38:06", "level": "INFO", "message": "采集 #9: 内存:86%"}
+{"timestamp": "2026-06-13T21:38:53", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-13T21:39:08", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.0, "threshold": 85}}
+{"timestamp": "2026-06-13T21:40:09", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-13T21:40:57", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-13T21:41:11", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:41:59", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-13T21:42:13", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-13T21:43:00", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:43:00", "level": "INFO", "message": "采集 #112: 内存:85%"}
+{"timestamp": "2026-06-13T21:43:15", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 87.4, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:43:15", "level": "INFO", "message": "采集 #14: 内存:87%"}
+{"timestamp": "2026-06-13T21:44:02", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:44:16", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:45:04", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-13T21:45:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-13T21:47:07", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:50:12", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:50:12", "level": "INFO", "message": "采集 #119: 内存:85%"}
+{"timestamp": "2026-06-13T21:50:27", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.4, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:50:27", "level": "INFO", "message": "采集 #21: 内存:85%"}
+{"timestamp": "2026-06-13T21:51:14", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.3, "threshold": 85}}
+{"timestamp": "2026-06-13T21:52:16", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.4, "threshold": 85}}
+{"timestamp": "2026-06-13T21:52:30", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:53:18", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.8, "threshold": 85}}
+{"timestamp": "2026-06-13T21:53:32", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.3, "threshold": 85}}
+{"timestamp": "2026-06-13T21:54:19", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.5, "threshold": 85}}
+{"timestamp": "2026-06-13T21:54:34", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.5, "threshold": 85}}
+{"timestamp": "2026-06-13T21:55:21", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.6, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:55:21", "level": "INFO", "message": "采集 #124: 内存:86%"}
+{"timestamp": "2026-06-13T21:55:35", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.7, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T21:55:35", "level": "INFO", "message": "采集 #26: 内存:86%"}
+{"timestamp": "2026-06-13T21:56:23", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 87.1, "threshold": 85}}
+{"timestamp": "2026-06-13T21:56:37", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-13T21:57:25", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.7, "threshold": 85}}
+{"timestamp": "2026-06-13T21:57:39", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.7, "threshold": 85}}
+{"timestamp": "2026-06-13T21:58:27", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.6, "threshold": 85}}
+{"timestamp": "2026-06-13T21:58:31", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_215830", "note": "test: before optimisation"}}
+{"timestamp": "2026-06-13T21:58:35", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_215835", "note": "test: before optimisation"}}
+{"timestamp": "2026-06-13T21:58:40", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-13T21:58:43", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_215843", "note": "after closing Chrome"}}
+{"timestamp": "2026-06-13T21:58:46", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_215846", "note": "after closing Chrome"}}
+{"timestamp": "2026-06-13T21:59:29", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.6, "threshold": 85}}
+{"timestamp": "2026-06-13T21:59:42", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.7, "threshold": 85}}
+{"timestamp": "2026-06-13T22:00:30", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 87.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T22:00:30", "level": "INFO", "message": "采集 #129: 内存:87%"}
+{"timestamp": "2026-06-13T22:00:44", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 87.9, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T22:00:44", "level": "INFO", "message": "采集 #31: 内存:88%"}
+{"timestamp": "2026-06-13T22:00:59", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_220058", "note": "baseline before optimisation"}}
+{"timestamp": "2026-06-13T22:01:32", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 88.1, "threshold": 85}}
+{"timestamp": "2026-06-13T22:01:41", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_220141", "note": "baseline before optimisation"}}
+{"timestamp": "2026-06-13T22:01:46", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 90.1, "threshold": 85}}
+{"timestamp": "2026-06-13T22:02:34", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 89.2, "threshold": 85}}
+{"timestamp": "2026-06-13T22:02:47", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 89.2, "threshold": 85}}
+{"timestamp": "2026-06-13T22:03:36", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 89.4, "threshold": 85}}
+{"timestamp": "2026-06-13T22:03:49", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 88.5, "threshold": 85}}
+{"timestamp": "2026-06-13T22:06:41", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.1, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T22:06:41", "level": "INFO", "message": "采集 #135: 内存:85%"}
+{"timestamp": "2026-06-13T22:06:54", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 85.3, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-13T22:06:54", "level": "INFO", "message": "采集 #37: 内存:85%"}
+{"timestamp": "2026-06-13T22:07:42", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-13T22:07:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.4, "threshold": 85}}
+{"timestamp": "2026-06-13T22:10:03", "level": "INFO", "message": "snapshot_created", "data": {"id": "snap-20260613_221003", "note": "GUI"}}
+{"timestamp": "2026-06-13T22:32:05", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 36460, "interval": 60}}
+{"timestamp": "2026-06-13T22:32:05", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 36460}}
+{"timestamp": "2026-06-14T12:57:38", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 32196, "interval": 60}}
+{"timestamp": "2026-06-14T12:57:39", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 32196}}
+{"timestamp": "2026-06-14T12:57:42", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 88.1, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-14T12:57:42", "level": "INFO", "message": "采集 #1: 内存:88%"}
+{"timestamp": "2026-06-14T12:58:44", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 89.0, "threshold": 85}}
+{"timestamp": "2026-06-14T12:59:46", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.2, "threshold": 85}}
+{"timestamp": "2026-06-14T13:00:48", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 85.9, "threshold": 85}}
+{"timestamp": "2026-06-14T13:01:50", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-14T13:02:52", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 86.0, "threshold": 85, "test": false}}
+{"timestamp": "2026-06-14T13:02:52", "level": "INFO", "message": "采集 #6: 内存:86%"}
+{"timestamp": "2026-06-14T13:03:54", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.5, "threshold": 85}}
+{"timestamp": "2026-06-14T13:04:56", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.5, "threshold": 85}}
+{"timestamp": "2026-06-14T13:05:58", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 86.2, "threshold": 85}}
+{"timestamp": "2026-06-14T13:07:00", "level": "INFO", "message": "内存 超标(冷却中)", "data": {"current": 92.3, "threshold": 85}}
+{"timestamp": "2026-06-14T14:42:39", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 12024, "interval": 60}}
+{"timestamp": "2026-06-14T14:42:40", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 12024}}
+{"timestamp": "2026-06-14T14:44:56", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 35872, "interval": 60}}
+{"timestamp": "2026-06-14T14:44:57", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 35872}}
+{"timestamp": "2026-06-14T14:45:35", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 12.7, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-14T14:45:35", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 65.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-14T14:45:35", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 78.3, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-14T14:45:40", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 13.3, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-14T14:45:40", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 65.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-14T14:45:40", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 78.3, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-15T10:53:10", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 3516, "interval": 60}}
+{"timestamp": "2026-06-15T10:53:11", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 3516}}
+{"timestamp": "2026-06-15T11:51:44", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 28344, "interval": 60}}
+{"timestamp": "2026-06-15T11:51:44", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 28344}}
+{"timestamp": "2026-06-15T11:51:51", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 28344}}
+{"timestamp": "2026-06-15T11:51:53", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 15032, "interval": 60}}
+{"timestamp": "2026-06-15T11:51:53", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 15032}}
+{"timestamp": "2026-06-15T11:51:53", "level": "INFO", "message": "守护进程已停止", "data": {"pid": 28344}}
+{"timestamp": "2026-06-15T11:51:56", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 18776, "interval": 60}}
+{"timestamp": "2026-06-15T11:51:57", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 18776}}
+{"timestamp": "2026-06-15T11:52:01", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 14.0, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-15T11:52:01", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 70.2, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-15T11:52:01", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 79.0, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-15T13:11:04", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 21496, "interval": 60}}
+{"timestamp": "2026-06-15T13:11:05", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 21496}}
+{"timestamp": "2026-06-15T13:18:25", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 17664, "interval": 60}}
+{"timestamp": "2026-06-15T13:18:26", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 17664}}
+{"timestamp": "2026-06-15T13:25:00", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 32160, "interval": 60}}
+{"timestamp": "2026-06-15T13:25:00", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 32160}}
+{"timestamp": "2026-06-15T13:38:09", "level": "ALERT", "message": "CPU 超过阈值", "data": {"current": 9.1, "threshold": 80, "test": true}}
+{"timestamp": "2026-06-15T13:38:09", "level": "ALERT", "message": "内存 超过阈值", "data": {"current": 74.8, "threshold": 85, "test": true}}
+{"timestamp": "2026-06-15T13:38:09", "level": "ALERT", "message": "磁盘 超过阈值", "data": {"current": 79.4, "threshold": 90, "test": true}}
+{"timestamp": "2026-06-15T13:46:29", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 17664, "interval": 60}}
+{"timestamp": "2026-06-15T13:46:29", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 17664}}
+{"timestamp": "2026-06-15T23:24:21", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 33224, "interval": 60}}
+{"timestamp": "2026-06-15T23:24:22", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 33224}}
+{"timestamp": "2026-06-16T00:27:16", "level": "INFO", "message": "守护进程开始运行", "data": {"pid": 22352, "interval": 60}}
+{"timestamp": "2026-06-16T00:27:16", "level": "INFO", "message": "守护进程已启动", "data": {"pid": 22352}}

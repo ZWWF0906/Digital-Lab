@@ -1,0 +1,184 @@
+{
+  "cpu": {
+    "model": "Intel Core i7-14650HX",
+    "short_model": "i7-14650HX",
+    "cores": 16,
+    "threads": 24,
+    "freq_base": 2.2,
+    "freq_current": 2.2,
+    "temperature": null,
+    "architecture": "AMD64",
+    "_confidence": "medium"
+  },
+  "memory": {
+    "total_gb": 16,
+    "available_gb": 5.5,
+    "type": "DDR5",
+    "frequency": 5600,
+    "slots_used": 1,
+    "slots_total": 2,
+    "_confidence": "high"
+  },
+  "gpu": {
+    "name": "NVIDIA GeForce RTX 5060 Laptop GPU",
+    "short_name": "RTX 5060",
+    "vram_gb": 8,
+    "driver": "596.49",
+    "temperature": 54,
+    "utilization": 8,
+    "dedicated": true,
+    "mode": "laptop",
+    "_confidence": "high",
+    "vram_type": "GDDR6"
+  },
+  "disk": {
+    "model": "NVMe KBG60ZNV1T02 KIOXIA",
+    "capacity_gb": 954,
+    "type": "NVMe SSD",
+    "health": null,
+    "interface": "PCIe",
+    "partitions": [
+      {
+        "letter": "C",
+        "total_gb": 163,
+        "free_gb": 33,
+        "label": "OS"
+      },
+      {
+        "letter": "D",
+        "total_gb": 761,
+        "free_gb": 176,
+        "label": "数据"
+      }
+    ],
+    "_confidence": "high"
+  },
+  "system": {
+    "os": "Windows 11 build 26200",
+    "edition": null,
+    "uptime_seconds": 24051,
+    "python_version": "3.14.5",
+    "boot_time": "2026-06-16T12:22:49.241214",
+    "system_model": "TX Gaming FX608JMR_FX608JMR",
+    "manufacturer": "ASUSTeK COMPUTER INC.",
+    "form_factor": "Notebook",
+    "has_battery": true
+  },
+  "display": {
+    "displays": [
+      {
+        "name": "BOE\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000 NE160QDM-NM8\u0000",
+        "width": 2560,
+        "height": 1600,
+        "refresh_rate": 240
+      },
+      {
+        "name": "RTK\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000 0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000",
+        "width": 2560,
+        "height": 1600,
+        "refresh_rate": 120
+      }
+    ],
+    "total_resolution": "2560x1600 (primary) + 2560x1600"
+  },
+  "network": {
+    "adapters": [
+      {
+        "name": "Realtek PCIe GbE Family Controller",
+        "type": "以太网 802.3",
+        "speed_mbps": 1000,
+        "manufacturer": "Realtek"
+      }
+    ]
+  },
+  "_cpu_class": {
+    "vendor": "intel",
+    "suffix": "HX",
+    "category": "notebook",
+    "friendly_category": "笔记本旗舰级",
+    "tags": [
+      "HX系列",
+      "游戏本标压"
+    ]
+  },
+  "_device_type": {
+    "type": "notebook",
+    "confidence": 0.95,
+    "methods": [
+      "型号含笔记本关键词: tx gaming",
+      "GPU 含移动关键词: laptop",
+      "检测到电池",
+      "Form Factor: Notebook"
+    ]
+  },
+  "_validation": {
+    "valid": true,
+    "warnings": [],
+    "suggestions": []
+  },
+  "_display": {
+    "cpu": {
+      "title": "i7-14650HX",
+      "subtitle": "16核24线程 · 2.2GHz",
+      "tags": [
+        "HX系列",
+        "游戏本标压"
+      ],
+      "tag_color": "#FF6B6B"
+    },
+    "memory": {
+      "title": "16 GB",
+      "subtitle": "DDR5-5600 · 5.5GB 可用 · 1/2 插槽",
+      "bar": 66,
+      "tags": [
+        "可扩展"
+      ]
+    },
+    "gpu": {
+      "title": "RTX 5060",
+      "subtitle": "8GB GDDR6 · 54°C · 8%",
+      "glow": "var(--accent-teal)",
+      "tags": [
+        "独显模式",
+        "驱动 596.49",
+        "Laptop"
+      ]
+    },
+    "disk": {
+      "title": "954 GB",
+      "subtitle": "NVMe KBG60ZNV1T02 KIOXIA · NVMe SSD · PCIe",
+      "parts": [
+        {
+          "letter": "C",
+          "free": 33,
+          "total": 163,
+          "pct": 20,
+          "cls": "ok",
+          "label": "OS"
+        },
+        {
+          "letter": "D",
+          "free": 176,
+          "total": 761,
+          "pct": 23,
+          "cls": "ok",
+          "label": "数据"
+        }
+      ],
+      "tags": [
+        "双盘位"
+      ]
+    },
+    "system": {
+      "title": "Win11 26200",
+      "subtitle": "运行 6h 40m · Python 3.14.5",
+      "tags": [
+        "2026-06-16"
+      ]
+    },
+    "warnings": [],
+    "device_type": "notebook",
+    "device_confidence": 0.95
+  },
+  "_ts": 1781607822.6815827
+}

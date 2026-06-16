@@ -1,0 +1,39 @@
+{
+  "shortcuts": [
+    {
+      "name": "资源管理器",
+      "path": "explorer.exe",
+      "args": ""
+    },
+    {
+      "name": "命令提示符",
+      "path": "cmd.exe",
+      "args": ""
+    },
+    {
+      "name": "PowerShell",
+      "path": "powershell.exe",
+      "args": ""
+    },
+    {
+      "name": "记事本",
+      "path": "notepad.exe",
+      "args": ""
+    },
+    {
+      "name": "计算器",
+      "path": "calc.exe",
+      "args": ""
+    },
+    {
+      "name": "任务管理器",
+      "path": "taskmgr.exe",
+      "args": ""
+    },
+    {
+      "name": "控制面板",
+      "path": "control.exe",
+      "args": ""
+    }
+  ]
+}

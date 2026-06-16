@@ -1,0 +1,22 @@
+# Digital Lab 依赖清单
+# 运行环境要求:
+#   - Windows 7/8/10/11 x64
+#   - Python 3.7+
+
+# 第2周 (工具化):
+psutil>=5.8          # 系统监控 (monitor)
+
+# 第3周 (数据分析):
+matplotlib>=3.3      # 图表 (report 命令)
+
+# 第4周 (AI/Web):
+flask>=2.0           # Web Dashboard
+
+# sqlite3 和 json 均为 Python 标准库，无需额外安装
+
+# ============================================================
+# 可选依赖 — 安装后自动启用更精确的硬件信息采集
+# ============================================================
+# py-cpuinfo          # CPU 型号精确识别 (跨平台)
+# nvidia-ml-py        # NVIDIA GPU 温度/利用率 (需 NVIDIA 驱动)
+# pyamdgpuinfo        # AMD GPU 信息采集 (需 ROCm/驱动)

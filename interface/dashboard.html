@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Lab</title>
+<style>
+
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI','Microsoft YaHei',sans-serif;background:#0d1117;color:#c9d1d9;min-height:100vh;display:flex}
+.sidebar{width:260px;min-width:260px;background:#0d1117;border-right:1px solid #21262d;height:100vh;position:fixed;overflow-y:auto;padding:16px 0;z-index:100}
+.sidebar h1{font-size:14px;color:#f0f6fc;padding:0 20px 12px;border-bottom:1px solid #21262d;margin-bottom:8px}
+.sidebar h1 span{color:#58a6ff}
+.menu-group{margin:12px 0}
+.menu-group .title{font-size:10px;color:#484f58;text-transform:uppercase;letter-spacing:1px;padding:0 20px;margin-bottom:4px}
+.menu-group a{display:flex;align-items:center;gap:8px;padding:6px 20px;color:#8b949e;text-decoration:none;font-size:13px;border-left:2px solid transparent;transition:.1s}
+.menu-group a:hover{color:#f0f6fc;background:#161b22;border-left-color:#30363d}
+.menu-group a.active{color:#f0f6fc;background:#1f6feb15;border-left-color:#1f6feb}
+.menu-group a .dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.menu-group a .dot.green{background:#3fb950}
+.menu-group a .dot.yellow{background:#d29922}
+.menu-group a .dot.gray{background:#484f58}
+.main{margin-left:260px;flex:1;min-height:100vh;padding:24px;max-width:calc(100vw - 260px)}
+.panel{display:none}
+.panel.show{display:block}
+.panel h2{font-size:18px;margin-bottom:16px;color:#f0f6fc}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-bottom:24px}
+.card{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px}
+.card h3{font-size:12px;color:#8b949e;text-transform:uppercase;margin-bottom:8px}
+.card .val{font-size:32px;font-weight:700;margin-bottom:4px}
+.card .val.cpu{color:#f85149}
+.card .val.mem{color:#3fb950}
+.card .val.disk{color:#58a6ff}
+.card .sub{font-size:11px;color:#484f58}
+.bar-wrap{background:#21262d;border-radius:6px;height:6px;margin-top:8px;overflow:hidden}
+.bar-fill{height:100%;border-radius:6px;transition:width .5s ease}
+.bar-fill.cpu{background:#f85149}
+.bar-fill.mem{background:#3fb950}
+.bar-fill.disk{background:#58a6ff}
+.chart-box{background:#161b22;border:1px solid #30363d;border-radius:10px;padding:16px;margin-bottom:16px}
+.toolbar{display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap}
+.toolbar button{padding:5px 14px;border:1px solid #30363d;border-radius:6px;background:#21262d;color:#c9d1d9;cursor:pointer;font-size:12px;transition:.15s}
+.toolbar button:hover,.toolbar button.on{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.btn{padding:6px 18px;border:1px solid #30363d;border-radius:6px;background:#21262d;color:#c9d1d9;cursor:pointer;font-size:13px;transition:.15s;display:inline-block;text-decoration:none}
+.btn:hover{background:#1f6feb;border-color:#1f6feb;color:#fff}
+.btn.danger:hover{background:#da3633;border-color:#da3633}
+.btn.green{border-color:#238636;color:#3fb950}
+.btn.green:hover{background:#238636;color:#fff}
+table{width:100%;border-collapse:collapse}
+th{text-align:left;padding:8px 12px;border-bottom:1px solid #30363d;font-size:11px;color:#8b949e;text-transform:uppercase}
+td{padding:8px 12px;border-bottom:1px solid #21262d;font-size:13px}
+.empty{text-align:center;padding:60px 20px;color:#484f58}
+.empty h3{font-size:16px;margin-bottom:6px;color:#8b949e}
+.empty p{font-size:13px;color:#484f58}
+.msg{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 16px;margin:8px 0;font-size:13px;font-family:monospace;white-space:pre-wrap}
+.msg.good{border-color:#238636}
+.stat-row{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.stat-item{background:#161b22;border:1px solid #30363d;border-radius:8px;padding:12px 16px;min-width:140px}
+.stat-item .lbl{font-size:11px;color:#8b949e;margin-bottom:4px}
+.stat-item .num{font-size:20px;font-weight:700;color:#f0f6fc}
+input[type=text]{padding:6px 12px;border:1px solid #30363d;border-radius:6px;background:#0d1117;color:#c9d1d9;font-size:13px;width:180px;margin-right:8px}
+@media(max-width:900px){.sidebar{width:200px;min-width:200px}.main{margin-left:200px;max-width:calc(100vw - 200px)}}
+@media(max-width:640px){body{flex-direction:column}.sidebar{position:static;width:100%;min-width:unset;height:auto;border-right:none;border-bottom:1px solid #21262d;padding:8px 0}.sidebar h1{padding:0 12px 8px}.menu-group a{padding:4px 12px}.main{margin-left:0;max-width:100vw;padding:12px}}
+
+</style>
+</head>
+<body>
+<div class="sidebar">
+<h1><span>Digital</span> Lab</h1>
+<div class="menu-group">
+<div class="title">基础操作</div>
+<a href="#" onclick="loadPanel('init');return false" data-panel="init"><span class="dot green"></span>初始化系统</a>
+<a href="#" onclick="loadPanel('status');return false" data-panel="status"><span class="dot green"></span>系统状态</a>
+<a href="#" onclick="loadPanel('config-panel');return false" data-panel="config-panel"><span class="dot green"></span>配置管理</a>
+</div>
+<div class="menu-group">
+<div class="title">系统监控</div>
+<a href="#" onclick="loadPanel('home');return false" data-panel="home" class="active"><span class="dot green"></span>仪表盘</a>
+<a href="#" onclick="loadPanel('processes');return false" data-panel="processes"><span class="dot green"></span>进程 Top 15</a>
+<a href="#" onclick="loadPanel('alerts');return false" data-panel="alerts"><span class="dot yellow"></span>告警记录</a>
+<a href="#" onclick="loadPanel('alert-test');return false" data-panel="alert-test"><span class="dot yellow"></span>告警测试</a>
+<a href="#" onclick="loadPanel('daemon');return false" data-panel="daemon"><span class="dot green"></span>守护进程</a>
+<a href="#" onclick="loadPanel('compare');return false" data-panel="compare"><span class="dot green"></span>历史对比</a>
+</div>
+<div class="menu-group">
+<div class="title">其他工具</div>
+<a href="#" onclick="loadPanel('launcher');return false" data-panel="launcher"><span class="dot green"></span>快捷启动</a>
+<a href="#" onclick="loadPanel('report');return false" data-panel="report"><span class="dot yellow"></span>生成报告</a>
+</div>
+<div class="menu-group">
+<div class="title">数据 & AI</div>
+<a href="#" onclick="loadPanel('experiment');return false" data-panel="experiment"><span class="dot gray"></span>实验管理</a>
+<a href="#" onclick="loadPanel('analyze');return false" data-panel="analyze"><span class="dot gray"></span>数据分析</a>
+<a href="#" onclick="loadPanel('ai');return false" data-panel="ai"><span class="dot gray"></span>AI 助手</a>
+</div>
+<div style="padding:20px;font-size:11px;color:#484f58" id="sidebar-status"></div>
+</div>
+<div class="main">
+<div class="panel" id="p-home"></div>
+<div class="panel" id="p-processes"></div>
+<div class="panel" id="p-alerts"></div>
+<div class="panel" id="p-init"></div>
+<div class="panel" id="p-status"></div>
+<div class="panel" id="p-config-panel"></div>
+<div class="panel" id="p-daemon"></div>
+<div class="panel" id="p-alert-test"></div>
+<div class="panel" id="p-compare"></div>
+<div class="panel" id="p-launcher"></div>
+<div class="panel" id="p-report"></div>
+<div class="panel" id="p-experiment"></div>
+<div class="panel" id="p-analyze"></div>
+<div class="panel" id="p-ai"></div>
+</div>
+<script>
+var API = '/api';
+var CP = 'home';
+var CR = '1h';
+var PLOTLY_READY = false;
+
+function api(url, method, data) {
+    var opts = {};
+    if (method) {
+        opts.method = method;
+        opts.headers = {'Content-Type': 'application/json'};
+        if (data) opts.body = JSON.stringify(data);
+    }
+    return fetch(API + url, opts).then(function(r) { return r.json(); });
+}
+
+function showError(msg) {
+    var box = document.getElementById('error-box');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'error-box';
+        box.style.cssText = 'margin:16px 0;padding:16px 20px;background:#3d1315;border:1px solid #da3633;border-radius:8px;color:#f85149;font-size:13px;font-family:monospace;white-space:pre-wrap';
+        var main = document.querySelector('.main');
+        if (main) main.insertBefore(box, main.firstChild);
+    }
+    box.textContent = msg;
+    box.style.display = 'block';
+}
+
+function hideError() {
+    var box = document.getElementById('error-box');
+    if (box) box.style.display = 'none';
+}
+
+function showEmpty(panelId, msg) {
+    msg = msg || '数据加载异常，请刷新重试';
+    var el = document.getElementById('p-' + panelId);
+    if (el) el.innerHTML = '<div class="empty"><h3>' + msg + '</h3><p>请确认后台采集正在运行</p></div>';
+}
+
+function panel(id) {
+    var ps = document.querySelectorAll('.panel');
+    for (var i = 0; i < ps.length; i++) ps[i].style.display = 'none';
+    var el = document.getElementById('p-' + id);
+    if (el) el.style.display = 'block';
+    var as = document.querySelectorAll('.sidebar a');
+    for (var i = 0; i < as.length; i++) as[i].classList.remove('active');
+    var lnk = document.querySelector('[data-panel="' + id + '"]');
+    if (lnk) lnk.classList.add('active');
+}
+
+function loadPanel(id) {
+    panel(id);
+    CP = id;
+    hideError();
+    var map = {
+        'home': H, 'processes': P, 'alerts': AL,
+        'init': I, 'status': ST, 'config-panel': CF,
+        'daemon': D, 'alert-test': AT, 'compare': CMP,
+        'launcher': LA, 'report': RP
+    };
+    if (map[id]) map[id]();
+}
+
+function fmtByte(n) {
+    if (!n) return '0 B';
+    var units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    for (var i = 0; i < units.length; i++) {
+        if (Math.abs(n) < 1024) return n.toFixed(1) + ' ' + units[i];
+        n /= 1024;
+    }
+    return n.toFixed(1) + ' PB';
+}
+
+/* ---- refresh loop ---- */
+function R() {
+    if (CP === 'home') {
+        X();
+        if (PLOTLY_READY) CH(CR);
+    } else if (CP === 'processes') {
+        P();
+    } else if (CP === 'alerts') {
+        AL();
+    }
+}
+
+/* ---- current metrics ---- */
+function X() {
+    api('/current').then(function(d) {
+        if (!d || d.error) return;
+        var el;
+        el = document.getElementById('cpu-val');
+        if (el) { el.textContent = d.cpu.toFixed(1) + '%'; el.className = 'val cpu'; }
+        el = document.getElementById('cpu-bar');
+        if (el) el.style.width = Math.min(d.cpu, 100) + '%';
+        el = document.getElementById('mem-val');
+        if (el) { el.textContent = d.memory.toFixed(1) + '%'; el.className = 'val mem'; }
+        el = document.getElementById('mem-bar');
+        if (el) el.style.width = Math.min(d.memory, 100) + '%';
+        el = document.getElementById('disk-val');
+        if (el) { el.textContent = d.disk.toFixed(1) + '%'; el.className = 'val disk'; }
+        el = document.getElementById('disk-bar');
+        if (el) el.style.width = Math.min(d.disk, 100) + '%';
+    }).catch(function() {});
+}
+
+/* ---- dashboard ---- */
+function H() {
+    panel('home');
+    var s = '';
+    s += '<div class="cards">';
+    s += '<div class="card"><h3>CPU</h3><div class="val cpu" id="cpu-val">--</div><div class="sub">实时</div><div class="bar-wrap"><div class="bar-fill cpu" id="cpu-bar" style="width:0%"></div></div></div>';
+    s += '<div class="card"><h3>内存</h3><div class="val mem" id="mem-val">--</div><div class="sub">实时</div><div class="bar-wrap"><div class="bar-fill mem" id="mem-bar" style="width:0%"></div></div></div>';
+    s += '<div class="card"><h3>磁盘</h3><div class="val disk" id="disk-val">--</div><div class="sub">实时</div><div class="bar-wrap"><div class="bar-fill disk" id="disk-bar" style="width:0%"></div></div></div>';
+    s += '</div>';
+    s += '<div class="chart-box"><div class="toolbar">';
+    s += '<button class="on" onclick="CH(&quot;1h&quot;,this)">1 小时</button>';
+    s += '<button onclick="CH(&quot;24h&quot;,this)">24 小时</button>';
+    s += '<button onclick="CH(&quot;7d&quot;,this)">7 天</button>';
+    s += '<button onclick="CH(&quot;30d&quot;,this)">30 天</button>';
+    s += '<span style="margin-left:auto;font-size:11px;color:#484f58">自动刷新 30s</span>';
+    s += '</div>';
+    s += '<div id="chart-container">';
+    s += '<div id="chart-placeholder" style="height:380px;display:flex;align-items:center;justify-content:center;color:#484f58;font-size:13px">图表加载中...</div>';
+    s += '<div id="chart" style="height:380px"></div>';
+    s += '</div></div>';
+    document.getElementById('p-home').innerHTML = s;
+    X();
+    CH('1h');
+}
+
+function CH(range, btn) {
+    CR = range;
+    var bs = document.querySelectorAll('.toolbar button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.remove('on');
+    if (btn) btn.classList.add('on');
+    if (!PLOTLY_READY) {
+        document.getElementById('chart-placeholder').textContent = 'Plotly 图表库加载中...';
+        return;
+    }
+    api('/data?range=' + range).then(function(d) {
+        var ph = document.getElementById('chart-placeholder');
+        if (!d || !d.times || !d.times.length || d.error) {
+            if (ph) { ph.textContent = '暂无监控数据，请先启动后台采集'; ph.style.display = 'flex'; }
+            document.getElementById('chart').style.display = 'none';
+            return;
+        }
+        if (ph) ph.style.display = 'none';
+        document.getElementById('chart').style.display = 'block';
+        Plotly.newPlot('chart', [
+            {x: d.times, y: d.cpu, name: 'CPU', line: {color: '#f85149', width: 1.5}},
+            {x: d.times, y: d.memory, name: '内存', line: {color: '#3fb950', width: 1.5}},
+            {x: d.times, y: d.disk, name: '磁盘', line: {color: '#58a6ff', width: 1.5}}
+        ], {
+            paper_bgcolor: '#161b22', plot_bgcolor: '#161b22',
+            font: {color: '#8b949e', size: 11},
+            margin: {t: 10, r: 10, b: 40, l: 50},
+            xaxis: {gridcolor: '#21262d', tickformat: '%m/%d %H:%M'},
+            yaxis: {gridcolor: '#21262d', title: '%', range: [0, 100]},
+            legend: {orientation: 'h', y: 1.12}
+        }, {responsive: true, displayModeBar: false});
+    }).catch(function() {});
+}
+
+/* ---- processes ---- */
+function P() {
+    api('/processes').then(function(d) {
+        if (!d || !Array.isArray(d) || !d.length) {
+            showEmpty('processes', '暂无进程数据');
+            return;
+        }
+        var h = '<h2>当前进程 Top 15</h2><table><tr><th>PID</th><th>进程名</th><th>CPU%</th><th>内存%</th><th>物理内存</th></tr>';
+        for (var i = 0; i < d.length; i++) {
+            var p = d[i];
+            h += '<tr><td>' + p.pid + '</td><td>' + (p.name || '') + '</td><td>' + p.cpu.toFixed(1) + '%</td><td>' + p.memory.toFixed(1) + '%</td><td>' + fmtByte(p.rss) + '</td></tr>';
+        }
+        h += '</table>';
+        document.getElementById('p-processes').innerHTML = h;
+    }).catch(function() { showEmpty('processes'); });
+}
+
+/* ---- alerts ---- */
+function AL() {
+    api('/alerts').then(function(d) {
+        if (!d || !Array.isArray(d) || !d.length) {
+            showEmpty('alerts', '暂无告警记录');
+            return;
+        }
+        var h = '<h2>历史告警记录</h2><table><tr><th>时间</th><th>指标</th><th>当前值</th><th>阈值</th></tr>';
+        for (var i = 0; i < d.length; i++) {
+            var a = d[i], dt = a.data || {};
+            h += '<tr><td>' + a.timestamp + '</td><td>' + a.message + '</td><td>' + (dt.current || 0).toFixed(1) + '%</td><td>' + dt.threshold + '%</td></tr>';
+        }
+        h += '</table>';
+        document.getElementById('p-alerts').innerHTML = h;
+    }).catch(function() { showEmpty('alerts'); });
+}
+
+/* ---- init ---- */
+function I() {
+    var h = '<h2>初始化系统</h2><div class="empty"><h3>目录结构</h3><p>创建 tools / logs / experiments / notes / archive / interface</p><br><button class="btn green" onclick="doInit()">执行初始化</button><div id="init-msg"></div></div>';
+    document.getElementById('p-init').innerHTML = h;
+}
+function doInit() {
+    api('/init', 'POST').then(function(d) {
+        document.getElementById('init-msg').innerHTML = '<div class="msg' + (d.ok ? ' good' : '') + '">' + (d.msg || '') + '</div>';
+    });
+}
+
+/* ---- status ---- */
+function ST() {
+    api('/status').then(function(d) {
+        if (!d) return;
+        var h = '<h2>系统状态</h2><div class="stat-row">';
+        h += '<div class="stat-item"><div class="lbl">Python</div><div class="num" style="font-size:14px">' + (d.python || '') + '</div></div>';
+        h += '<div class="stat-item"><div class="lbl">系统</div><div class="num" style="font-size:14px">' + (d.platform || '') + '</div></div>';
+        h += '</div>';
+        h += '<div style="font-size:13px;line-height:1.8">' + (d.dirs || []).join('<br>') + '</div>';
+        h += '<div class="msg">' + (d.config || '') + '</div>';
+        document.getElementById('p-status').innerHTML = h;
+    }).catch(function() { showEmpty('status'); });
+}
+
+/* ---- config ---- */
+function CF() {
+    api('/config').then(function(d) {
+        if (!d) return;
+        var h = '<h2>配置管理</h2><button class="btn" onclick="doConfigSave()">刷新配置文件</button><div id="cfg-msg"></div>';
+        h += '<pre style="background:#161b22;border:1px solid #30363d;border-radius:8px;padding:16px;margin-top:12px;font-size:12px;overflow-x:auto;max-height:500px">';
+        h += JSON.stringify(d, null, 2) + '</pre>';
+        document.getElementById('p-config-panel').innerHTML = h;
+    }).catch(function() { showEmpty('config-panel'); });
+}
+function doConfigSave() {
+    api('/config', 'POST', {}).then(function(d) {
+        document.getElementById('cfg-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div>';
+    });
+}
+
+/* ---- daemon ---- */
+function D() {
+    var h = '<h2>守护进程</h2>';
+    h += '<button class="btn green" onclick="doDaemon(&quot;start&quot;)">启动守护</button> ';
+    h += '<button class="btn danger" onclick="doDaemon(&quot;stop&quot;)">停止守护</button> ';
+    h += '<button class="btn" onclick="doDaemon(&quot;status&quot;)">查看状态</button>';
+    h += '<div id="daemon-msg"></div>';
+    document.getElementById('p-daemon').innerHTML = h;
+}
+function doDaemon(action) {
+    api('/daemon/' + action, 'POST').then(function(d) {
+        document.getElementById('daemon-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div>';
+    });
+}
+
+/* ---- alert test ---- */
+function AT() {
+    var h = '<h2>告警测试</h2><button class="btn danger" onclick="doAlertTest()">强制触发告警</button><div id="alert-msg"></div>';
+    document.getElementById('p-alert-test').innerHTML = h;
+}
+function doAlertTest() {
+    api('/alert/test', 'POST').then(function(d) {
+        document.getElementById('alert-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div>';
+    });
+}
+
+/* ---- compare ---- */
+function CMP() {
+    var h = '<h2>历史对比</h2><div class="toolbar">';
+    h += '<button class="on" onclick="doCMP(&quot;1h&quot;,this)">1 小时</button>';
+    h += '<button onclick="doCMP(&quot;24h&quot;,this)">24 小时</button>';
+    h += '<button onclick="doCMP(&quot;7d&quot;,this)">7 天</button>';
+    h += '</div><div id="cmp-r"></div>';
+    document.getElementById('p-compare').innerHTML = h;
+}
+function doCMP(range, btn) {
+    var bs = document.querySelectorAll('#p-compare .toolbar button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.remove('on');
+    if (btn) btn.classList.add('on');
+    api('/current').then(function(cur) {
+        if (!cur) return;
+        api('/data?range=' + range).then(function(d) {
+            var container = document.getElementById('cmp-r');
+            if (!d || !d.times || !d.times.length) {
+                container.innerHTML = '<div class="empty"><h3>数据不足</h3></div>';
+                return;
+            }
+            var n = d.times.length;
+            var avg = function(a) { var s = 0; for (var i = 0; i < a.length; i++) s += a[i]; return s / a.length; };
+            var maxFn = function(a) { return Math.max.apply(null, a); };
+            var h = '<table><tr><th>指标</th><th>当前值</th><th>均值</th><th>峰值</th><th>数据量</th></tr>';
+            var ks = ['cpu', 'memory', 'disk'], ns = ['CPU', '内存', '磁盘'];
+            for (var i = 0; i < ks.length; i++) {
+                var cv = cur[ks[i]] || 0, av = avg(d[ks[i]]), mv = maxFn(d[ks[i]]);
+                h += '<tr><td>' + ns[i] + '</td><td>' + cv.toFixed(1) + '%</td><td>' + av.toFixed(1) + '%</td><td>' + mv.toFixed(1) + '%</td><td>' + n + ' 条</td></tr>';
+            }
+            h += '</table>';
+            container.innerHTML = h;
+        });
+    });
+}
+
+/* ---- launcher ---- */
+function LA() {
+    api('/launcher/list').then(function(d) {
+        var h = '<h2>快捷启动</h2>';
+        if (!d || !Array.isArray(d) || !d.length) {
+            h += '<div class="empty"><h3>暂无快捷方式</h3></div>';
+        } else {
+            h += '<table><tr><th>#</th><th>名称</th><th>路径</th><th></th></tr>';
+            for (var i = 0; i < d.length; i++) {
+                h += '<tr><td>' + (i + 1) + '</td><td>' + d[i].name + '</td><td style="font-size:12px;color:#8b949e">' + d[i].path + '</td><td><button class="btn" onclick="doLaunch(' + i + ')">启动</button></td></tr>';
+            }
+            h += '</table>';
+        }
+        h += '<div class="msg" style="margin-top:16px">添加: <input id="ln-name" placeholder="名称"><input id="ln-path" placeholder="程序路径"><button class="btn green" onclick="doAddLaunch()">添加</button> <span style="font-size:11px;color:#484f58">删除: dlab launcher --remove NAME</span></div><div id="ln-msg"></div>';
+        document.getElementById('p-launcher').innerHTML = h;
+    }).catch(function() { showEmpty('launcher'); });
+}
+function doLaunch(i) {
+    api('/launcher/launch', 'POST', {index: i}).then(function(d) {
+        document.getElementById('ln-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div>';
+    });
+}
+function doAddLaunch() {
+    var n = document.getElementById('ln-name').value.trim();
+    var p = document.getElementById('ln-path').value.trim();
+    if (!n || !p) return;
+    api('/launcher/add', 'POST', {name: n, path: p}).then(function(d) {
+        document.getElementById('ln-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div>';
+        LA();
+    });
+}
+
+/* ---- report ---- */
+function RP() {
+    var h = '<h2>生成分析报告</h2><div class="toolbar">';
+    h += '<button class="on" onclick="doRP(&quot;1h&quot;,this)">1 小时</button>';
+    h += '<button onclick="doRP(&quot;6h&quot;,this)">6 小时</button>';
+    h += '<button onclick="doRP(&quot;24h&quot;,this)">24 小时</button>';
+    h += '<button onclick="doRP(&quot;7d&quot;,this)">7 天</button>';
+    h += '</div><div id="rp-msg"></div>';
+    document.getElementById('p-report').innerHTML = h;
+}
+function doRP(range, btn) {
+    var bs = document.querySelectorAll('#p-report .toolbar button');
+    for (var i = 0; i < bs.length; i++) bs[i].classList.remove('on');
+    if (btn) btn.classList.add('on');
+    document.getElementById('rp-msg').innerHTML = '<div style="padding:20px;text-align:center"><p style="color:#8b949e">生成中...</p></div>';
+    api('/report/generate?range=' + range).then(function(d) {
+        if (!d) return;
+        document.getElementById('rp-msg').innerHTML = '<div class="msg">' + (d.msg || '') + '</div><div class="msg" style="margin-top:8px;max-height:600px;overflow-y:auto">' + (d.stats || '') + '</div>';
+    });
+}
+
+/* ---- boot ---- */
+document.addEventListener('DOMContentLoaded', function() {
+    /* start dashboard */
+    H();
+
+    /* auto-refresh every 30s */
+    setInterval(function() { try { R(); } catch(e) {} }, 30000);
+
+    /* sidebar click binding (belt-and-suspenders) */
+    var as = document.querySelectorAll('.sidebar a[data-panel]');
+    for (var i = 0; i < as.length; i++) {
+        as[i].addEventListener('click', function(e) {
+            e.preventDefault();
+            loadPanel(this.getAttribute('data-panel'));
+        });
+    }
+});
+
+/* ---- plotly (delayed async) ---- */
+(function() {
+    var s = document.createElement('script');
+    s.src = 'https://cdn.plot.ly/plotly-2.32.0.min.js';
+    s.onload = function() {
+        PLOTLY_READY = true;
+        if (CP === 'home') CH(CR);
+    };
+    s.onerror = function() {
+        var ph = document.getElementById('chart-placeholder');
+        if (ph) ph.textContent = 'Plotly CDN 加载失败，图表不可用';
+        console.warn('Plotly CDN unavailable, charts disabled.');
+    };
+    setTimeout(function() { document.head.appendChild(s); }, 100);
+})();
+</script>
+
+</body>
+</html>

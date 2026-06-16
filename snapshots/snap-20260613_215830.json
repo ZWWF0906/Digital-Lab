@@ -1,0 +1,125 @@
+{
+  "id": "snap-20260613_215830",
+  "timestamp": "2026-06-13T21:58:30.768561",
+  "note": "test: before optimisation",
+  "system": {
+    "platform": "Windows 11 build 26200",
+    "python": "3.14.5",
+    "boot_time": "2026-06-13 15:29:50",
+    "uptime": "6h 28m",
+    "cpu_model": "",
+    "cores": 16,
+    "total_memory_gb": 15.6,
+    "total_disk_gb": 163.4
+  },
+  "config": {
+    "thresholds": {
+      "cpu": 80,
+      "memory": 85,
+      "disk": 90
+    },
+    "monitor_interval": 60
+  },
+  "services": [
+    {
+      "name": "SysMain",
+      "status": "Running"
+    },
+    {
+      "name": "WSearch",
+      "status": "Running"
+    },
+    {
+      "name": "defragsvc",
+      "status": "Stopped"
+    },
+    {
+      "name": "Spooler",
+      "status": "Running"
+    },
+    {
+      "name": "wuauserv",
+      "status": "Stopped"
+    },
+    {
+      "name": "BITS",
+      "status": "Stopped"
+    },
+    {
+      "name": "DiagTrack",
+      "status": "Running"
+    },
+    {
+      "name": "PcaSvc",
+      "status": "Running"
+    },
+    {
+      "name": "FontCache",
+      "status": "Running"
+    },
+    {
+      "name": "Themes",
+      "status": "Running"
+    },
+    {
+      "name": "EventSystem",
+      "status": "Running"
+    },
+    {
+      "name": "Audiosrv",
+      "status": "Running"
+    },
+    {
+      "name": "WinDefend",
+      "status": "Running"
+    },
+    {
+      "name": "MpsSvc",
+      "status": "Running"
+    },
+    {
+      "name": "UsoSvc",
+      "status": "Running"
+    },
+    {
+      "name": "WaaSMedicSvc",
+      "status": "Stopped"
+    },
+    {
+      "name": "DoSvc",
+      "status": "Running"
+    },
+    {
+      "name": "MapsBroker",
+      "status": "Stopped"
+    },
+    {
+      "name": "lfsvc",
+      "status": "Running"
+    },
+    {
+      "name": "XblAuthManager",
+      "status": "Running"
+    }
+  ],
+  "performance": {
+    "cpu": {
+      "current": 12.9,
+      "avg": 9.0,
+      "peak": 39.5,
+      "data_points": 87
+    },
+    "memory": {
+      "current": 87.2,
+      "avg": 84.5,
+      "peak": 87.7,
+      "data_points": 87
+    },
+    "disk": {
+      "current": 78.3,
+      "avg": 78.8,
+      "peak": 79.2,
+      "data_points": 87
+    }
+  }
+}
