@@ -136,7 +136,7 @@ def get_disk_info() -> list:
                 "free": usage.free,
                 "percent": usage.percent,
             })
-        except PermissionError:
+        except (PermissionError, OSError):
             continue
     return result
 

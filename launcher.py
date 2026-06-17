@@ -79,17 +79,17 @@ sub_font = tkfont.Font(family="Microsoft YaHei UI", size=9)
 btn_font = tkfont.Font(family="Microsoft YaHei UI", size=12, weight="bold")
 desc_font = tkfont.Font(family="Microsoft YaHei UI", size=8)
 
-tk.Label(root, text="Digital Lab", font=title_font, fg="#1e1e1e", bg="#f5f5f5").pack(pady=(28, 0))
+tk.Label(root, text="Digital Lab", font=title_font, fg="#1e1e1e", bg="#f5f5f5").pack(pady=28)
 tk.Label(root, text="个人数字实验室 · 请选择启动模式", font=sub_font, fg="#8c8c8c", bg="#f5f5f5").pack()
 
-tk.Frame(root, height=1, bg="#e0e0e0").pack(fill="x", padx=30, pady=(12, 16))
+tk.Frame(root, height=1, bg="#e0e0e0").pack(fill="x", padx=30, pady=16)
 
 def make_btn(text, desc, color, hover_color, args_str):
     c = f"#{color[0]:02x}{color[1]:02x}{color[2]:02x}"
     hc = f"#{hover_color[0]:02x}{hover_color[1]:02x}{hover_color[2]:02x}"
 
     f = tk.Frame(root, bg="#f5f5f5")
-    f.pack(fill="x", padx=20, pady=(0, 2))
+    f.pack(fill="x", padx=20, pady=2)
 
     btn = tk.Button(
         f, text=text, font=btn_font, bg=c, fg="white",
@@ -102,7 +102,7 @@ def make_btn(text, desc, color, hover_color, args_str):
     btn.bind("<Enter>", lambda e, b=btn, hc=hc: b.configure(bg=hc))
     btn.bind("<Leave>", lambda e, b=btn, c=c: b.configure(bg=c))
 
-    tk.Label(root, text=desc, font=desc_font, fg="#999", bg="#f5f5f5").pack(pady=(0, 14))
+    tk.Label(root, text=desc, font=desc_font, fg="#999", bg="#f5f5f5").pack(pady=14)
 
 make_btn("Web 仪表盘", "在浏览器中打开实时监控面板", (30, 144, 255), (0, 110, 220), "dashboard")
 make_btn("桌面控制台", "打开桌面 GUI 程序", (78, 205, 196), (50, 170, 160), "gui")

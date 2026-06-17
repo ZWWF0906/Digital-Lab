@@ -41,8 +41,12 @@ def create_snapshot(note: str = "") -> dict:
         "cpu_model": _cpu_model(),
         "cores": psutil.cpu_count(logical=False),
         "total_memory_gb": round(psutil.virtual_memory().total / (1024**3), 1),
-        "total_disk_gb": round(psutil.disk_usage("C:").total / (1024**3), 1),
+        "total_disk_gb": 0,
     }
+    try:
+        sys_info["total_disk_gb"] = round(psutil.disk_usage("C:").total / (1024**3), 1)
+    except Exception:
+        pass
 
     # ── services ──
     svcs = _collect_services()
@@ -50,7 +54,10 @@ def create_snapshot(note: str = "") -> dict:
     # ── current values ──
     cur_cpu = psutil.cpu_percent(interval=0.2)
     cur_mem = psutil.virtual_memory().percent
-    cur_disk = psutil.disk_usage("C:").percent
+    try:
+        cur_disk = psutil.disk_usage("C:").percent
+    except Exception:
+        cur_disk = 0
 
     # ── performance summary (last 1h) ──
     perf = _perf_summary(3600, cur_cpu, cur_mem, cur_disk)

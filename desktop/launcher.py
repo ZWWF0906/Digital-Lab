@@ -63,7 +63,7 @@ except Exception:
 # ── 布局 ──
 # 顶部图标 + 标题
 header = tk.Frame(root, bg=BG)
-header.pack(pady=(28, 4))
+header.pack(pady=28)
 
 title = tk.Label(
     header,
@@ -81,11 +81,11 @@ subtitle = tk.Label(
     fg=SUB,
     bg=BG,
 )
-subtitle.pack(pady=(4, 0))
+subtitle.pack(pady=4)
 
 # 按钮区域
 btn_frame = tk.Frame(root, bg=BG)
-btn_frame.pack(pady=(24, 0), padx=24, fill="x")
+btn_frame.pack(pady=24, padx=24, fill="x")
 
 # ── Web 按钮 ──
 btn_web = tk.Button(
@@ -103,7 +103,7 @@ btn_web = tk.Button(
     cursor="hand2",
     command=lambda: _launch("web"),
 )
-btn_web.pack(fill="x", ipady=2)
+btn_web.pack(fill="x")
 btn_web.bind("<Enter>", lambda e: btn_web.configure(bg=ACCENT_HOVER))
 btn_web.bind("<Leave>", lambda e: btn_web.configure(bg=ACCENT))
 btn_web.configure(
@@ -127,7 +127,7 @@ btn_gui = tk.Button(
     cursor="hand2",
     command=lambda: _launch("gui"),
 )
-btn_gui.pack(fill="x", pady=(12, 0), ipady=2)
+btn_gui.pack(fill="x", pady=12)
 btn_gui.bind("<Enter>", lambda e: btn_gui.configure(bg=GREEN_HOVER))
 btn_gui.bind("<Leave>", lambda e: btn_gui.configure(bg=GREEN))
 btn_gui.configure(
@@ -151,7 +151,7 @@ btn_cli = tk.Button(
     cursor="hand2",
     command=lambda: _launch("cli"),
 )
-btn_cli.pack(fill="x", pady=(12, 0), ipady=2)
+btn_cli.pack(fill="x", pady=12)
 btn_cli.bind("<Enter>", lambda e: btn_cli.configure(bg=PURPLE_HOVER))
 btn_cli.bind("<Leave>", lambda e: btn_cli.configure(bg=PURPLE))
 btn_cli.configure(

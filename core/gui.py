@@ -140,14 +140,14 @@ class DigitalLabGUI:
 
         # logo
         logo = tk.Frame(self.sbar, bg=C["sidebar"])
-        logo.pack(fill=tk.X, pady=(14, 8), padx=14)
+        logo.pack(fill=tk.X, pady=14, padx=14)
         tk.Label(logo, text="Digital", bg=C["sidebar"], fg=C["fg"],
                  font=(FONT, 15, "bold")).pack(anchor="w")
         tk.Label(logo, text="Lab Console", bg=C["sidebar"], fg=C["fg_dim"],
                  font=(FONT, 9)).pack(anchor="w")
 
         # divider
-        tk.Frame(self.sbar, bg=C["border"], height=1).pack(fill=tk.X, padx=14, pady=(0, 6))
+        tk.Frame(self.sbar, bg=C["border"], height=1).pack(fill=tk.X, padx=14, pady=6)
 
         # menu sections
         ICONS = {
@@ -188,11 +188,11 @@ class DigitalLabGUI:
 
         for sec_title, items in sections:
             tk.Label(self.sbar, text=sec_title, bg=C["sidebar"], fg=C["fg_dim"],
-                     font=(FONT, 8), anchor="w", padx=16).pack(fill=tk.X, pady=(10, 2))
+                     font=(FONT, 8), anchor="w", padx=16).pack(fill=tk.X, pady=10)
 
             for pid, label in items:
                 row = tk.Frame(self.sbar, bg=C["sidebar"], cursor="hand2")
-                row.pack(fill=tk.X, padx=(8, 8))
+                row.pack(fill=tk.X, padx=8)
 
                 indicator = tk.Frame(row, bg=C["sidebar"], width=3)
                 indicator.pack(side=tk.LEFT, fill=tk.Y)
@@ -233,16 +233,16 @@ class DigitalLabGUI:
                 self._menu[pid] = (row, indicator, icon_lbl, lbl)
 
         # bottom status
-        tk.Frame(self.sbar, bg=C["border"], height=1).pack(fill=tk.X, padx=14, pady=(12, 0))
+        tk.Frame(self.sbar, bg=C["border"], height=1).pack(fill=tk.X, padx=14, pady=12)
         status_frame = tk.Frame(self.sbar, bg=C["sidebar"], padx=14, pady=8)
         status_frame.pack(fill=tk.X, side=tk.BOTTOM)
-        _StatusDot(status_frame, C["green"], 8).pack(side=tk.LEFT, padx=(0, 6))
+        _StatusDot(status_frame, C["green"], 8).pack(side=tk.LEFT, padx=6)
         self._sbar_status = tk.Label(status_frame, text="就绪", bg=C["sidebar"],
                                       fg=C["fg_dim"], font=(FONT, 8), anchor="w")
         self._sbar_status.pack(side=tk.LEFT)
 
         # copyright
-        cr_frame = tk.Frame(self.sbar, bg=C["sidebar"], padx=14, pady=(0, 4))
+        cr_frame = tk.Frame(self.sbar, bg=C["sidebar"], padx=14, pady=4)
         cr_frame.pack(fill=tk.X, side=tk.BOTTOM)
         cr_text = "\u00A9 2026 赵展铖 | 赞助: Ave Mujica \u2014 Oblivionis"
         tk.Label(cr_frame, text=cr_text, bg=C["sidebar"], fg=C["fg_dim"],
@@ -254,13 +254,13 @@ class DigitalLabGUI:
 
         # header bar
         hdr = tk.Frame(self.body, bg=C["bg"])
-        hdr.pack(fill=tk.X, padx=22, pady=(16, 0))
+        hdr.pack(fill=tk.X, padx=22, pady=16)
         self._hdr_title = tk.Label(hdr, text="", bg=C["bg"], fg=C["fg"],
                                     font=(FONT, 20, "bold"), anchor="w")
         self._hdr_title.pack(side=tk.LEFT)
         self._hdr_sub = tk.Label(hdr, text="", bg=C["bg"], fg=C["fg_dim"],
                                   font=(FONT, 9), anchor="w")
-        self._hdr_sub.pack(side=tk.LEFT, padx=(10, 0))
+        self._hdr_sub.pack(side=tk.LEFT, padx=10)
 
         # scrollable pane
         self.canvas = tk.Canvas(self.body, bg=C["bg"], highlightthickness=0)
@@ -276,8 +276,8 @@ class DigitalLabGUI:
         self.canvas.bind("<Configure>", lambda e: self.canvas.itemconfig("inner", width=e.width))
         self.canvas.bind("<MouseWheel>", lambda e: self.canvas.yview_scroll(-1 * (e.delta // 120), "units"))
 
-        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(22, 8), pady=(6, 16))
-        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=(0, 10), pady=(6, 16))
+        self.canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=22, pady=16)
+        self.scrollbar.pack(side=tk.RIGHT, fill=tk.Y, padx=10, pady=16)
 
     def _on_scroll(self, *args):
         self.canvas.yview(*args)
@@ -331,11 +331,11 @@ class DigitalLabGUI:
         hdr.pack(fill=tk.X)
         tk.Label(hdr, text=icon, bg=C["card"], fg=color, font=(FONT, 13)).pack(side=tk.LEFT)
         tk.Label(hdr, text=title, bg=C["card"], fg=C["fg_dim"],
-                 font=(FONT, 9, "bold")).pack(side=tk.LEFT, padx=(6, 0))
+                 font=(FONT, 9, "bold")).pack(side=tk.LEFT, padx=6)
 
         val_lbl = tk.Label(inner, text=val, bg=C["card"], fg=color,
                             font=(FONT, 30, "bold"), anchor="w")
-        val_lbl.pack(anchor="w", pady=(10, 0))
+        val_lbl.pack(anchor="w", pady=10)
 
         if sub:
             tk.Label(inner, text=sub, bg=C["card"], fg=C["fg_dim"],
@@ -343,7 +343,7 @@ class DigitalLabGUI:
 
         pct = min(float(val.replace("%", "").replace("-", "0")), max_val)
         bar = ttk.Progressbar(inner, style="TProgressbar", length=180, value=pct)
-        bar.pack(fill=tk.X, pady=(8, 0))
+        bar.pack(fill=tk.X, pady=8)
         return outer, val_lbl, bar
 
     def _msg(self, text, color=None):
@@ -352,7 +352,7 @@ class DigitalLabGUI:
                        highlightbackground=C["border"], highlightthickness=1)
         tk.Label(frm, text=text, bg=C["card"], fg=fg, font=("Consolas", 10),
                  anchor="w", justify=tk.LEFT).pack(anchor="w", fill=tk.X)
-        frm.pack(fill=tk.X, pady=(0, 8))
+        frm.pack(fill=tk.X, pady=8)
 
     def _pill_btn(self, text, cmd, bg=None, fg=None, fs=10):
         b = _PillButton(self.pane, text, cmd, bg=bg or C["accent"],
@@ -385,7 +385,7 @@ class DigitalLabGUI:
         from core.monitor import get_cpu_info, get_memory_info, get_disk_info
 
         cards = tk.Frame(self.pane, bg=C["bg"])
-        cards.pack(fill=tk.X, pady=(8, 14))
+        cards.pack(fill=tk.X, pady=14)
 
         cpu = get_cpu_info()
         c1, self._vl_cpu, self._pb_cpu = self._stat_card(
@@ -393,7 +393,7 @@ class DigitalLabGUI:
             sub="{} 核 / {} GHz".format(
                 cpu.get("physical_cores", 0),
                 cpu.get("freq_current", 0) / 1000 if cpu and cpu.get("freq_current") else 0))
-        c1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(0, 5))
+        c1.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
         mem = get_memory_info()
         c2, self._vl_mem, self._pb_mem = self._stat_card(
@@ -402,12 +402,20 @@ class DigitalLabGUI:
                                  self._bytes(mem.get("total", 0))) if mem else "")
         c2.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=3)
 
-        disk = get_disk_info()
+        try:
+            disk = get_disk_info()
+        except Exception:
+            disk = None
+        if disk and len(disk) > 0:
+            disk_free = self._bytes(disk[0].get("free", 0))
+            disk_total = self._bytes(disk[0].get("total", 0))
+            disk_sub = "空闲 {} / {}".format(disk_free, disk_total)
+        else:
+            disk_sub = ""
         c3, self._vl_disk, self._pb_disk = self._stat_card(
             "\u2B19", "磁盘 (C:)", "--", color=C["info"], bar_color=C["blue_bar"],
-            sub="空闲 {} / {}".format(self._bytes(disk[0].get("free", 0)),
-                                       self._bytes(disk[0].get("total", 0))) if disk else "")
-        c3.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=(5, 0))
+            sub=disk_sub)
+        c3.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, padx=5)
 
         info_frm = tk.Frame(self.pane, bg=C["card"], padx=18, pady=10,
                             highlightbackground=C["border"], highlightthickness=1)
@@ -481,7 +489,7 @@ class DigitalLabGUI:
         tree.pack(fill=tk.BOTH, expand=True)
 
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(10, 0))
+        btn_row.pack(pady=10)
         self._pill_btn("刷新", self._show_processes, bg=C["accent"])
 
     # ════════════════════════════════════════════════
@@ -518,7 +526,7 @@ class DigitalLabGUI:
         self._set_header("告警测试", "强制触发告警验证")
         self._clear_pane()
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(18, 10))
+        btn_row.pack(pady=18)
         self._pill_btn("触发告警", self._do_alert_test, bg=C["danger"], fg=C["btn_text"])
         self._alert_out = tk.Frame(self.pane, bg=C["bg"])
         self._alert_out.pack(fill=tk.BOTH, pady=10)
@@ -550,7 +558,7 @@ class DigitalLabGUI:
         self._set_header("守护进程", "后台监控服务管理")
         self._clear_pane()
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(18, 10))
+        btn_row.pack(pady=18)
         self._pill_btn("启动守护", self._do_daemon_start, bg=C["green"], fg=C["btn_text"])
         self._pill_btn("停止守护", self._do_daemon_stop, bg=C["danger"], fg=C["btn_text"])
         self._pill_btn("查看状态", self._do_daemon_status, bg=C["accent"], fg=C["btn_text"])
@@ -608,7 +616,7 @@ class DigitalLabGUI:
         self._set_header("历史对比", "当前值 vs 历史数据")
         self._clear_pane()
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(18, 10))
+        btn_row.pack(pady=18)
         for rng, label, bg in [("1h", "1 小时", C["green"]), ("24h", "24 小时", C["accent"]), ("7d", "7 天", C["info"])]:
             self._pill_btn(label, lambda r=rng: self._do_compare(r), bg=bg, fg=C["btn_text"])
         self._cmp_out = tk.Frame(self.pane, bg=C["bg"])
@@ -643,7 +651,7 @@ class DigitalLabGUI:
         tk.Frame(self.pane, bg=C["bg"], height=8).pack()
         self._pill_btn("执行初始化", self._do_init, bg=C["green"], fg=C["btn_text"])
         self._init_out = tk.Frame(self.pane, bg=C["bg"])
-        self._init_out.pack(fill=tk.BOTH, pady=(10, 0))
+        self._init_out.pack(fill=tk.BOTH, pady=10)
 
     def _do_init(self):
         try:
@@ -689,10 +697,10 @@ class DigitalLabGUI:
                                          highlightbackground=C["border"], highlightthickness=1)
         txt.insert("1.0", json.dumps(data, indent=2, ensure_ascii=False))
         txt.configure(state="disabled")
-        txt.pack(fill=tk.BOTH, expand=True, pady=(10, 8))
+        txt.pack(fill=tk.BOTH, expand=True, pady=10)
 
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(0, 6))
+        btn_row.pack(pady=6)
         self._pill_btn("保存配置", lambda: cfg.save() or self._msg("Saved", C["green"]),
                         bg=C["accent"], fg=C["btn_text"])
 
@@ -721,18 +729,18 @@ class DigitalLabGUI:
             tree.bind("<Double-1>", lambda e: self._do_launch(tree))
 
         add_f = tk.Frame(self.pane, bg=C["bg"])
-        add_f.pack(fill=tk.X, pady=(12, 0))
+        add_f.pack(fill=tk.X, pady=12)
         self._ln_name = tk.Entry(add_f, bg=C["card"], fg=C["fg"], font=(FONT, 10),
                                   insertbackground=C["fg"], relief="flat", width=14,
                                   highlightbackground=C["border"], highlightthickness=1)
-        self._ln_name.pack(side=tk.LEFT, padx=(0, 6))
+        self._ln_name.pack(side=tk.LEFT, padx=6)
         self._ln_path = tk.Entry(add_f, bg=C["card"], fg=C["fg"], font=(FONT, 10),
                                   insertbackground=C["fg"], relief="flat", width=28,
                                   highlightbackground=C["border"], highlightthickness=1)
-        self._ln_path.pack(side=tk.LEFT, padx=(0, 6))
+        self._ln_path.pack(side=tk.LEFT, padx=6)
         self._pill_btn("添加", self._do_add_launch, bg=C["green"], fg=C["btn_text"])
         self._ln_out = tk.Frame(self.pane, bg=C["bg"])
-        self._ln_out.pack(fill=tk.X, pady=(6, 0))
+        self._ln_out.pack(fill=tk.X, pady=6)
 
     def _do_launch(self, tree):
         sel = tree.selection()
@@ -772,7 +780,7 @@ class DigitalLabGUI:
         self._set_header("生成报告", "统计汇总 & 导出")
         self._clear_pane()
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(18, 10))
+        btn_row.pack(pady=18)
         for rng, label, bg in [("1h", "1 小时", C["green"]), ("6h", "6 小时", C["accent"]),
                                  ("24h", "24 小时", C["warning"]), ("7d", "7 天", C["info"])]:
             self._pill_btn(label, lambda r=rng: self._do_report(r), bg=bg, fg=C["btn_text"])
@@ -809,7 +817,7 @@ class DigitalLabGUI:
         self._clear_pane()
 
         btn_row = tk.Frame(self.pane, bg=C["bg"])
-        btn_row.pack(pady=(18, 10))
+        btn_row.pack(pady=18)
         self._pill_btn("创建快照", self._snap_create, bg=C["green"], fg=C["btn_text"])
         self._pill_btn("刷新列表", self._show_snapshot, bg=C["accent"], fg=C["btn_text"])
 
@@ -843,13 +851,13 @@ class DigitalLabGUI:
         tree.bind("<Button-3>", lambda e: self._snap_right_click(e, tree))
 
         act_row = tk.Frame(self.pane, bg=C["bg"])
-        act_row.pack(pady=(10, 0))
+        act_row.pack(pady=10)
         self._pill_btn("对比选中", lambda: self._snap_compare(tree), bg=C["warning"], fg=C["btn_text"])
         self._pill_btn("查看报告", lambda: self._snap_report(tree), bg=C["info"], fg=C["btn_text"])
         self._pill_btn("删除选中", lambda: self._snap_delete(tree), bg=C["danger"], fg=C["btn_text"])
 
         self._snap_msg = tk.Frame(self.pane, bg=C["bg"])
-        self._snap_msg.pack(fill=tk.X, pady=(8, 0))
+        self._snap_msg.pack(fill=tk.X, pady=8)
 
     def _snap_selected(self, tree):
         sel = tree.selection()
