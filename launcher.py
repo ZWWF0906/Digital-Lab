@@ -61,7 +61,7 @@ if not _has_tk:
 
 root = tk.Tk()
 root.title("Digital Lab — 启动选项")
-root.geometry("380x380")
+root.geometry("380x460")
 root.resizable(False, False)
 root.configure(bg="#f5f5f5")
 
@@ -69,7 +69,7 @@ try:
     root.eval("tk::PlaceWindow . center")
 except tk.TclError:
     root.update_idletasks()
-    w, h = 380, 380
+    w, h = 380, 460
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
     root.geometry(f"+{(sw-w)//2}+{(sh-h)//2}")
