@@ -1,0 +1,10 @@
+node_modules/
+logs/
+memory/
+dist/
+release/
+__pycache__/
+*.pyc
+*.log
+*.db
+*.sqlite

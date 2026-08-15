@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DigitalLab</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <span class="sidebar-dot"></span>
+      <span class="sidebar-title">DigitalLab</span>
+    </div>
+    <nav class="sidebar-nav" id="sidebar-nav">
+      <!-- Rendered by JS -->
+    </nav>
+    <div class="sidebar-footer">
+      <span class="cr-name">DigitalLab</span> &copy; 2026 ZWWF0906
+    </div>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main" id="main-content">
+    <!-- Panels rendered here -->
+  </main>
+
+  <script type="module">
+    import { PANELS, getPanelById } from './panels/index.js';
+
+    const api = window.digitalLab;
+    if (!api) {
+      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f43f5e;font-size:16px;font-family:system-ui,sans-serif;background:#0f1419">预加载失败，请重启应用</div>';
+      throw new Error('window.digitalLab not available');
+    }
+    let currentPanelId = null;
+    let currentCleanup = null;
+
+    // Build sidebar navigation
+    const nav = document.getElementById('sidebar-nav');
+    PANELS.forEach(panel => {
+      const item = document.createElement('div');
+      item.className = 'nav-item';
+      item.dataset.panelId = panel.id;
+      item.innerHTML = `<span class="nav-icon">${panel.icon}</span>${panel.name}`;
+      item.addEventListener('click', () => {
+        if (item.classList.contains('disabled')) {
+          if (panel.id === 'terminal') {
+            const toast = document.createElement('div');
+            toast.className = 'nav-toast';
+            toast.textContent = '请先在设置中添加并连接 NAS 设备';
+            item.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+          }
+          return;
+        }
+        switchPanel(panel.id);
+      });
+      nav.appendChild(item);
+    });
+
+    // Terminal nav item: disable when no online NAS
+    api.onStateUpdate((state) => {
+      const terminalItem = nav.querySelector('[data-panel-id="terminal"]');
+      if (!terminalItem) return;
+      const nas = state.nas || {};
+      const hasOnline = Object.values(nas).some(d => d.online === true);
+      if (hasOnline) {
+        terminalItem.classList.remove('disabled');
+        terminalItem.title = '';
+      } else {
+        terminalItem.classList.add('disabled');
+        terminalItem.title = '请先在设置中添加并连接 NAS 设备';
+      }
+    });
+
+    async function switchPanel(id) {
+      if (id === currentPanelId) return;
+
+      // Cleanup previous panel
+      if (currentCleanup) {
+        try { currentCleanup(); } catch (e) {}
+        currentCleanup = null;
+      }
+
+      // Update nav highlight
+      document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+      const navItem = document.querySelector(`[data-panel-id="${id}"]`);
+      if (navItem) navItem.classList.add('active');
+
+      // Render panel
+      const main = document.getElementById('main-content');
+      const panel = getPanelById(id);
+      if (!panel) return;
+
+      // Clear and create container
+      main.innerHTML = '';
+      const container = document.createElement('div');
+      container.className = 'panel active';
+      container.id = `panel-${id}`;
+      main.appendChild(container);
+
+      try {
+        currentCleanup = await panel.init(container, api);
+        currentPanelId = id;
+      } catch (e) {
+        console.error(`Failed to init panel ${id}:`, e);
+        container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary)">面板加载失败</div>';
+      }
+    }
+
+    // Default: activate dashboard
+    switchPanel('dashboard');
+
+    // 跨面板导航（AI 设置按钮等）
+    window.addEventListener('switch-panel', (e) => {
+      switchPanel(e.detail);
+    });
+  </script>
+</body>
+</html>

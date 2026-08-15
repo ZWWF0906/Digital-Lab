@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema",
+  "title": "DigitalLab 配置规则",
+  "description": "自动生成 — 与 core/config_validator.py 中的规则保持同步",
+  "type": "object",
+  "properties": {
+    "log_level": {
+      "description": "日志级别",
+      "default": "INFO",
+      "type": "string",
+      "enum": [
+        "DEBUG",
+        "INFO",
+        "WARN",
+        "ERROR"
+      ]
+    },
+    "log_max_days": {
+      "description": "日志保留天数",
+      "default": 30,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 365
+    },
+    "log_format": {
+      "description": "Python logging 格式字符串",
+      "default": "%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+      "type": "string"
+    },
+    "auto_organize_enabled": {
+      "description": "自动整理开关",
+      "default": false,
+      "type": "boolean"
+    },
+    "auto_organize_interval": {
+      "description": "自动整理间隔(秒)",
+      "default": 3600,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "dashboard_port": {
+      "description": "Web 仪表盘端口",
+      "default": 8080,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 65535
+    },
+    "dashboard_host": {
+      "description": "Web 仪表盘监听地址",
+      "default": "127.0.0.1",
+      "type": "string"
+    },
+    "monitor_threshold_cpu": {
+      "description": "CPU 告警阈值(%)",
+      "default": 80,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "monitor_threshold_memory": {
+      "description": "内存告警阈值(%)",
+      "default": 85,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "monitor_threshold_disk": {
+      "description": "磁盘告警阈值(%)",
+      "default": 90,
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    },
+    "monitor_alert_cooldown": {
+      "description": "告警冷却时间(秒)",
+      "default": 300,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    },
+    "monitor_interval": {
+      "description": "守护采集间隔(秒)",
+      "default": 60,
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 86400
+    }
+  },
+  "definitions": {},
+  "required": []
+}
