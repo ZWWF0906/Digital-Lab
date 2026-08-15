@@ -14,9 +14,16 @@ if (!gotTheLock) {
 }
 
 // ── 读取硬件加速配置（app.whenReady 之前） ──
+function getHwAccelConfigPath() {
+  if (app.isPackaged) {
+    return path.join(app.getPath('userData'), 'config.json');
+  }
+  return path.join(__dirname, 'config.json');
+}
+
 function readHwAccelConfig() {
   try {
-    var configPath = path.join(__dirname, 'config.json');
+    var configPath = getHwAccelConfigPath();
     if (fs.existsSync(configPath)) {
       var raw = fs.readFileSync(configPath, 'utf-8');
       var cfg = JSON.parse(raw);
@@ -127,12 +134,26 @@ function createWindow() {
 }
 
 function startPython() {
-  const pythonPath = 'python';
-  // 开发模式（electron . / npm start）：process.defaultApp 有值
-  // 打包模式（electron-builder）：process.defaultApp 为 undefined
-  const isPackaged = !process.defaultApp;
-  const cwd = isPackaged ? path.join(__dirname, '..') : __dirname;
-  const args = [path.join(cwd, 'main.py'), '--json-mode'];
+  var isPackaged = app.isPackaged;
+  var pythonPath, args, cwd;
+
+  if (isPackaged) {
+    // 打包模式：使用内置的 backend.exe
+    pythonPath = path.join(process.resourcesPath, 'backend.exe');
+    args = ['--json-mode'];
+    cwd = process.resourcesPath;
+  } else {
+    // 开发模式：优先使用本地 backend.exe，否则使用系统 Python
+    var backendExePath = path.join(__dirname, 'backend.exe');
+    if (fs.existsSync(backendExePath)) {
+      pythonPath = backendExePath;
+      args = ['--json-mode'];
+    } else {
+      pythonPath = 'python';
+      args = [path.join(__dirname, 'main.py'), '--json-mode'];
+    }
+    cwd = __dirname;
+  }
 
   pythonProcess = spawn(pythonPath, args, {
     cwd: cwd,
@@ -387,10 +408,6 @@ ipcMain.handle('quit-app', () => {
 });
 
 // ── 硬件加速配置（直接读写 config.json，不经过 Python） ──
-function getHwAccelConfigPath() {
-  return path.join(__dirname, 'config.json');
-}
-
 ipcMain.handle('get-hardware-accel', function() {
   try {
     var p = getHwAccelConfigPath();

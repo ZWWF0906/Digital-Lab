@@ -539,6 +539,7 @@ def cmd_json_mode():
     """JSON 行协议模式：通过 stdin/stdout 与 Electron 主进程通信。"""
     import json
     import threading
+    import os as _os
 
     # 初始化
     from core.config import get_config
@@ -553,6 +554,14 @@ def cmd_json_mode():
     import atexit
     start_nas_monitor()
     atexit.register(stop_nas_monitor)
+
+    # ── stdout 锁：防止主循环状态推送与命令响应交织导致 JSON 解析失败 ──
+    _stdout_lock = threading.Lock()
+
+    def _safe_print(*args, **kwargs):
+        """线程安全的 stdout 输出"""
+        with _stdout_lock:
+            print(*args, **kwargs)
 
     # 缓存最新硬件数据
     _latest_hardware = None
@@ -620,6 +629,7 @@ def cmd_json_mode():
                 "name": gpu.get("short_name", "") or gpu.get("name", ""),
                 "vram_gb": gpu.get("vram_gb", 0),
                 "vram_type": gpu.get("vram_type", ""),
+                "utilization": gpu.get("utilization", 0),
             }
         mem = hw.get("memory")
         if mem:
@@ -651,7 +661,7 @@ def cmd_json_mode():
     def _send_terminal_output(session_id, data):
         """向 stdout 推送终端输出"""
         msg = json.dumps({"session_id": session_id, "data": data}, ensure_ascii=False)
-        print(msg, flush=True)
+        _safe_print(msg, flush=True)
 
     def _handle_terminal_init():
         import subprocess, uuid, locale
@@ -741,16 +751,8 @@ def cmd_json_mode():
         sid = str(uuid.uuid4())[:8]
         try:
             import paramiko
-            # 从 config.json 读取 NAS 设备凭据
-            config_path = cfg.config_file
-            nas_devices = []
-            if os.path.exists(config_path):
-                try:
-                    with open(config_path, "r", encoding="utf-8") as f:
-                        raw = json.load(f)
-                    nas_devices = raw.get("nas_devices", [])
-                except Exception:
-                    pass
+            # 从 config.json + user_config.json 读取 NAS 设备凭据
+            nas_devices = _get_nas_devices()
             # 按设备名称匹配（name），不是 host IP
             device = next((d for d in nas_devices if d.get("name") == host), None)
             if not device:
@@ -836,7 +838,7 @@ def cmd_json_mode():
                     "data": {"token": token, "kind": token_type},
                     "requestId": request_id,
                 }, ensure_ascii=False)
-                print(msg, flush=True)
+                _safe_print(msg, flush=True)
             try:
                 result = chat_stream(messages, provider, on_token=_push_token)
                 # 发送完成信号
@@ -845,26 +847,36 @@ def cmd_json_mode():
                     "text": result,
                     "requestId": request_id,
                 }, ensure_ascii=False)
-                print(done_msg, flush=True)
+                _safe_print(done_msg, flush=True)
             except Exception as e:
                 err_msg = json.dumps({
                     "type": "ai_done",
                     "text": f"[错误] {e}",
                     "requestId": request_id,
                 }, ensure_ascii=False)
-                print(err_msg, flush=True)
+                _safe_print(err_msg, flush=True)
         threading.Thread(target=_run, daemon=True).start()
 
     # ── 配置管理 ──
     def _get_config_data():
         import json, os
         from dataclasses import asdict
+        from core.config import _get_user_config_path, _SENSITIVE_KEYS
         config_path = cfg.config_file
         raw = {}
         if os.path.exists(config_path):
             try:
                 with open(config_path, "r", encoding="utf-8") as f:
                     raw = json.load(f)
+            except Exception:
+                pass
+        # 合并用户敏感配置（nas_devices、ai、auth_token 等）
+        user_config_path = _get_user_config_path()
+        if os.path.exists(user_config_path):
+            try:
+                with open(user_config_path, "r", encoding="utf-8") as f:
+                    user_data = json.load(f)
+                raw.update(user_data)
             except Exception:
                 pass
         # 过滤掉 IPC 协议字段（防止 config.json 被污染后循环传染）
@@ -998,15 +1010,7 @@ def cmd_json_mode():
                 # 1. 停止所有 NAS 监控线程
                 stop_nas_monitor()
                 # 2. 清理已删除设备的残留状态
-                config_path = cfg.config_file
-                devices = []
-                if os.path.exists(config_path):
-                    try:
-                        with open(config_path, "r", encoding="utf-8") as _f:
-                            _raw = _json.load(_f)
-                        devices = _raw.get("nas_devices", [])
-                    except Exception:
-                        pass
+                devices = _get_nas_devices()
                 device_names = {d.get("name", "") for d in devices if d.get("name")}
                 nas_state = system_state.get("nas", {})
                 for name in list(nas_state.keys()):
@@ -1070,10 +1074,10 @@ def cmd_json_mode():
             try:
                 cmd = json.loads(line)
             except json.JSONDecodeError:
-                print(json.dumps({"error": "invalid JSON"}), flush=True)
+                _safe_print(json.dumps({"error": "invalid JSON"}), flush=True)
                 continue
             resp = _handle_command(cmd)
-            print(resp, flush=True)
+            _safe_print(resp, flush=True)
 
     # 启动 stdin 监听线程
     stdin_thread = threading.Thread(target=_stdin_reader, daemon=True)
@@ -1084,7 +1088,7 @@ def cmd_json_mode():
     while running:
         try:
             payload = _format_state()
-            print(json.dumps(payload, ensure_ascii=False), flush=True)
+            _safe_print(json.dumps(payload, ensure_ascii=False), flush=True)
             time.sleep(1)
         except (BrokenPipeError, IOError):
             running = False

@@ -46,6 +46,11 @@
       const item = document.createElement('div');
       item.className = 'nav-item';
       item.dataset.panelId = panel.id;
+      // 终端默认禁用，等首次状态更新确认有在线 NAS 后再启用
+      if (panel.id === 'terminal') {
+        item.classList.add('disabled');
+        item.title = '请先在设置中添加并连接 NAS 设备';
+      }
       item.innerHTML = `<span class="nav-icon">${panel.icon}</span>${panel.name}`;
       item.addEventListener('click', () => {
         if (item.classList.contains('disabled')) {

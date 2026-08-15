@@ -100,7 +100,12 @@ class Config:
         self.lab_root = _detect_lab_root()
         self.lab_root = _safe_path(self.lab_root)
 
-        if not self.config_file:
+        if getattr(sys, 'frozen', False):
+            # 打包模式下 config.json 写入 AppData（Program Files 不可写）
+            config_dir = _get_user_config_dir()
+            os.makedirs(config_dir, exist_ok=True)
+            self.config_file = _safe_path(config_dir, "config.json")
+        elif not self.config_file:
             self.config_file = _safe_path(self.lab_root, "config.json")
 
         sub_dirs = {

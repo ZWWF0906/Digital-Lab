@@ -1,13 +1,13 @@
 {
   "name": "digital-lab",
   "version": "1.0.0",
-  "description": "DigitalLab — 个人数字实验室",
+  "description": "Personal Digital Laboratory Desktop Application",
   "main": "main.js",
   "author": "ZWWF0906",
   "license": "ISC",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win --dir"
+    "build": "electron-builder --win"
   },
   "build": {
     "appId": "com.digitallab.desktop",
@@ -24,21 +24,18 @@
     ],
     "extraResources": [
       {
-        "from": "core",
-        "to": "core"
-      },
-      {
-        "from": "main.py",
-        "to": "main.py"
-      },
-      {
-        "from": "requirements.txt",
-        "to": "requirements.txt"
+        "from": "backend.exe",
+        "to": "backend.exe"
       }
     ],
+    "asar": false,
     "win": {
-      "target": "dir",
-      "icon": null
+      "target": "nsis",
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     }
   },
   "devDependencies": {

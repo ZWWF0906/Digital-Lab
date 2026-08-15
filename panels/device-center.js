@@ -4,7 +4,7 @@
 function statusColor(value, thresholds) {
   if (!thresholds || !thresholds.length) return 'var(--accent)';
   if (value >= thresholds[1]) return 'var(--accent-pink)';
-  if (value >= thresholds[0]) return '#fbbf24';
+  if (value >= thresholds[0]) return 'var(--accent-amber)';
   return 'var(--accent)';
 }
 

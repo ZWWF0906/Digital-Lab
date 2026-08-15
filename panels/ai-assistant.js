@@ -107,8 +107,8 @@ export async function init(container, api) {
       nasHtml = '<div class="ai-ctx-section">NAS 设备</div>';
       nasKeys.forEach(k => {
         const d = nas[k] || {};
-        const online = d.status === 'online';
-        nasHtml += `<div class="ai-ctx-row"><span style="color:${online?'var(--accent)':'var(--accent-pink)'}">${online?'●':'○'}</span> ${k}: CPU ${d.cpu||'--'}% MEM ${d.memory||'--'}%</div>`;
+        const online = d.online !== false;
+        nasHtml += `<div class="ai-ctx-row"><span style="color:${online?'var(--accent)':'var(--accent-pink)'}">${online?'●':'○'}</span> ${k}: CPU ${d.cpu||'--'}% MEM ${d.memory?.percent??'--'}%</div>`;
       });
     }
 

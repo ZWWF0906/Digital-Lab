@@ -10,7 +10,7 @@ const METRICS = [
 function statusColor(value, thresholds) {
   if (!thresholds.length) return 'var(--accent)';
   if (value >= thresholds[1]) return 'var(--accent-pink)';
-  if (value >= thresholds[0]) return '#fbbf24';
+  if (value >= thresholds[0]) return 'var(--accent-amber)';
   return 'var(--accent)';
 }
 
@@ -357,10 +357,13 @@ export function init(container, api) {
         }).join('');
 
         nasGrid.querySelectorAll('.nas-retry-btn').forEach(btn => {
-          btn.addEventListener('click', () => {
-            btn.textContent = '\u91cd\u8bd5\u4e2d...';
+          btn.addEventListener('click', async () => {
+            btn.textContent = '重试中...';
             btn.disabled = true;
-            setTimeout(() => { btn.textContent = '\u91cd\u8bd5'; btn.disabled = false; }, 3000);
+            try {
+              await api.sendCommand({ cmd: 'reload_config' });
+            } catch (e) {}
+            setTimeout(() => { btn.textContent = '重试'; btn.disabled = false; }, 3000);
           });
         });
         nasGrid.setAttribute('data-animated', '1');

@@ -22,6 +22,7 @@ _threads: dict[str, threading.Thread] = {}
 _stop_events: dict[str, threading.Event] = {}
 _started = False
 _last_docker_collect: dict[str, float] = {}
+_docker_lock = threading.Lock()
 
 
 def _parse_cpu(top_output: str) -> Optional[float]:
@@ -318,8 +319,12 @@ def _collect_nas(device: dict, stop_event: threading.Event):
             # 采集 Docker 容器状态（低频，30 秒一次）
             try:
                 _now = time.time()
-                if _now - _last_docker_collect.get(name, 0) >= 30:
-                    _last_docker_collect[name] = _now
+                with _docker_lock:
+                    last_docker = _last_docker_collect.get(name, 0)
+                    should_collect = _now - last_docker >= 30
+                    if should_collect:
+                        _last_docker_collect[name] = _now
+                if should_collect:
                     _, stdout, _ = client.exec_command(
                         "docker ps -a --format '{{json .}}' 2>/dev/null || echo '[]'",
                         timeout=10,
@@ -487,6 +492,17 @@ def start_nas_monitor():
         try:
             with open(config_path, "r", encoding="utf-8") as f:
                 raw_config = json.load(f)
+        except Exception:
+            pass
+
+    # 合并用户敏感配置（nas_devices 含密码，存储在 AppData）
+    from core.config import _get_user_config_path
+    user_config_path = _get_user_config_path()
+    if os.path.exists(user_config_path):
+        try:
+            with open(user_config_path, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+            raw_config.update(user_data)
         except Exception:
             pass
 
