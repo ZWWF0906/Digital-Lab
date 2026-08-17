@@ -57,12 +57,6 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 
 ---
 
-## Screenshots
-
-*(Add application screenshots here)*
-
----
-
 ## Roadmap
 
 - [x] 系统实时监控 — v1.0.0
