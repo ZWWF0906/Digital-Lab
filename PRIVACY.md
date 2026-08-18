@@ -85,4 +85,4 @@ DigitalLab 在用户主动配置后可能连接以下第三方服务：
 如有隐私相关问题，请联系：
 
 - GitHub Issues: https://github.com/ZWWF0906/DigitalLab/issues
-- 邮箱: zwwf0906@gmail.com
+- 邮箱: ZWWF0906@outlook.com
