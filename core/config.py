@@ -39,6 +39,12 @@ def _safe_path(*parts):
     return os.path.normpath(joined)
 
 
+# 基础数据目录：统一指向 %APPDATA%\DigitalLab，确保所有环境可写
+BASE_DATA_DIR = os.path.join(
+    os.environ.get("APPDATA", os.path.expanduser("~")), "DigitalLab"
+)
+
+
 def _get_user_config_dir():
     if sys.platform == "win32":
         base = os.environ.get("APPDATA", os.path.expanduser("~"))
@@ -95,18 +101,11 @@ class Config:
     config_file: str = ""
 
     def __post_init__(self):
-        # 强制自动检测 lab_root，忽略 config.json 中的硬编码路径
-        # 确保 soft 文件夹复制到任意电脑都能正常运行
         self.lab_root = _detect_lab_root()
         self.lab_root = _safe_path(self.lab_root)
 
-        if getattr(sys, 'frozen', False):
-            # 打包模式下 config.json 写入 AppData（Program Files 不可写）
-            config_dir = _get_user_config_dir()
-            os.makedirs(config_dir, exist_ok=True)
-            self.config_file = _safe_path(config_dir, "config.json")
-        elif not self.config_file:
-            self.config_file = _safe_path(self.lab_root, "config.json")
+        # 所有数据路径统一使用 BASE_DATA_DIR（%APPDATA%\DigitalLab）
+        self.config_file = _safe_path(BASE_DATA_DIR, "config.json")
 
         sub_dirs = {
             "tools_dir": "tools",
@@ -117,12 +116,16 @@ class Config:
             "interface_dir": "interface",
         }
         for attr, name in sub_dirs.items():
-            setattr(self, attr, _safe_path(self.lab_root, name))
+            setattr(self, attr, _safe_path(BASE_DATA_DIR, name))
 
         monitor_root = _safe_path(self.logs_dir, "monitor")
         self.monitor_db_path = _safe_path(monitor_root, "monitor.db")
         self.monitor_pid_path = _safe_path(monitor_root, "daemon.pid")
         self.monitor_log_path = _safe_path(monitor_root, "daemon.log")
+
+        # 启动时自动创建目录
+        os.makedirs(BASE_DATA_DIR, exist_ok=True)
+        os.makedirs(self.logs_dir, exist_ok=True)
 
     def ensure_dirs(self):
         for d in [
@@ -201,7 +204,12 @@ class Config:
     @classmethod
     def load(cls, config_path: Optional[str] = None) -> Config:
         if config_path is None:
-            config_path = _safe_path(_detect_lab_root(), "config.json")
+            # 优先从 APPDATA 加载，不存在时回退到项目目录
+            appdata_config = _safe_path(BASE_DATA_DIR, "config.json")
+            if os.path.exists(appdata_config):
+                config_path = appdata_config
+            else:
+                config_path = _safe_path(_detect_lab_root(), "config.json")
 
         data = {}
         if os.path.exists(config_path):
