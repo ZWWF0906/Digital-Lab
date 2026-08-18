@@ -211,6 +211,12 @@ DigitalLab 采用双层配置存储，将公开设置与敏感数据分离：
 
 ---
 
+## 隐私政策
+
+本应用遵循本地优先原则，详见 [PRIVACY.md](PRIVACY.md)。
+
+---
+
 ## 许可证
 
 ISC License  2026 ZWWF0906
