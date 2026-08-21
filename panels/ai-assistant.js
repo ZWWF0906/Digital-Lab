@@ -57,6 +57,7 @@ export async function init(container, api) {
           <button class="provider-option${provider === 'openai' ? ' active' : ''}" data-provider="openai">云端 API</button>
         </div>
         <button class="ai-settings-btn" id="ai-settings-btn">设置</button>
+        <button class="ai-settings-btn" id="ai-report-btn">举报不当内容</button>
         <span style="flex:1"></span>
         <span style="font-size:0.7rem;color:var(--text-tertiary)" id="ai-status"></span>
       </div>
@@ -88,6 +89,8 @@ export async function init(container, api) {
   const statusEl = container.querySelector('#ai-status');
   const settingsBtn = container.querySelector('#ai-settings-btn');
   const contextBody = container.querySelector('#ai-context-body');
+  const reportBtn = container.querySelector('#ai-report-btn');
+  const REPORT_URL = 'https://github.com/ZWWF0906/Digital-Lab/issues/new?title=AI%20Content%20Report';
 
   // ── 系统上下文更新 ──
   function updateContext(state) {
@@ -282,6 +285,10 @@ export async function init(container, api) {
   settingsBtn.addEventListener('click', () => {
     // 切换到设置面板（通过全局事件）
     window.dispatchEvent(new CustomEvent('switch-panel', { detail: 'settings' }));
+  });
+
+  reportBtn.addEventListener('click', () => {
+    window.open(REPORT_URL, '_blank');
   });
 
   // ── API 监听 ──
