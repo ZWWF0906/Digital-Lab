@@ -20,7 +20,8 @@
       "preload.js",
       "dashboard.html",
       "styles.css",
-      "panels/**/*"
+      "panels/**/*",
+      "build/icons/**/*"
     ],
     "extraResources": [
       {
@@ -31,7 +32,7 @@
     "asar": false,
     "win": {
       "target": "nsis",
-      "icon": "icon.ico"
+      "icon": "build/icons/icon.ico"
     },
     "nsis": {
       "oneClick": false,

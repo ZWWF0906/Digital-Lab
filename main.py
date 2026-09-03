@@ -891,8 +891,12 @@ def cmd_json_mode():
 
     def _save_config_data(new_config):
         import json, os
-        from core.config import _get_user_config_path, _SENSITIVE_KEYS
+        from core.config import _get_user_config_path, _SENSITIVE_KEYS, BASE_DATA_DIR
         config_path = cfg.config_file
+        # 安全校验：确保写入路径在 APPDATA\DigitalLab 下，绝不写入安装目录（MSIX 只读）
+        _appdata_root = os.path.abspath(BASE_DATA_DIR)
+        if not os.path.abspath(config_path).startswith(_appdata_root):
+            config_path = os.path.join(BASE_DATA_DIR, "config.json")
         # 过滤掉 IPC 协议字段和路径字段（路径由运行时自动检测，不写入配置文件）
         _skip_keys = {
             "__cmd_response__", "requestId",
@@ -903,6 +907,8 @@ def cmd_json_mode():
         }
         clean = {k: v for k, v in new_config.items() if k not in _skip_keys}
         try:
+            # 确保目录存在
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
             # 非敏感字段写入 config.json
             public = {k: v for k, v in clean.items() if k not in _SENSITIVE_KEYS}
             with open(config_path, "w", encoding="utf-8") as f:
@@ -911,6 +917,9 @@ def cmd_json_mode():
             sensitive = {k: v for k, v in clean.items() if k in _SENSITIVE_KEYS}
             if sensitive:
                 user_config_path = _get_user_config_path()
+                # 安全校验：user_config_path 也必须在 APPDATA 下
+                if not os.path.abspath(user_config_path).startswith(_appdata_root):
+                    user_config_path = os.path.join(BASE_DATA_DIR, "user_config.json")
                 user_data = {}
                 if os.path.exists(user_config_path):
                     try:
@@ -975,72 +984,91 @@ def cmd_json_mode():
         ctype = cmd.get("cmd", "")
         resp = None
 
-        if ctype == "get_hardware":
-            payload = _format_state()
-            resp = {"hardware": payload.get("hardware")}
-        elif ctype == "get_processes":
-            payload = _format_state()
-            resp = {"processes": payload["monitor"].get("processes", [])}
-        elif ctype == "get_history":
-            hours = cmd.get("hours", 24)
-            resp = _get_history(hours)
-        elif ctype == "ai_message":
-            # 兼容旧接口：返回占位回复
-            text = cmd.get("text", "")
-            resp = {"type": "ai_response", "text": "AI \u529f\u80fd\u5df2\u91cd\u6784\uff0c\u8bf7\u4f7f\u7528\u65b0\u7684\u6d41\u5f0f\u5bf9\u8bdd\u63a5\u53e3"}
-        elif ctype == "ai_chat":
-            # 流式 AI 对话：在独立线程中处理，通过 stdout 推送 token
-            messages = cmd.get("messages", [])
-            provider = cmd.get("provider", "ollama")
-            req_id = cmd.get("requestId", "")
-            _handle_ai_chat(messages, provider, req_id)
-            resp = {"ok": True, "streaming": True}
-        elif ctype == "ping":
-            resp = {"pong": True}
-        elif ctype == "get_config":
-            resp = _get_config_data()
-        elif ctype == "save_config":
-            resp = _save_config_data(cmd.get("config", {}))
-        elif ctype == "test_nas_connection":
-            resp = _test_nas_connection(cmd.get("device", {}))
-        elif ctype == "reload_config":
-            # 重载配置：停止旧线程、清理残留状态、重启监控
-            import json as _json
-            try:
+        try:
+            if ctype == "get_hardware":
+                payload = _format_state()
+                resp = {"hardware": payload.get("hardware")}
+            elif ctype == "get_processes":
+                payload = _format_state()
+                resp = {"processes": payload["monitor"].get("processes", [])}
+            elif ctype == "get_history":
+                hours = cmd.get("hours", 24)
+                resp = _get_history(hours)
+            elif ctype == "ai_message":
+                # 兼容旧接口：返回占位回复
+                text = cmd.get("text", "")
+                resp = {"type": "ai_response", "text": "AI \u529f\u80fd\u5df2\u91cd\u6784\uff0c\u8bf7\u4f7f\u7528\u65b0\u7684\u6d41\u5f0f\u5bf9\u8bdd\u63a5\u53e3"}
+            elif ctype == "ai_chat":
+                # 流式 AI 对话：在独立线程中处理，通过 stdout 推送 token
+                messages = cmd.get("messages", [])
+                provider = cmd.get("provider", "ollama")
+                req_id = cmd.get("requestId", "")
+                _handle_ai_chat(messages, provider, req_id)
+                resp = {"ok": True, "streaming": True}
+            elif ctype == "ping":
+                resp = {"pong": True}
+            elif ctype == "get_config":
+                resp = _get_config_data()
+            elif ctype == "save_config":
+                resp = _save_config_data(cmd.get("config", {}))
+            elif ctype == "test_nas_connection":
+                resp = _test_nas_connection(cmd.get("device", {}))
+            elif ctype == "reload_config":
+                # 重载配置：逐步独立 try-except，单步失败不阻塞后续
+                reload_errors = []
                 # 1. 停止所有 NAS 监控线程
-                stop_nas_monitor()
+                try:
+                    stop_nas_monitor()
+                except Exception as _e:
+                    reload_errors.append("stop_nas: " + str(_e))
                 # 2. 清理已删除设备的残留状态
-                devices = _get_nas_devices()
-                device_names = {d.get("name", "") for d in devices if d.get("name")}
-                nas_state = system_state.get("nas", {})
-                for name in list(nas_state.keys()):
-                    if name not in device_names:
-                        system_state.delete("nas", name)
+                try:
+                    devices = _get_nas_devices()
+                    device_names = {d.get("name", "") for d in devices if d.get("name")}
+                    nas_state = system_state.get("nas", {})
+                    for name in list(nas_state.keys()):
+                        if name not in device_names:
+                            system_state.delete("nas", name)
+                except Exception as _e:
+                    reload_errors.append("cleanup: " + str(_e))
                 # 3. 重新加载配置
-                cfg.reload()
+                try:
+                    cfg.reload()
+                except Exception as _e:
+                    reload_errors.append("reload: " + str(_e))
                 # 4. 重启 NAS 监控
-                start_nas_monitor()
-                resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d"}
-            except Exception as _e:
-                resp = {"ok": False, "message": f"\u914d\u7f6e\u91cd\u8f7d\u5931\u8d25: {_e}"}
-        elif ctype == "get_nas_devices":
-            resp = {"devices": _get_nas_devices()}
-        elif ctype == "terminal_init":
-            resp = _handle_terminal_init()
-        elif ctype == "terminal_input":
-            _handle_terminal_input(cmd.get("session_id"), cmd.get("data", ""))
-            resp = {"ok": True}
-        elif ctype == "terminal_resize":
-            _handle_terminal_resize(cmd.get("session_id"), cmd.get("cols", 80), cmd.get("rows", 24))
-            resp = {"ok": True}
-        elif ctype == "terminal_close":
-            _handle_terminal_close(cmd.get("session_id"))
-            resp = {"ok": True}
-        elif ctype == "ssh_terminal_init":
-            resp = _handle_ssh_terminal_init(cmd.get("host", ""), cmd.get("port", 22))
-        else:
-            resp = {"error": "unknown command"}
+                try:
+                    start_nas_monitor()
+                except Exception as _e:
+                    reload_errors.append("start_nas: " + str(_e))
 
+                if reload_errors:
+                    resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d\uff08\u90e8\u5206\u9519\u8bef\uff09", "warnings": reload_errors}
+                else:
+                    resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d"}
+            elif ctype == "get_nas_devices":
+                resp = {"devices": _get_nas_devices()}
+            elif ctype == "terminal_init":
+                resp = _handle_terminal_init()
+            elif ctype == "terminal_input":
+                _handle_terminal_input(cmd.get("session_id"), cmd.get("data", ""))
+                resp = {"ok": True}
+            elif ctype == "terminal_resize":
+                _handle_terminal_resize(cmd.get("session_id"), cmd.get("cols", 80), cmd.get("rows", 24))
+                resp = {"ok": True}
+            elif ctype == "terminal_close":
+                _handle_terminal_close(cmd.get("session_id"))
+                resp = {"ok": True}
+            elif ctype == "ssh_terminal_init":
+                resp = _handle_ssh_terminal_init(cmd.get("host", ""), cmd.get("port", 22))
+            else:
+                resp = {"error": "unknown command"}
+        except Exception as _e:
+            # 顶层兜底：任何未捕获异常都返回 error 响应，绝不抛出
+            resp = {"error": "handler error: " + str(_e)}
+
+        if resp is None:
+            resp = {"error": "handler returned None"}
         resp["__cmd_response__"] = True
         if request_id:
             resp["requestId"] = request_id
@@ -1068,16 +1096,27 @@ def cmd_json_mode():
 
     def _stdin_reader():
         for line in sys.stdin:
-            line = line.strip()
-            if not line:
-                continue
             try:
-                cmd = json.loads(line)
-            except json.JSONDecodeError:
-                _safe_print(json.dumps({"error": "invalid JSON"}), flush=True)
-                continue
-            resp = _handle_command(cmd)
-            _safe_print(resp, flush=True)
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    cmd = json.loads(line)
+                except json.JSONDecodeError:
+                    _safe_print(json.dumps({"error": "invalid JSON"}), flush=True)
+                    continue
+                resp = _handle_command(cmd)
+                _safe_print(resp, flush=True)
+            except Exception as _e:
+                # 任何异常都不能杀死 stdin 读取线程，否则后续命令全部无响应
+                try:
+                    err_resp = json.dumps({
+                        "error": "command processing error: " + str(_e),
+                        "__cmd_response__": True,
+                    }, ensure_ascii=False)
+                    _safe_print(err_resp, flush=True)
+                except Exception:
+                    pass
 
     # 启动 stdin 监听线程
     stdin_thread = threading.Thread(target=_stdin_reader, daemon=True)

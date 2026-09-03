@@ -426,8 +426,17 @@ export function init(container, api) {
       const result = await api.saveConfig(config);
       if (result.ok) {
         showToast('配置已保存');
-        // 通知 Python 重载
-        api.sendCommand({ cmd: 'reload_config' }).catch(() => {});
+        // 通知 Python 重载配置（含 NAS 监控重启）
+        try {
+          const reloadResult = await api.sendCommand({ cmd: 'reload_config' });
+          if (reloadResult && reloadResult.warnings && reloadResult.warnings.length > 0) {
+            showToast('配置已保存，部分组件重载异常', true);
+            console.warn('reload_config warnings:', reloadResult.warnings);
+          }
+        } catch (reloadErr) {
+          // 重载失败不阻塞保存成功提示，但给出警告
+          console.warn('reload_config failed:', reloadErr);
+        }
       } else {
         showToast('保存失败: ' + (result.error || '未知错误'), true);
       }
