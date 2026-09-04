@@ -534,6 +534,14 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
   font-size: 0.75rem;
 }
 
+/* 表头与数据列对齐一致：名称列左对齐；CPU/内存/RSS/PID 数字列右对齐，与 .proc-num/.proc-pid 对齐方式保持一致 */
+.collapsible-body .process-panel thead th {
+  text-align: left;
+}
+.collapsible-body .process-panel thead th:nth-child(n+2) {
+  text-align: right;
+}
+
 /* ── AI Panel ── */
 .ai-placeholder {
   display: flex;

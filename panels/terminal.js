@@ -1,29 +1,14 @@
 // panels/terminal.js — NAS-exclusive SSH terminal
+// 标准 xterm.js + addon-fit 集成（参考 webssh / node-pty 成熟方案）：
+//   - term.onData 只负责将用户输入发送到后端，禁止本地回显
+//   - 终端输出完全依赖后端转发的远端 SSH stdout
+//   - 建立连接时携带真实终端尺寸（后端据此创建 PTY），之后 ResizeObserver 持续同步
+//   - 断开/切换/卸载时清理全部监听器并关闭后端会话
 import { Terminal } from '../node_modules/@xterm/xterm/lib/xterm.mjs';
 import { FitAddon } from '../node_modules/@xterm/addon-fit/lib/addon-fit.mjs';
 
 const TERM_STYLE = `
   .xterm { padding: 12px; }
-  .xterm .xterm-helper-textarea {
-    position: absolute !important;
-    width: 1px !important;
-    height: 1px !important;
-    left: 0 !important;
-    top: 0 !important;
-    overflow: hidden !important;
-    clip: rect(0,0,0,0) !important;
-    white-space: nowrap !important;
-    border: 0 !important;
-    padding: 0 !important;
-    margin: 0 !important;
-    opacity: 0.01 !important;
-    background: transparent !important;
-    color: transparent !important;
-    outline: none !important;
-    resize: none !important;
-    pointer-events: auto !important;
-    z-index: -5 !important;
-  }
   .xterm .xterm-viewport { background-color: #0c0c0c !important; }
   .xterm .composition-view { background: #0c0c0c !important; color: #cccccc !important; }
   .xterm-viewport::-webkit-scrollbar { width: 8px; }
@@ -77,13 +62,14 @@ export function init(container, api) {
 
   let term = null;
   let fitAddon = null;
-  let taObserver = null;
   let sessions = [];
   let activeSessionId = null;
-  let currentMode = null;
+  // 当前正在运行的会话运行状态：持有该会话的全部监听器句柄，切换/卸载时统一清理
+  let active = null;
   let unsubscribe = null;
   let lastOnlineNames = [];
-  let initGeneration = 0;  // 中止过期的 initTerminal 调用
+  let initGeneration = 0;  // 中止过期的建立连接调用
+  let currentMode = null;
 
   function getOnlineNasDevices(nasState) {
     if (!nasState || typeof nasState !== 'object') return [];
@@ -98,9 +84,42 @@ export function init(container, api) {
     return devices.some((n, i) => n !== lastOnlineNames[i]);
   }
 
+  // 关闭当前会话的后端连接 + 清理全部监听器和定时器
+  function teardownActive() {
+    if (active) {
+      if (active.sessionId) {
+        const s = sessions.find(x => x.id === active.id);
+        if (s) s.sessionId = null;
+        api.sendCommand({ cmd: 'terminal_close', session_id: active.sessionId }).catch(() => {});
+      }
+      if (active.onDataDisposable) {
+        try { active.onDataDisposable.dispose(); } catch (e) {}
+        active.onDataDisposable = null;
+      }
+      if (active.outputUnsub) {
+        try { active.outputUnsub(); } catch (e) {}
+        active.outputUnsub = null;
+      }
+      if (active.resizeObserver) {
+        try { active.resizeObserver.disconnect(); } catch (e) {}
+        active.resizeObserver = null;
+      }
+      if (active.resizeTimer) {
+        clearTimeout(active.resizeTimer);
+        active.resizeTimer = null;
+      }
+      active = null;
+    }
+    if (term) {
+      try { term.dispose(); } catch (e) {}
+      term = null;
+    }
+    fitAddon = null;
+  }
+
   function showPlaceholder(message) {
-    cleanupTerminal();
-    initGeneration++;  // 中止任何正在运行的 initTerminal
+    teardownActive();
+    initGeneration++;  // 中止任何正在运行的连接流程
     const desc = message || '暂无可用 NAS 设备';
     container.innerHTML = `
       <div class="terminal-placeholder">
@@ -120,13 +139,12 @@ export function init(container, api) {
   }
 
   function showTerminal(deviceNames) {
-    cleanupTerminal();
-    initGeneration++;  // 中止任何正在运行的旧 initTerminal
+    teardownActive();
+    initGeneration++;  // 中止任何正在运行的旧连接流程
 
     sessions = deviceNames.map(name => ({
       id: `nas-${name}`,
       name: name,
-      type: 'ssh',
       sessionId: null,
     }));
 
@@ -139,7 +157,7 @@ export function init(container, api) {
     if (sessions.length > 0) {
       activeSessionId = sessions[0].id;
       renderTabs();
-      initTerminal(initGeneration);
+      openSession(sessions[0]);
     }
     currentMode = 'terminal';
   }
@@ -157,55 +175,28 @@ export function init(container, api) {
     });
   }
 
-  async function switchSession(sessionId) {
+  function switchSession(sessionId) {
     if (sessionId === activeSessionId) return;
     activeSessionId = sessionId;
     renderTabs();
-    await initTerminal(initGeneration);
+    // 正确关闭上一个标签的后端会话，再建立新会话
+    teardownActive();
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) openSession(session);
   }
 
-  async function initTerminal(gen) {
+  async function openSession(session) {
+    const gen = initGeneration;
     const body = document.getElementById('term-body');
     if (!body || gen !== initGeneration) return;
 
-    const session = sessions.find(s => s.id === activeSessionId);
-    if (!session) return;
-
-    // Clean up old terminal (the one being replaced, not the current)
-    if (term) {
-      // Close the old session's SSH connection
-      const oldSessionId = session.sessionId;
-      if (oldSessionId) {
-        api.sendCommand({ cmd: 'terminal_close', session_id: oldSessionId }).catch(() => {});
-        session.sessionId = null;
-      }
-
-      if (term._onDataDisposable) {
-        try { term._onDataDisposable.dispose(); } catch (e) {}
-        term._onDataDisposable = null;
-      }
-      if (term._cleanupOutput) {
-        try { term._cleanupOutput(); } catch (e) {}
-        term._cleanupOutput = null;
-      }
-      if (term._resizeObserver) {
-        try { term._resizeObserver.disconnect(); } catch (e) {}
-        term._resizeObserver = null;
-      }
-      try { term.dispose(); } catch (e) {}
-      term = null;
-    }
-
     body.innerHTML = '';
-    await new Promise(r => requestAnimationFrame(r));
-    if (gen !== initGeneration) return;  // 被中止
 
-    term = new Terminal({
+    const t = new Terminal({
       cursorBlink: true,
       cursorStyle: 'underline',
       fontSize: 14,
       fontFamily: "'Consolas', 'Courier New', monospace",
-      allowProposedApi: true,
       theme: {
         background: '#0c0c0c',
         foreground: '#cccccc',
@@ -230,158 +221,98 @@ export function init(container, api) {
       },
     });
 
-    fitAddon = new FitAddon();
-    term.loadAddon(fitAddon);
-    term.open(body);
+    const fit = new FitAddon();
+    t.loadAddon(fit);
+    t.open(body);
+    fit.fit();
 
-    // 强制隐藏 xterm 辅助 textarea（MutationObserver 守卫，防止被 xterm.js 重置）
-    const HIDDEN_STYLE = 'position:absolute !important;width:1px !important;height:1px !important;' +
-      'left:0 !important;top:0 !important;overflow:hidden !important;' +
-      'clip:rect(0,0,0,0) !important;white-space:nowrap !important;' +
-      'border:0 !important;padding:0 !important;margin:0 !important;' +
-      'opacity:0.01 !important;background:transparent !important;' +
-      'color:transparent !important;outline:none !important;resize:none !important;' +
-      'pointer-events:auto !important;z-index:-5 !important;';
-    const applyHiddenStyle = () => {
-      const ta = body.querySelector('.xterm-helper-textarea');
-      if (ta && ta.getAttribute('style') !== HIDDEN_STYLE) {
-        ta.setAttribute('style', HIDDEN_STYLE);
-      }
+    term = t;
+    fitAddon = fit;
+
+    const act = {
+      id: session.id,
+      sessionId: null,
+      onDataDisposable: null,
+      outputUnsub: null,
+      resizeObserver: null,
+      resizeTimer: null,
     };
-    applyHiddenStyle();
-    // MutationObserver 守卫：xterm.js 运行时可能重置 style，立即恢复
-    const ta = body.querySelector('.xterm-helper-textarea');
-    if (ta) {
-      taObserver = new MutationObserver(() => applyHiddenStyle());
-      taObserver.observe(ta, { attributes: true, attributeFilter: ['style'] });
-    }
+    active = act;
 
-    fitAddon.fit();
-    // 延迟再 fit 一次，确保 flex 布局计算完成后终端填满容器
-    setTimeout(() => {
-      if (gen === initGeneration && fitAddon) {
-        try { fitAddon.fit(); } catch (e) {}
-      }
-    }, 100);
-
-    // SSH session init
-    if (!session.sessionId) {
-      try {
-        term.writeln(`\u6b63\u5728\u8fde\u63a5 ${session.name}...`);
-        const resp = await api.sendCommand({
-          cmd: 'ssh_terminal_init',
-          host: session.name,
-        });
-        if (gen !== initGeneration) {  // 被中止
-          if (resp && resp.session_id) {
-            api.sendCommand({ cmd: 'terminal_close', session_id: resp.session_id }).catch(() => {});
-          }
-          try { term.dispose(); } catch (e) {}
-          term = null;
-          return;
-        }
-        if (resp && resp.session_id) {
-          session.sessionId = resp.session_id;
-          term.writeln(`\x1b[32m\u5df2\u8fde\u63a5 ${session.name}\x1b[0m`);
-        } else if (resp && resp.error) {
-          term.writeln(`\x1b[31m[ERROR] ${resp.error}\x1b[0m`);
-          return;
-        } else {
-          term.writeln(`\x1b[31m[ERROR] \u8fde\u63a5\u5931\u8d25\uff0c\u672a\u77e5\u9519\u8bef\x1b[0m`);
-          return;
-        }
-      } catch (e) {
-        if (gen !== initGeneration) return;
-        term.writeln(`\x1b[31m[ERROR] SSH \u8fde\u63a5\u5931\u8d25: ${e.message}\x1b[0m`);
-        return;
-      }
-    }
-
-    if (gen !== initGeneration) {  // 被中止
-      try { term.dispose(); } catch (e) {}
-      term = null;
-      return;
-    }
-
-    // Terminal input
-    term._onDataDisposable = term.onData((data) => {
-      if (!session.sessionId) return;
+    // 输入：仅转发到后端，禁止本地回显
+    act.onDataDisposable = t.onData((data) => {
+      if (!act.sessionId) return;
       api.sendCommand({
         cmd: 'terminal_input',
-        session_id: session.sessionId,
+        session_id: act.sessionId,
         data: data,
       }).catch(() => {});
     });
 
-    // Terminal output
+    // 输出：完全依赖后端转发的 SSH stdout
     if (api.onTerminalData) {
-      const cleanup = api.onTerminalData((data) => {
+      act.outputUnsub = api.onTerminalData((data) => {
         if (gen !== initGeneration) return;  // 过期回调静默忽略
-        if (data.session_id === session.sessionId && term) {
-          term.write(data.data);
+        if (act.sessionId && data.session_id === act.sessionId && term === t) {
+          t.write(data.data);
         }
       });
-      term._cleanupOutput = cleanup;
     }
 
-    // Resize handler
-    const resizeObserver = new ResizeObserver(() => {
+    // 尺寸同步：防抖后 fit + 通知后端 resize_pty
+    const ro = new ResizeObserver(() => {
       if (gen !== initGeneration) return;
-      if (fitAddon) {
-        try { fitAddon.fit(); } catch (e) {}
-      }
-      if (session.sessionId && term) {
+      clearTimeout(act.resizeTimer);
+      act.resizeTimer = setTimeout(() => {
+        if (gen !== initGeneration || term !== t || !act.sessionId) return;
+        try { fit.fit(); } catch (e) {}
         api.sendCommand({
           cmd: 'terminal_resize',
-          session_id: session.sessionId,
-          cols: term.cols,
-          rows: term.rows,
+          session_id: act.sessionId,
+          cols: t.cols,
+          rows: t.rows,
         }).catch(() => {});
-      }
+      }, 80);
     });
-    resizeObserver.observe(body);
-    term._resizeObserver = resizeObserver;
+    ro.observe(body);
+    act.resizeObserver = ro;
+
+    // 建立 SSH 会话：携带真实终端尺寸，后端据此创建 PTY
+    try {
+      t.writeln(`\u6b63\u5728\u8fde\u63a5 ${session.name}...`);
+      const resp = await api.sendCommand({
+        cmd: 'ssh_terminal_init',
+        host: session.name,
+        cols: t.cols,
+        rows: t.rows,
+      });
+      if (gen !== initGeneration || active !== act) {
+        // 流程已被中止：关闭本次新建的后端会话
+        if (resp && resp.session_id) {
+          api.sendCommand({ cmd: 'terminal_close', session_id: resp.session_id }).catch(() => {});
+        }
+        return;
+      }
+      if (resp && resp.session_id) {
+        act.sessionId = resp.session_id;
+        session.sessionId = resp.session_id;
+      } else if (resp && resp.error) {
+        t.writeln(`\x1b[31m[ERROR] ${resp.error}\x1b[0m`);
+      } else {
+        t.writeln(`\x1b[31m[ERROR] \u8fde\u63a5\u5931\u8d25\uff0c\u672a\u77e5\u9519\u8bef\x1b[0m`);
+      }
+    } catch (e) {
+      if (gen !== initGeneration || active !== act) return;
+      t.writeln(`\x1b[31m[ERROR] SSH \u8fde\u63a5\u5931\u8d25: ${e.message}\x1b[0m`);
+    }
   }
 
-  function cleanupTerminal() {
-    if (taObserver) {
-      try { taObserver.disconnect(); } catch (e) {}
-      taObserver = null;
-    }
-    if (term) {
-      if (term._cleanupOutput) {
-        try { term._cleanupOutput(); } catch (e) {}
-        term._cleanupOutput = null;
-      }
-      if (term._onDataDisposable) {
-        try { term._onDataDisposable.dispose(); } catch (e) {}
-        term._onDataDisposable = null;
-      }
-      if (term._resizeObserver) {
-        try { term._resizeObserver.disconnect(); } catch (e) {}
-        term._resizeObserver = null;
-      }
-      try { term.dispose(); } catch (e) {}
-      term = null;
-    }
-    fitAddon = null;
-    sessions.forEach(s => {
-      if (s.sessionId) {
-        api.sendCommand({ cmd: 'terminal_close', session_id: s.sessionId }).catch(() => {});
-        s.sessionId = null;
-      }
-    });
-    sessions = [];
-    activeSessionId = null;
-  }
-
-  // Subscribe to state updates for reactive NAS status
+  // 订阅 NAS 状态：在线设备变化时重建终端
   unsubscribe = api.onStateUpdate((state) => {
     const nas = state.nas || {};
     const onlineDevices = getOnlineNasDevices(nas);
 
     if (onlineDevices.length === 0) {
-      // No online NAS
       const hasAnyNas = nas && Object.keys(nas).length > 0;
       const message = hasAnyNas ? 'NAS 设备当前离线' : '暂无可用 NAS 设备';
       lastOnlineNames = [];
@@ -389,7 +320,6 @@ export function init(container, api) {
         showPlaceholder(message);
       }
     } else {
-      // Has online NAS
       if (currentMode !== 'terminal' || onlineNamesChanged(onlineDevices)) {
         lastOnlineNames = [...onlineDevices];
         showTerminal(onlineDevices);
@@ -397,11 +327,13 @@ export function init(container, api) {
     }
   });
 
+  // 面板卸载时清理
   return () => {
     if (unsubscribe) {
       try { unsubscribe(); } catch (e) {}
       unsubscribe = null;
     }
-    cleanupTerminal();
+    initGeneration++;
+    teardownActive();
   };
 }

@@ -663,66 +663,27 @@ def cmd_json_mode():
         msg = json.dumps({"session_id": session_id, "data": data}, ensure_ascii=False)
         _safe_print(msg, flush=True)
 
-    def _handle_terminal_init():
-        import subprocess, uuid, locale
-        sid = str(uuid.uuid4())[:8]
-        # 获取系统编码：Windows cmd.exe 输出的是系统 ANSI 代码页（如 CP936）
-        _sys_enc = locale.getpreferredencoding() or "utf-8"
-        try:
-            if sys.platform == "win32":
-                proc = subprocess.Popen(
-                    ["cmd.exe"],
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    bufsize=0, creationflags=subprocess.CREATE_NO_WINDOW,
-                )
-            else:
-                _sys_enc = "utf-8"
-                proc = subprocess.Popen(
-                    ["/bin/bash"],
-                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    bufsize=0,
-                )
-            with _terminal_lock:
-                _terminal_sessions[sid] = {"type": "local", "proc": proc, "host": None}
-            # 启动输出读取线程：大块读取 + 系统编码解码
-            def _reader():
-                enc = _sys_enc
-                try:
-                    while True:
-                        chunk = proc.stdout.read(4096)
-                        if not chunk:
-                            break
-                        _send_terminal_output(sid, chunk.decode(enc, errors="replace"))
-                except Exception:
-                    pass
-                finally:
-                    with _terminal_lock:
-                        _terminal_sessions.pop(sid, None)
-            threading.Thread(target=_reader, daemon=True).start()
-            return {"session_id": sid}
-        except Exception as e:
-            return {"error": str(e)}
-
     def _handle_terminal_input(session_id, data):
+        """前端输入 → SSH stdin，单向转发，后端不做任何回显。"""
         with _terminal_lock:
             sess = _terminal_sessions.get(session_id)
-        if not sess:
+        if not sess or not sess.get("channel"):
             return
-        if sess.get("channel"):
-            # SSH session: write to channel
-            try:
-                sess["channel"].send(data.encode("utf-8"))
-            except Exception:
-                pass
-        elif sess.get("proc") and sess["proc"].stdin:
-            try:
-                sess["proc"].stdin.write(data.encode("utf-8"))
-                sess["proc"].stdin.flush()
-            except Exception:
-                pass
+        try:
+            sess["channel"].sendall(data.encode("utf-8"))
+        except Exception:
+            pass
 
     def _handle_terminal_resize(session_id, cols, rows):
-        pass  # Windows cmd.exe doesn't support resize easily, skip
+        """真实调用 resize_pty，保持远端 shell 与前端 xterm 格尺寸一致。"""
+        with _terminal_lock:
+            sess = _terminal_sessions.get(session_id)
+        if not sess or not sess.get("channel"):
+            return
+        try:
+            sess["channel"].resize_pty(width=int(cols or 80), height=int(rows or 24))
+        except Exception:
+            pass
 
     def _handle_terminal_close(session_id):
         with _terminal_lock:
@@ -739,15 +700,16 @@ def cmd_json_mode():
                 sess["client"].close()
             except Exception:
                 pass
-        if sess.get("proc"):
-            try:
-                sess["proc"].terminate()
-            except Exception:
-                pass
 
-    def _handle_ssh_terminal_init(host, port):
-        """host 参数实际是设备名称（name），按名称匹配配置后取 IP 连接。"""
-        import uuid, json, os
+    def _handle_ssh_terminal_init(host, port, cols, rows):
+        """host 参数实际是设备名称（name），按名称匹配配置后取 IP 连接。
+
+        标准 paramiko 会话建立（参考 webssh / paramiko-shell 成熟写法）：
+        - PTY 尺寸采用前端建立会话时提供的真实 cols/rows，不硬编码
+        - SSH stdout 原样转发到前端，不附加任何字符
+        - SSH stderr 单独排空，不混入终端输出
+        """
+        import uuid
         sid = str(uuid.uuid4())[:8]
         try:
             import paramiko
@@ -777,8 +739,18 @@ def cmd_json_mode():
                 banner_timeout=10,
                 auth_timeout=10,
             )
-            channel = client.invoke_shell(term="xterm-256color", width=120, height=40)
-            channel.settimeout(0.0)
+
+            # 会话建立即使用前端真实尺寸，消除连接后再 resize 的首屏错位窗口期
+            channel = client.invoke_shell(
+                term="xterm-256color",
+                width=int(cols or 80),
+                height=int(rows or 24),
+            )
+            channel.settimeout(None)  # 阻塞读，替代忙轮询
+            try:
+                client.get_transport().set_keepalive(30)
+            except Exception:
+                pass
 
             with _terminal_lock:
                 _terminal_sessions[sid] = {
@@ -789,43 +761,98 @@ def cmd_json_mode():
                     "channel": channel,
                 }
 
-            # 启动输出读取线程
-            def _ssh_reader():
+            def _stdout_reader():
+                """远端 SSH stdout → 前端，按块原样转发，不附加任何字符。"""
                 try:
-                    while True:
-                        if channel.closed:
-                            break
-                        try:
-                            chunk = channel.recv(4096)
-                        except Exception:
-                            import time
-                            time.sleep(0.05)
-                            continue
+                    while not channel.closed:
+                        chunk = channel.recv(65536)
                         if not chunk:
-                            if channel.exit_status_ready():
-                                break
-                            import time
-                            time.sleep(0.05)
-                            continue
+                            break
                         _send_terminal_output(sid, chunk.decode("utf-8", errors="replace"))
                 except Exception:
                     pass
                 finally:
-                    try:
-                        channel.close()
-                    except Exception:
-                        pass
-                    try:
-                        client.close()
-                    except Exception:
-                        pass
-                    with _terminal_lock:
-                        _terminal_sessions.pop(sid, None)
+                    _handle_terminal_close(sid)
 
-            threading.Thread(target=_ssh_reader, daemon=True).start()
+            def _stderr_drainer():
+                """排空远端 SSH stderr（仅丢弃），防止 stderr 缓冲积压阻塞通道。"""
+                try:
+                    while not channel.closed:
+                        if not channel.recv_stderr(4096):
+                            break
+                except Exception:
+                    pass
+
+            threading.Thread(target=_stdout_reader, daemon=True).start()
+            threading.Thread(target=_stderr_drainer, daemon=True).start()
             return {"session_id": sid}
         except Exception as e:
             return {"error": str(e)}
+
+    # ── 构建 AI 系统上下文：将实时系统状态格式化为文本，注入 AI 对话 ──
+    def _system_context() -> str:
+        from core.system_state import system_state
+
+        snap = {}
+        try:
+            s = system_state.snapshot()
+            if isinstance(s, dict):
+                snap = s
+        except Exception:
+            pass
+
+        def _num(v, default=0.0):
+            vv = v.get("value", 0) if isinstance(v, dict) else v
+            return vv if isinstance(vv, (int, float)) else default
+
+        lines = []
+        mon = snap.get("monitor", {}) or {}
+        lines.append("CPU使用率: {:.1f}%".format(_num(mon.get("cpu"))))
+        lines.append("内存使用率: {:.1f}%".format(_num(mon.get("memory"))))
+        lines.append("磁盘使用率: {:.1f}%".format(_num(mon.get("disk"))))
+
+        hw = snap.get("hardware", {}) or {}
+        cpu_m = ((hw.get("cpu") or {}).get("model") or "").strip()
+        gpu_m = ((hw.get("gpu") or {}).get("name") or "").strip()
+        mem_gb = (hw.get("memory") or {}).get("total_gb", 0)
+        hw_bits = []
+        if cpu_m:
+            hw_bits.append(cpu_m)
+        if gpu_m:
+            hw_bits.append(gpu_m)
+        if mem_gb:
+            hw_bits.append("{}GB 内存".format(int(mem_gb)))
+        if hw_bits:
+            lines.append("硬件: " + ", ".join(hw_bits))
+
+        nas = snap.get("nas", {}) or {}
+        if nas:
+            nas_bits = []
+            for name, dv in nas.items():
+                if not isinstance(dv, dict):
+                    continue
+                online = dv.get("online") is not False
+                bit = "{}（{}".format(name, "在线" if online else "离线")
+                if online:
+                    nc = dv.get("cpu") or 0
+                    nm = dv.get("memory")
+                    npct = nm.get("percent", 0) if isinstance(nm, dict) else (nm or 0)
+                    nd = dv.get("disk")
+                    dpct = nd.get("percent", 0) if isinstance(nd, dict) else (nd or 0)
+                    bit += ", CPU {:.1f}%".format(nc or 0)
+                    bit += ", 内存 {:.1f}%".format(npct or 0)
+                    bit += ", 磁盘 {:.1f}%".format(dpct or 0)
+                    temp = dv.get("temperature")
+                    if temp is not None:
+                        bit += ", 温度{:.1f}°C".format(temp)
+                nas_bits.append(bit + "）")
+            if nas_bits:
+                lines.append("NAS设备: " + "；".join(nas_bits))
+
+        header = "你是 DigitalLab 的个人 AI 助手。以下为当前系统实时状态（可据此回答设备相关问题）："
+        if not lines:
+            return "你是 DigitalLab 的个人 AI 助手。当前系统状态暂时不可用。"
+        return header + "\n" + "\n".join(lines)
 
     # ── AI 流式对话 ──
     def _handle_ai_chat(messages, provider, request_id):
@@ -840,7 +867,15 @@ def cmd_json_mode():
                 }, ensure_ascii=False)
                 _safe_print(msg, flush=True)
             try:
-                result = chat_stream(messages, provider, on_token=_push_token)
+                system_ctx = _system_context()
+                base_msgs = messages if isinstance(messages, list) else []
+                if system_ctx:
+                    # 去掉原有 role=system 的消息，统一注入实时系统上下文
+                    clean_msgs = [m for m in base_msgs if m.get("role") != "system"]
+                    chat_msgs = [{"role": "system", "content": system_ctx}] + clean_msgs
+                else:
+                    chat_msgs = base_msgs
+                result = chat_stream(chat_msgs, provider, on_token=_push_token)
                 # 发送完成信号
                 done_msg = json.dumps({
                     "type": "ai_done",
@@ -1048,8 +1083,6 @@ def cmd_json_mode():
                     resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d"}
             elif ctype == "get_nas_devices":
                 resp = {"devices": _get_nas_devices()}
-            elif ctype == "terminal_init":
-                resp = _handle_terminal_init()
             elif ctype == "terminal_input":
                 _handle_terminal_input(cmd.get("session_id"), cmd.get("data", ""))
                 resp = {"ok": True}
@@ -1060,7 +1093,10 @@ def cmd_json_mode():
                 _handle_terminal_close(cmd.get("session_id"))
                 resp = {"ok": True}
             elif ctype == "ssh_terminal_init":
-                resp = _handle_ssh_terminal_init(cmd.get("host", ""), cmd.get("port", 22))
+                resp = _handle_ssh_terminal_init(
+                    cmd.get("host", ""), cmd.get("port", 22),
+                    cmd.get("cols", 80), cmd.get("rows", 24),
+                )
             else:
                 resp = {"error": "unknown command"}
         except Exception as _e:

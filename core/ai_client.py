@@ -37,7 +37,36 @@ def _human_error(provider: str, err: Exception) -> str:
 
 
 def _load_ai_config() -> dict:
-    """从 config.json 加载 AI 配置。"""
+    """优先从 user_config.json 读取 AI 配置，缺失时回退到 config.json。
+
+    user_config.json 位于 APPDATA 环境变量指向的 DigitalLab 目录，由设置面板保存 AI 配置
+    （结构：{"ai": {"provider": ..., "ollama": {...,}, "openai": {...}}}）。
+    """
+    # ── 1. 优先 user_config.json ──
+    user_path = None
+    try:
+        from core import config as _cfg
+    except Exception:
+        _cfg = None
+    if _cfg is not None:
+        try:
+            user_path = _cfg._get_user_config_path()
+        except Exception:
+            user_path = None
+    if not user_path:
+        appdata = os.environ.get("APPDATA") or os.environ.get("ProgramData") or ""
+        user_path = os.path.join(appdata, "DigitalLab", "user_config.json")
+    if user_path and os.path.exists(user_path):
+        try:
+            with open(user_path, "r", encoding="utf-8") as f:
+                raw = json.load(f)
+            ai = raw.get("ai")
+            if isinstance(ai, dict) and ai:
+                return ai
+        except Exception:
+            pass
+
+    # ── 2. 回退 config.json ──
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
     try:
         with open(config_path, "r", encoding="utf-8") as f:

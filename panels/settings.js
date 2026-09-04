@@ -410,14 +410,73 @@ export function init(container, api) {
     const el = panelEls.about;
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
-        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.0</div>
+        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.0.1</div>
         <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">个人数字实验室</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
           <div>仪表盘 · 终端 · AI 助手 · 系统监控</div>
-          <div style="margin-top:12px">© 2026 ZWWF0906</div>
+          <div style="margin-top:12px">作者：ZWWF0906</div>
+          <div>© 2026 ZWWF0906</div>
+          <div style="margin-top:12px">DigitalLab 开源软件，遵循 MIT 许可</div>
+        </div>
+        <div style="margin-top:24px">
+          <button class="btn-primary" id="btn-feedback">问题反馈</button>
         </div>
       </div>
     `;
+    el.querySelector('#btn-feedback').addEventListener('click', showFeedbackModal);
+  }
+
+  // ── 问题反馈对话框 ──
+  function showFeedbackModal() {
+    // 移除已有模态框（复用设备模态框类，保持深色主题一致）
+    const existing = document.querySelector('.modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-content" style="max-width:420px">
+        <div class="modal-header">
+          <span class="modal-title">问题反馈与举报</span>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;text-align:center">请选择反馈方式</div>
+          <div style="color:var(--text-tertiary);font-size:0.75rem;margin-bottom:16px;text-align:center;line-height:1.6">如遇 AI 生成不当内容，请一并在此反馈<br/>我们将在收到反馈后尽快处理</div>
+          <button class="btn-primary" id="feedback-mail" style="width:100%;margin-bottom:10px">✉ 邮件反馈</button>
+          <button class="btn-secondary" id="feedback-github" style="width:100%">GitHub 反馈</button>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary modal-cancel-btn" style="width:100%">关闭</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeModal = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKeyDown);
+    };
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeModal(); };
+
+    overlay.addEventListener('click', (e) => {
+      if (e.target === overlay) closeModal();
+    });
+    document.addEventListener('keydown', onKeyDown);
+
+    overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+
+    // 邮件反馈：调起默认邮件客户端
+    overlay.querySelector('#feedback-mail').addEventListener('click', () => {
+      const subject = encodeURIComponent('DigitalLab 问题反馈');
+      window.location.href = 'mailto:ZWWF0906@outlook.com?subject=' + subject;
+    });
+
+    // GitHub 反馈：打开 Issues 创建页
+    overlay.querySelector('#feedback-github').addEventListener('click', () => {
+      window.open('https://github.com/ZWWF0906/Digital-Lab/issues/new', '_blank');
+    });
   }
 
   // ── 保存配置 ──
