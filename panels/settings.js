@@ -366,6 +366,7 @@ export function init(container, api) {
     try {
       const result = await api.getHardwareAccel();
       const hwEnabled = result && result.enabled !== false;
+      const curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
       el.innerHTML = `
         <div class="settings-group">
           <div class="settings-group-title">显示</div>
@@ -379,8 +380,23 @@ export function init(container, api) {
             </div>
           </div>
           <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">关闭后可解决虚拟机窗口不显示问题，但性能会降低。修改后需重启应用。</div>
+          <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <label>主题</label>
+            <select id="cfg-theme-select">
+              <option value="dark"${curTheme === 'dark' ? ' selected' : ''}>深色（默认）</option>
+              <option value="light"${curTheme === 'light' ? ' selected' : ''}>浅色</option>
+            </select>
+          </div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">切换后即时生效并自动保存；浅色主题下终端面板仍保持深色。</div>
         </div>
       `;
+
+      const themeSel = el.querySelector('#cfg-theme-select');
+      if (themeSel) {
+        themeSel.addEventListener('change', () => {
+          applyTheme(themeSel.value);
+        });
+      }
 
       const toggle = el.querySelector('#cfg-hw-accel');
       if (toggle) {
@@ -410,7 +426,7 @@ export function init(container, api) {
     const el = panelEls.about;
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
-        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.0.1</div>
+        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.1.1</div>
         <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">个人数字实验室</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
           <div>仪表盘 · 终端 · AI 助手 · 系统监控</div>
@@ -519,6 +535,17 @@ export function init(container, api) {
     `;
     container.appendChild(toast);
     setTimeout(() => toast.remove(), 2500);
+  }
+
+  // ── 主题切换（深色/浅色，localStorage 持久化） ──
+  function applyTheme(theme) {
+    if (theme !== 'light' && theme !== 'dark') theme = 'dark';
+    const root = document.documentElement;
+    root.classList.add('theme-switching');
+    root.setAttribute('data-theme', theme);
+    try { localStorage.setItem('digitallab-theme', theme); } catch (e) {}
+    setTimeout(() => root.classList.remove('theme-switching'), 350);
+    showToast(theme === 'light' ? '已切换至浅色主题' : '已切换至深色主题');
   }
 
   // ── 加载配置 ──

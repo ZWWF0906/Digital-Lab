@@ -28,6 +28,17 @@ def _setup_windows_console():
             sys.stdout = io.TextIOWrapper(
                 sys.stdout.buffer, encoding="utf-8", errors="replace"
             )
+ # 强制 stdin 也为 UTF-8，防止 Electron 传入的中文被错误解码
+    if hasattr(sys.stdin, "reconfigure"):
+        try:
+            sys.stdin.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+    else:
+        if sys.stdin.encoding.lower() in ("", "none", "ansi_x3.4-1968"):
+            sys.stdin = io.TextIOWrapper(
+                sys.stdin.buffer, encoding="utf-8", errors="replace"
+            )            
 
 
 def _safe_print(*args, **kwargs):

@@ -1,5 +1,11 @@
 # Changelog
 
+## v1.1.1 - 2026-09-05
+
+### Fixed
+
+- AI 中文乱码：Python stdin 强制 UTF-8，修复 Electron 传入中文的错误解码
+
 ## v1.1.0 - 2026-09-04
 
 ### Added
