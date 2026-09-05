@@ -60,6 +60,149 @@
 
   /* ── Stagger ── */
   --stagger-step: 60ms;
+
+  /* ── Derived surfaces ── */
+  --surface-grad: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  --sidebar-bg: linear-gradient(180deg, #0a0e12 0%, #0d1217 100%);
+  --track-bg: rgba(255, 255, 255, 0.05);
+  --control-bg: rgba(255, 255, 255, 0.04);
+  --control-bg-hover: rgba(255, 255, 255, 0.06);
+
+  /* ── Terminal (always dark, theme-independent) ── */
+  --terminal-bg: #0c0c0c;
+  --terminal-fg: #cccccc;
+  --terminal-fg-muted: #999999;
+  --terminal-border: #333333;
+  --terminal-track: #3a3a3a;
+  --terminal-track-hover: #555555;
+}
+
+/* ============================================================
+   Light Theme (white mode) — same design language as dark
+   ============================================================ */
+:root[data-theme="light"] {
+  /* ── 页面与表面：四档层次（页面底 > 侧边栏 > 卡片 > 悬浮面） ── */
+  --bg-primary: #f2f5f8;
+  --bg-base: #e8edf2;
+  --bg-secondary: rgba(30, 41, 59, 0.03);
+  --bg-tertiary: #e9eef4;
+  --bg-elevated: rgba(255, 255, 255, 0.98);
+  --bg-glass: rgba(255, 255, 255, 0.8);
+
+  /* ── 强调与状态（按 WCAG 3:1 校准，浅色下加深） ── */
+  --accent: #059669;
+  --accent-bright: #0369a1;
+  --accent-pink: #dc2626;
+  --accent-amber: #d97706;
+  --accent-glow: rgba(5, 150, 105, 0.16);
+  --accent-glow-soft: rgba(5, 150, 105, 0.07);
+
+  /* ── 文字三级（实色，三级均在白底与页面底上 4.5:1 以上） ── */
+  --text-primary: #1e293b;
+  --text-secondary: #475569;
+  --text-tertiary: #64748b;
+
+  /* ── 中性描边，翡翠仅用于激活与焦点 ── */
+  --border: #e2e8f0;
+  --border-hover: #cbd5e1;
+  --border-strong: rgba(5, 150, 105, 0.55);
+  --glow-hover: rgba(5, 150, 105, 0.08);
+  --hairline: #edf1f5;
+
+  /* ── 派生表面 ── */
+  --surface-grad: linear-gradient(180deg, #ffffff 0%, #fbfcfd 100%);
+  --sidebar-bg: linear-gradient(180deg, #ffffff 0%, #f7f9fb 100%);
+  --track-bg: #e4e9ef;
+  --control-bg: #dbe1e8;
+  --control-bg-hover: #cdd6df;
+
+  /* ── 氛围层：克制的冷调，避免绿雾 ── */
+  --ambient-1: radial-gradient(ellipse 80% 50% at 20% 0%, rgba(5, 150, 105, 0.04), transparent 60%);
+  --ambient-2: radial-gradient(ellipse 60% 40% at 80% 100%, rgba(3, 105, 161, 0.04), transparent 60%);
+  --ambient-glow: radial-gradient(circle at 50% -20%, rgba(5, 150, 105, 0.05), transparent 50%);
+
+  /* ── 柔和灰影体系（替代深色发光） ── */
+  --shadow-card: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-hover: 0 1px 2px rgba(15, 23, 42, 0.05), 0 6px 16px rgba(15, 23, 42, 0.1), 0 0 0 1px var(--border);
+  --shadow-glow: 0 0 0 1px var(--border-strong), 0 4px 12px rgba(5, 150, 105, 0.16);
+}
+
+/* ════════════════════════════════════════════════════════════
+   浅色组件校准：发光降级为描边与浅阴影，恢复层次反馈
+   ════════════════════════════════════════════════════════════ */
+
+/* 主按钮：浅 tint 面替代荧光渐变，去除文字辉光 */
+:root[data-theme="light"] .btn-primary {
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.09) 0%, rgba(5, 150, 105, 0.04) 100%);
+  border-color: rgba(5, 150, 105, 0.45);
+  text-shadow: none;
+}
+:root[data-theme="light"] .btn-primary:hover {
+  background: linear-gradient(180deg, rgba(5, 150, 105, 0.14) 0%, rgba(5, 150, 105, 0.07) 100%);
+  border-color: rgba(5, 150, 105, 0.65);
+  box-shadow: 0 0 0 1px rgba(5, 150, 105, 0.2), 0 4px 12px rgba(5, 150, 105, 0.14);
+}
+
+/* 开关：选中态去荧光，滑钮辉光收缩 */
+:root[data-theme="light"] .toggle-switch input:checked + .toggle-slider {
+  background: rgba(5, 150, 105, 0.12);
+  border-color: rgba(5, 150, 105, 0.5);
+  box-shadow: none;
+}
+:root[data-theme="light"] .toggle-switch input:checked + .toggle-slider::before {
+  box-shadow: 0 0 6px rgba(5, 150, 105, 0.25);
+}
+:root[data-theme="light"] .toggle-switch input:checked:hover + .toggle-slider {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.12);
+}
+
+/* 状态灯：环形 tint 替代辉光，危险态去除呼吸动画 */
+:root[data-theme="light"] .mc-status.ok { box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.16); }
+:root[data-theme="light"] .mc-status.warn { box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.18); }
+:root[data-theme="light"] .mc-status.danger { box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.16); animation: none; }
+
+/* 表格：恢复明暗可辨的斑马纹与行悬停 */
+:root[data-theme="light"] th { background: rgba(30, 41, 59, 0.035); }
+:root[data-theme="light"] td { border-bottom-color: var(--hairline); }
+:root[data-theme="light"] tr:nth-child(even) td { background: rgba(30, 41, 59, 0.02); }
+:root[data-theme="light"] tr:hover td { background: rgba(5, 150, 105, 0.05); }
+
+/* 导航激活：减弱翡翠玻璃渐变，去掉指示条辉光 */
+:root[data-theme="light"] .nav-item.active {
+  background: linear-gradient(90deg, rgba(5, 150, 105, 0.08) 0%, rgba(5, 150, 105, 0.02) 100%);
+  border-color: var(--border-strong);
+}
+:root[data-theme="light"] .nav-item.active::before { box-shadow: none; }
+:root[data-theme="light"] .collapsible-header.open { text-shadow: none; }
+:root[data-theme="light"] .collapsible-header:hover { background: rgba(30, 41, 59, 0.04); }
+
+/* 白色半透明叠层全部转为深灰 tint，恢复悬停反馈 */
+:root[data-theme="light"] .provider-option:hover { background: var(--bg-tertiary); }
+:root[data-theme="light"] .provider-option.active { background: rgba(5, 150, 105, 0.08); }
+:root[data-theme="light"] .ai-msg-thinking { background: var(--bg-secondary); }
+:root[data-theme="light"] .ai-send-btn:hover { background: rgba(5, 150, 105, 0.1); }
+:root[data-theme="light"] .ai-provider-select { background: #ffffff; }
+:root[data-theme="light"] .provider-toggle { background: #ffffff; }
+
+/* 模态框与提示：黑影改浅影，翡翠辉光移除 */
+:root[data-theme="light"] .modal-overlay { background: rgba(15, 23, 42, 0.5); }
+:root[data-theme="light"] .modal-content {
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.16), 0 0 0 1px var(--border);
+}
+:root[data-theme="light"] .nav-toast { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12); }
+
+/* 滚动条：浅色下轨道色加深，保证可见 */
+:root[data-theme="light"] .main::-webkit-scrollbar-thumb,
+:root[data-theme="light"] .ai-messages::-webkit-scrollbar-thumb,
+:root[data-theme="light"] .modal-content::-webkit-scrollbar-thumb { background: #cdd6df; }
+
+/* ── 主题切换过渡（300ms ease） ── */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: background-color 0.3s ease, color 0.3s ease,
+              border-color 0.3s ease, box-shadow 0.3s ease !important;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -108,7 +251,7 @@ body::after {
   width: 220px;
   min-width: 220px;
   height: 100vh;
-  background: linear-gradient(180deg, #0a0e12 0%, #0d1217 100%);
+  background: var(--sidebar-bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -309,7 +452,7 @@ body::after {
 
 .gauge-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 24px 20px 16px;
@@ -380,7 +523,7 @@ body::after {
 
 .hw-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 18px;
@@ -466,7 +609,7 @@ body::after {
 
 /* ── Process Table ── */
 .process-panel {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -622,7 +765,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 .metric-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 18px 20px;
@@ -750,7 +893,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 .mc-bar-wrap {
   height: 4px;
-  background: rgba(255,255,255,0.05);
+  background: var(--track-bg);
   border-radius: 2px;
   margin-bottom: 10px;
   overflow: hidden;
@@ -859,7 +1002,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 /* ── Terminal ── */
 .terminal-container {
-  background: #0c0c0c;
+  background: var(--terminal-bg);
   border: none;
   border-radius: var(--radius-md);
   overflow: hidden;
@@ -872,7 +1015,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 .terminal-container,
 .terminal-container .terminal-body,
 .terminal-container .terminal-tabs {
-  background: #0c0c0c !important;
+  background: var(--terminal-bg) !important;
   border: none !important;
   outline: none !important;
   box-shadow: none !important;
@@ -888,23 +1031,23 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 /* 滚动条 */
 .xterm-viewport::-webkit-scrollbar { width: 8px; }
-.xterm-viewport::-webkit-scrollbar-track { background: #0c0c0c; }
-.xterm-viewport::-webkit-scrollbar-thumb { background: #3a3a3a; border-radius: 0; }
-.xterm-viewport::-webkit-scrollbar-thumb:hover { background: #555; }
+.xterm-viewport::-webkit-scrollbar-track { background: var(--terminal-bg); }
+.xterm-viewport::-webkit-scrollbar-thumb { background: var(--terminal-track); border-radius: 0; }
+.xterm-viewport::-webkit-scrollbar-thumb:hover { background: var(--terminal-track-hover); }
 
 /* 标签栏 */
 .terminal-tabs {
   display: flex;
-  border-bottom: 1px solid #333;
+  border-bottom: 1px solid var(--terminal-border);
   padding: 0 8px;
-  background: #0c0c0c;
+  background: var(--terminal-bg);
   overflow-x: auto;
 }
 
 .terminal-tab {
   padding: 8px 16px;
   font-size: 0.75rem;
-  color: #999;
+  color: var(--terminal-fg-muted);
   background: transparent;
   border: none;
   cursor: pointer;
@@ -914,13 +1057,13 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
   user-select: none;
 }
 
-.terminal-tab:hover { color: var(--text-secondary); }
-.terminal-tab.active { color: #cccccc; border-bottom: 2px solid #cccccc; }
+.terminal-tab:hover { color: var(--terminal-fg); }
+.terminal-tab.active { color: var(--terminal-fg); border-bottom: 2px solid var(--terminal-fg); }
 
 .terminal-body {
   flex: 1;
   padding: 6px;
-  background: #0c0c0c;
+  background: var(--terminal-bg);
 }
 
 /* ── Terminal Placeholder ── */
@@ -1127,7 +1270,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 }
 
 .ai-msg.assistant .ai-msg-bubble {
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-bottom-left-radius: 4px;
 }
@@ -1241,7 +1384,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 .settings-group {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 20px;
@@ -1563,7 +1706,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 .toggle-slider {
   position: absolute;
   inset: 0;
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--control-bg);
   border: 1px solid var(--border);
   border-radius: 20px;
   transition: background 0.2s ease,
@@ -1588,7 +1731,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 .toggle-switch:hover .toggle-slider {
   border-color: var(--border-hover);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--control-bg-hover);
 }
 
 .toggle-switch:hover .toggle-slider::before {
@@ -1618,7 +1761,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   overflow: hidden;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.02) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   transition: border-color 0.3s var(--ease-expo);
 }
 
@@ -1762,7 +1905,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 
 .device-card {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: 18px 20px;
@@ -1830,7 +1973,7 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
 /* ── Device Detail ── */
 .device-detail {
   position: relative;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, var(--bg-secondary) 100%);
+  background: var(--surface-grad);
   border: 1px solid var(--border-hover);
   border-radius: var(--radius-md);
   padding: 20px 24px;

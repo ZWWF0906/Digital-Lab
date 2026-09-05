@@ -4,7 +4,7 @@
 
 ### Fixed
 
-- AI 中文乱码：Python stdin 强制 UTF-8，修复 Electron 传入中文的错误解码
+- Fixed Chinese-character garbling in AI chat replies
 
 ## v1.1.0 - 2026-09-04
 
@@ -12,7 +12,7 @@
 
 - Light theme (white mode) with 300ms eased transition, deep color as default
 
-- Theme switching control in Settings panel, persisted to localStorage
+- Theme switching control in Settings panel, persisted after restart
 
 - Layered light surfaces (page / sidebar / card / hover) with WCAG-calibrated colors
 

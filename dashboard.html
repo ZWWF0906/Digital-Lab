@@ -4,6 +4,15 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>DigitalLab</title>
+<script>
+  // 主题初始化：在样式渲染前应用，深色为默认
+  (function () {
+    var t = 'dark';
+    try { t = localStorage.getItem('digitallab-theme') || 'dark'; } catch (e) {}
+    if (t !== 'light') t = 'dark';
+    document.documentElement.setAttribute('data-theme', t);
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Orbitron:wght@600;700;900&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
