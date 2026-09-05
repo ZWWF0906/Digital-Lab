@@ -790,6 +790,36 @@ def cmd_json_mode():
             return {"error": str(e)}
 
     # ── 构建 AI 系统上下文：将实时系统状态格式化为文本，注入 AI 对话 ──
+
+    # 控制字符表：0x00-0x1F 与 0x7F-0x9F 一律替换为空格，杜绝 NUL/控制字符进入模型上下文
+    _CTRL_TABLE = dict.fromkeys(list(range(0x00, 0x20)) + list(range(0x7F, 0xA0)), 0x20)
+
+    def _clean_text(v, max_len=80):
+        """字段安全清洗：过滤 None、str 转换、去控制字符与代理区字符、限长。"""
+        if v is None:
+            return ""
+        s = str(v)
+        s = s.translate(_CTRL_TABLE)
+        if any(0xD800 <= ord(c) <= 0xDFFF for c in s):
+            s = s.encode("utf-8", errors="replace").decode("utf-8", errors="replace")
+        s = s.replace("\ufffd", "")
+        s = " ".join(s.split())
+        return s[:max_len] if max_len and len(s) > max_len else s
+
+    def _num(v, default=0.0):
+        """数值安全转换：dict(含 value) / int / float / 数字字符串均可，其余返回默认值。"""
+        vv = v.get("value", 0) if isinstance(v, dict) else v
+        if isinstance(vv, bool):
+            return default
+        if isinstance(vv, (int, float)):
+            return float(vv)
+        try:
+            return float(str(vv).replace("%", "").strip())
+        except Exception:
+            return default
+
+    _AI_MAX_HISTORY = 16  # 发送给模型的历史消息条数上限，防止长对话上下文膨胀或脏数据回灌
+
     def _system_context() -> str:
         from core.system_state import system_state
 
@@ -801,10 +831,6 @@ def cmd_json_mode():
         except Exception:
             pass
 
-        def _num(v, default=0.0):
-            vv = v.get("value", 0) if isinstance(v, dict) else v
-            return vv if isinstance(vv, (int, float)) else default
-
         lines = []
         mon = snap.get("monitor", {}) or {}
         lines.append("CPU使用率: {:.1f}%".format(_num(mon.get("cpu"))))
@@ -812,47 +838,59 @@ def cmd_json_mode():
         lines.append("磁盘使用率: {:.1f}%".format(_num(mon.get("disk"))))
 
         hw = snap.get("hardware", {}) or {}
-        cpu_m = ((hw.get("cpu") or {}).get("model") or "").strip()
-        gpu_m = ((hw.get("gpu") or {}).get("name") or "").strip()
-        mem_gb = (hw.get("memory") or {}).get("total_gb", 0)
+        cpu_m = _clean_text((hw.get("cpu") or {}).get("model"), 60)
+        gpu_m = _clean_text((hw.get("gpu") or {}).get("name"), 60)
+        mem_gb = _num((hw.get("memory") or {}).get("total_gb"))
         hw_bits = []
         if cpu_m:
             hw_bits.append(cpu_m)
         if gpu_m:
             hw_bits.append(gpu_m)
-        if mem_gb:
+        if mem_gb > 0:
             hw_bits.append("{}GB 内存".format(int(mem_gb)))
         if hw_bits:
             lines.append("硬件: " + ", ".join(hw_bits))
 
         nas = snap.get("nas", {}) or {}
-        if nas:
+        if isinstance(nas, dict):
             nas_bits = []
-            for name, dv in nas.items():
+            for name, dv in list(nas.items())[:4]:
                 if not isinstance(dv, dict):
                     continue
-                online = dv.get("online") is not False
-                bit = "{}（{}".format(name, "在线" if online else "离线")
+                clean_name = _clean_text(name, 40)
+                if not clean_name:
+                    continue
+                online_raw = dv.get("online")
+                online = not (online_raw is False
+                              or str(online_raw).strip().lower() in ("false", "0", "offline", "off"))
+                bit = "{}（{}".format(clean_name, "在线" if online else "离线")
                 if online:
-                    nc = dv.get("cpu") or 0
                     nm = dv.get("memory")
-                    npct = nm.get("percent", 0) if isinstance(nm, dict) else (nm or 0)
+                    npct = nm.get("percent") if isinstance(nm, dict) else nm
                     nd = dv.get("disk")
-                    dpct = nd.get("percent", 0) if isinstance(nd, dict) else (nd or 0)
-                    bit += ", CPU {:.1f}%".format(nc or 0)
-                    bit += ", 内存 {:.1f}%".format(npct or 0)
-                    bit += ", 磁盘 {:.1f}%".format(dpct or 0)
-                    temp = dv.get("temperature")
+                    dpct = nd.get("percent") if isinstance(nd, dict) else nd
+                    bit += ", CPU {:.1f}%".format(_num(dv.get("cpu")))
+                    bit += ", 内存 {:.1f}%".format(_num(npct))
+                    bit += ", 磁盘 {:.1f}%".format(_num(dpct))
+                    temp = _num(dv.get("temperature"), None)
                     if temp is not None:
                         bit += ", 温度{:.1f}°C".format(temp)
                 nas_bits.append(bit + "）")
             if nas_bits:
                 lines.append("NAS设备: " + "；".join(nas_bits))
 
-        header = "你是 DigitalLab 的个人 AI 助手。以下为当前系统实时状态（可据此回答设备相关问题）："
+        header = ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
+                  "你可以访问以下实时系统状态：")
         if not lines:
-            return "你是 DigitalLab 的个人 AI 助手。当前系统状态暂时不可用。"
-        return header + "\n" + "\n".join(lines)
+            return ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
+                    "当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
+                    "请明确告诉用户暂时无法获取系统数据，不要编造数据。")
+        body = "\n".join(lines)
+        if len(body) > 1000:
+            body = body[:1000]
+        trailer = ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用以上数据回答。\n"
+                   "如果系统状态数据不可用，明确告诉用户暂时无法获取，不要编造数据。")
+        return header + "\n" + body + trailer
 
     # ── AI 流式对话 ──
     def _handle_ai_chat(messages, provider, request_id):
@@ -869,12 +907,27 @@ def cmd_json_mode():
             try:
                 system_ctx = _system_context()
                 base_msgs = messages if isinstance(messages, list) else []
+                # 历史消息清洗：只保留合法角色；字符串内容做同样的安全清理，避免脏字符回灌模型
+                clean_msgs = []
+                for m in base_msgs:
+                    if not isinstance(m, dict):
+                        continue
+                    role = str(m.get("role", "")).strip()
+                    if role not in ("system", "user", "assistant", "tool"):
+                        continue
+                    content = m.get("content")
+                    if isinstance(content, str):
+                        content = _clean_text(content, 4000)
+                    clean_msgs.append({"role": role, "content": content})
                 if system_ctx:
-                    # 去掉原有 role=system 的消息，统一注入实时系统上下文
-                    clean_msgs = [m for m in base_msgs if m.get("role") != "system"]
+                    # 去掉遗留的 role=system 消息（统一改用实时系统上下文）
+                    clean_msgs = [m for m in clean_msgs if m.get("role") != "system"]
+                    # 仅保留最近若干条历史，防止长对话上下文膨胀或脏数据回灌
+                    if len(clean_msgs) > _AI_MAX_HISTORY:
+                        clean_msgs = clean_msgs[-_AI_MAX_HISTORY:]
                     chat_msgs = [{"role": "system", "content": system_ctx}] + clean_msgs
                 else:
-                    chat_msgs = base_msgs
+                    chat_msgs = clean_msgs
                 result = chat_stream(chat_msgs, provider, on_token=_push_token)
                 # 发送完成信号
                 done_msg = json.dumps({

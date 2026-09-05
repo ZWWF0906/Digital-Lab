@@ -96,6 +96,54 @@ def chat_stream(
         return _openai_stream(messages, ai_cfg.get("openai", {}), on_token)
 
 
+def _iter_response_lines(resp) -> Iterator[str]:
+    """以增量 UTF-8 解码器读取 HTTP 流式响应，逐行产出文本。
+
+    流式响应按 TCP 分块到达，中文等多字节字符可能恰好被块边界切断；
+    对每个块直接 decode 会破坏这类字符、产生乱码或替换符。
+    这里先按字节块读取并用增量解码器跨块还原完整文本，再按换行
+    切出完整行，供 NDJSON / SSE 协议逐行解析。
+    """
+    import codecs
+
+    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+    read_chunk = getattr(resp, "read1", None) or getattr(getattr(resp, "fp", None), "read1", None) or resp.read
+    buf = ""
+    while True:
+        chunk = read_chunk(65536)
+        if not chunk:
+            break
+        buf += decoder.decode(chunk)
+        parts = buf.split("\n")
+        buf = parts.pop()
+        for line in parts:
+            yield line
+    tail = decoder.decode(b"", final=True)
+    if tail:
+        buf += tail
+    if buf:
+        yield buf
+
+
+# ── 失控防护：防止模型陷入无限生成 ──
+_MAX_REPLY_CHARS = 4096   # 单次回复字符数上限
+_REPEAT_MIN_PERIOD = 2    # 重复片段最小周期（字符）
+_REPEAT_MAX_PERIOD = 12   # 重复片段最大周期（字符）
+_REPEAT_MAX_COUNT = 6     # 同一片段连续重复达到该次数即判定失控
+_STOP_NOTE = "\n[检测到模型重复输出，已自动停止]"
+
+
+def _should_stop(text: str) -> bool:
+    """超过总长上限或检测到周期性重复输出时返回 True，用于截断失控回复。"""
+    if len(text) >= _MAX_REPLY_CHARS:
+        return True
+    for period in range(_REPEAT_MIN_PERIOD, _REPEAT_MAX_PERIOD + 1):
+        need = period * _REPEAT_MAX_COUNT
+        if len(text) >= need and text[-need:] == text[-period:] * _REPEAT_MAX_COUNT:
+            return True
+    return False
+
+
 def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
     """Ollama 流式 API。"""
     base_url = cfg.get("base_url", "http://localhost:11434")
@@ -121,8 +169,8 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
 
         full_text = ""
         with urllib.request.urlopen(req, timeout=120) as resp:
-            for line in resp:
-                line = line.decode("utf-8", errors="replace").strip()
+            for line in _iter_response_lines(resp):
+                line = line.strip()
                 if not line:
                     continue
                 try:
@@ -137,6 +185,11 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
                         full_text += token
                         if on_token:
                             on_token(token, "content")
+                        if _should_stop(full_text):
+                            full_text += _STOP_NOTE
+                            if on_token:
+                                on_token(_STOP_NOTE, "content")
+                            break
                     if chunk.get("done"):
                         break
                 except json.JSONDecodeError:
@@ -186,8 +239,8 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
 
         full_text = ""
         with urllib.request.urlopen(req, timeout=120) as resp:
-            for line in resp:
-                line = line.decode("utf-8", errors="replace").strip()
+            for line in _iter_response_lines(resp):
+                line = line.strip()
                 if not line or not line.startswith("data: "):
                     continue
                 data_str = line[6:]
@@ -205,6 +258,11 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
                         full_text += token
                         if on_token:
                             on_token(token, "content")
+                        if _should_stop(full_text):
+                            full_text += _STOP_NOTE
+                            if on_token:
+                                on_token(_STOP_NOTE, "content")
+                            break
                 except json.JSONDecodeError:
                     continue
 
