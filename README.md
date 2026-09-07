@@ -1,6 +1,6 @@
 # DigitalLab
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
+[![Version](https://img.shields.io/badge/version-1.1.1-blue)](https://github.com/ZWWF0906/Digital-Lab)
 [![License](https://img.shields.io/badge/license-ISC-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
 [![Python](https://img.shields.io/badge/python-embedded-yellow)](https://github.com/ZWWF0906/Digital-Lab)
@@ -22,10 +22,10 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 基于 xterm.js 的 Web 终端，通过 SSH 连接到 NAS 设备，支持多会话管理，CMD 风格深色主题。
 
 ### AI 助手
-流式输出，支持 Ollama 本地模型或 OpenAI 兼容 API（如 DeepSeek）。多轮对话，Token 逐字渲染，自动注入当前系统状态作为对话上下文。
+流式输出，支持 Ollama 本地模型或 OpenAI 兼容 API（如 DeepSeek）。多轮对话，Token 逐字渲染，自动注入当前系统状态作为对话上下文，可回答 CPU / 内存 / 磁盘 / 硬件 / NAS 相关问题。已修复中文乱码，推荐使用具备良好中文能力的模型（如 qwen2.5:7b-instruct-q4_K_M）。
 
 ### 设置面板
-日志级别、监控阈值、NAS 设备管理、AI 提供商切换、硬件加速开关。
+日志级别、监控阈值、NAS 设备管理、AI 提供商切换、硬件加速开关、浅色/深色主题切换（浅色基于 Emerald 设计体系，终端保持深色）。提供统一的问题反馈与举报入口（邮件 / GitHub Issues）。
 
 ---
 
@@ -64,6 +64,8 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 - [x] NAS SSH 管理 — v1.0.0
 - [x] AI Assistant — v1.0.0
 - [x] Electron + Python 架构 — v1.0.0
+- [x] 浅色主题与主题切换 — v1.1.0
+- [x] 问题反馈与举报入口 — v1.1.0
 - [ ] Agent 自动化能力
 - [ ] 插件系统
 - [ ] 更多 NAS 平台支持
@@ -76,7 +78,7 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 
 ### 普通用户
 
-1. 从 [Releases](https://github.com/ZWWF0906/DigitalLab/releases) 下载最新 `DigitalLab Setup.exe`
+1. 从 [Releases](https://github.com/ZWWF0906/Digital-Lab/releases) 下载最新 `DigitalLab Setup.exe`
 2. 运行安装程序
 3. 启动后，在设置面板中添加 NAS 设备信息
 4. **无需安装 Python 或 Node.js**，所有依赖已内置
@@ -129,9 +131,11 @@ DigitalLab/
 ├── main.js                 # Electron 主进程
 ├── preload.js              # IPC 桥接
 ├── dashboard.html          # 主界面
-├── styles.css              # 全局样式（Emerald Dark 主题）
+├── styles.css              # 全局样式（Emerald 主题体系：深色为默认 / 浅色可选）
 ├── package.json            # Node 项目配置
 ├── requirements.txt        # Python 依赖
+├── CHANGELOG.md            # 更新日志（英文）
+├── CHANGELOG.zh-CN.md      # 更新日志（中文）
 ├── config.json             # 公开配置
 ├── config.schema.json      # 配置校验规则
 ├── core/                   # Python 后端模块
@@ -213,7 +217,7 @@ DigitalLab 采用双层配置存储，将公开设置与敏感数据分离：
 
 ## 隐私政策
 
-本应用遵循本地优先原则，详见 [PRIVACY.md](PRIVACY.md)。
+本应用遵循本地优先原则，详见 [PRIVACY.md](https://github.com/ZWWF0906/Digital-Lab/blob/main/PRIVACY.md)。
 
 ---
 
