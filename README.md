@@ -1,10 +1,10 @@
 # DigitalLab
 
-[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/ZWWF0906/DigitalLab)
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
 [![License](https://img.shields.io/badge/license-ISC-green)](LICENSE)
-[![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/DigitalLab)
-[![Python](https://img.shields.io/badge/python-embedded-yellow)](https://github.com/ZWWF0906/DigitalLab)
-[![Electron](https://img.shields.io/badge/electron-43-9cf)](https://github.com/ZWWF0906/DigitalLab)
+[![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
+[![Python](https://img.shields.io/badge/python-embedded-yellow)](https://github.com/ZWWF0906/Digital-Lab)
+[![Electron](https://img.shields.io/badge/electron-43-9cf)](https://github.com/ZWWF0906/Digital-Lab)
 
 个人数字实验室平台 — 面向个人设备管理、数据感知与 AI 扩展的桌面应用。本地优先、模块化、可扩展，将你的个人电脑转变为一个可编程、可感知、可对话的数字工作空间。
 
