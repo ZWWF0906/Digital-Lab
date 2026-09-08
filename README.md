@@ -1,10 +1,20 @@
 # DigitalLab
 
+<div align="center">
+
 [![Version](https://img.shields.io/badge/version-1.1.1-blue)](https://github.com/ZWWF0906/Digital-Lab)
-[![License](https://img.shields.io/badge/license-ISC-green)](LICENSE)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
-[![Python](https://img.shields.io/badge/python-embedded-yellow)](https://github.com/ZWWF0906/Digital-Lab)
-[![Electron](https://img.shields.io/badge/electron-43-9cf)](https://github.com/ZWWF0906/Digital-Lab)
+[![Local-First](https://img.shields.io/badge/local--first-important)](https://github.com/ZWWF0906/Digital-Lab)
+[![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20API-9cf)](https://github.com/ZWWF0906/Digital-Lab)
+[![NAS](https://img.shields.io/badge/NAS-SSH%20monitor-orange)](https://github.com/ZWWF0906/Digital-Lab)
+
+</div>
+
+<div align="center">
+  <a href="https://apps.microsoft.com/detail/9n0rtlx1bcp5?referrer=appbadge&mode=full" target="_self">
+    <img src="https://get.microsoft.com/images/zh-cn%20light.svg" width="200"/>
+  </a>
+</div>
 
 个人数字实验室平台 — 面向个人设备管理、数据感知与 AI 扩展的桌面应用。本地优先、模块化、可扩展，将你的个人电脑转变为一个可编程、可感知、可对话的数字工作空间。
 
