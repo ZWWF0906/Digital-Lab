@@ -468,7 +468,11 @@ export function init(container, api) {
 
   // ── AI 记忆：列表渲染与单条删除 ──
   async function refreshMemoryList() {
-    const box = panelEls.ai.querySelector('#ai-memory-list');
+    // 配置未加载完成时先补载：加载完成会触发面板重渲染，必须在重渲染之后再取容器
+    if (!config || !config.ai) {
+      try { await loadConfig(); } catch (e) { /* 忽略，继续按当前 DOM 渲染 */ }
+    }
+    let box = panelEls.ai.querySelector('#ai-memory-list');
     if (!box) return;
     box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">读取中...</div>';
     let data = null;
@@ -477,6 +481,9 @@ export function init(container, api) {
     } catch (e) {
       data = null;
     }
+    // 取数据期间面板可能再次重渲染，重新取一次容器再写入，避免写进已脱离 DOM 的节点
+    box = panelEls.ai.querySelector('#ai-memory-list');
+    if (!box) return;
     if (!data || data.error) {
       box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">记忆读取失败</div>';
       return;
