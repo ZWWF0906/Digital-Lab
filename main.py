@@ -360,40 +360,6 @@ def cmd_launcher(args=None):
     _pause()
 
 
-def cmd_dashboard(args=None):
-    from core.dashboard_server import start_dashboard, HAS_FLASK
-    from core.config import get_config
-
-    if not HAS_FLASK:
-        _safe_print("[ERROR] 需要 flask 库，请运行: pip install flask")
-        return
-
-    cfg = get_config()
-    host = cfg.dashboard_host
-    port = getattr(args, "port", None)
-    if port is None:
-        port = cfg.dashboard_port
-
-    bg = getattr(args, "background", False)
-    result = start_dashboard(host, port, daemon_thread=not bg)
-    _safe_print(result)
-
-    if getattr(args, "background", False):
-        return
-    _safe_print("按 Ctrl+C 停止服务器")
-    _safe_print("")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        _safe_print("")
-        _safe_print("服务器已停止。")
-
-
-def cmd_todo(cmd_name):
-    _safe_print("")
-    _safe_print("[TODO] 命令 '{}' 尚未实现，将在后续版本中完成。".format(cmd_name))
-
 
 def cmd_snapshot(args=None):
     from core.snapshot import create_snapshot, list_snapshots, compare_snapshots
@@ -503,47 +469,6 @@ def cmd_snapshot(args=None):
         _safe_print("  CPU  {:.1f}%  |  内存 {:.1f}%  |  磁盘 {:.1f}%".format(
             perf["cpu"]["current"], perf["memory"]["current"], perf["disk"]["current"]))
         _safe_print("  数据点: {}".format(perf["cpu"].get("data_points", 0)))
-
-
-def cmd_restart(args=None):
-    import subprocess
-
-    lab_root = os.path.dirname(os.path.abspath(sys.executable if getattr(sys, 'frozen', False) else __file__))
-    ps_script = (
-        "Start-Sleep -s 3; "
-        "taskkill /f /im python.exe 2>$null; "
-        "Start-Sleep -s 1; "
-        "Write-Host '\u6e05\u7406 Python \u7f13\u5b58...'; "
-        "Get-ChildItem -Path '{}' -Recurse -Directory -Filter '__pycache__' | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue; "
-        "Get-ChildItem -Path '{}' -Recurse -Filter '*.pyc' | Remove-Item -Force -ErrorAction SilentlyContinue; "
-        "Write-Host '\u7f13\u5b58\u5df2\u6e05\u7406'; "
-        "Start-Sleep -s 1; "
-        "cd '{}'; "
-        "python main.py dashboard --port 8080 --background; "
-        "Start-Sleep -s 1; "
-        "python main.py monitor --daemon -n 60; "
-        "Write-Host ''; Write-Host '=== DigitalLab \u91cd\u542f\u5b8c\u6210 ==='; "
-        "Write-Host '\u4eea\u8868\u76d8: http://127.0.0.1:8080'; "
-        "Write-Host '\u5b88\u62a4\u8fdb\u7a0b: \u6bcf60\u79d2\u91c7\u96c6'; "
-        "Start-Sleep -s 5"
-    ).format(lab_root, lab_root, lab_root)
-
-    _safe_print("\u6b63\u5728\u91cd\u542f DigitalLab \u6240\u6709\u7ec4\u4ef6...")
-    _safe_print("  1) \u6740\u6b7b\u65e7\u8fdb\u7a0b")
-    _safe_print("  2) \u6e05\u7406 Python \u7f13\u5b58 (__pycache__ / .pyc)")
-    _safe_print("  3) \u542f\u52a8 Web \u4eea\u8868\u76d8")
-    _safe_print("  4) \u542f\u52a8\u540e\u53f0\u5b88\u62a4")
-    _safe_print("")
-
-    subprocess.Popen(
-        ["powershell", "-NoProfile", "-Command", ps_script],
-        creationflags=subprocess.CREATE_NEW_CONSOLE if sys.platform == "win32" else 0,
-    )
-
-    _safe_print("\u91cd\u542f\u547d\u4ee4\u5df2\u53d1\u51fa\uff0c\u5f53\u524d\u4f1a\u8bdd\u5373\u5c06\u9000\u51fa\u3002")
-    _safe_print("\u65b0\u7a97\u53e3\u4e2d\u5c06\u81ea\u52a8\u91cd\u542f\u4eea\u8868\u76d8\u548c\u5b88\u62a4\u8fdb\u7a0b\u3002")
-    _safe_print("")
-    sys.exit(0)
 
 
 def cmd_json_mode():
@@ -1237,12 +1162,6 @@ def cmd_json_mode():
             time.sleep(1)
 
 
-def cmd_gui(args=None):
-    from core.desktop import launch_desktop
-    _safe_print("正在启动 DigitalLab Desktop...")
-    launch_desktop()
-
-
 def cmd_system_state(args=None):
     from core.system_state import system_state
     from core.renderer import (
@@ -1360,12 +1279,6 @@ def _state_repl():
             from core.renderer import render_cli_status
             _safe_print(render_cli_status(system_state.snapshot()))
 
-        elif choice == "dashboard":
-            cmd_dashboard()
-
-        elif choice == "desktop":
-            cmd_gui()
-
         elif choice == "report":
             cmd_report()
 
@@ -1374,9 +1287,6 @@ def _state_repl():
 
         elif choice == "hardware refresh":
             cmd_hardware_refresh()
-
-        elif choice == "restart":
-            cmd_restart()
 
         elif choice in ("?", "help", "h"):
             _safe_print("=== 可用命令 ===")
@@ -1390,138 +1300,13 @@ def _state_repl():
             _safe_print("  init              初始化目录结构")
             _safe_print("  status            系统状态")
             _safe_print("  config            刷新配置文件")
-            _safe_print("  dashboard         启动 Web 仪表盘")
-            _safe_print("  desktop           启动桌面控制台")
             _safe_print("  report            生成分析报告")
-            _safe_print("  restart           一键重启所有组件")
             _safe_print("  q / quit          退出")
 
         else:
             _safe_print("[!] 未知命令: {}。输入 help 查看可用命令。".format(choice))
 
         _safe_print("")
-
-    _safe_print("")
-    _safe_print("感谢使用 DigitalLab，再见！")
-    _safe_print("")
-
-
-_MENU_ITEMS = [
-    ("基础操作", [
-        ("1",  "初始化系统",           cmd_init,            "创建目录结构 + 生成配置文件"),
-        ("2",  "查看系统状态",         cmd_status,          "显示系统信息、目录状态、运行设置"),
-        ("3",  "生成配置文件",         cmd_config,          "刷新 config.json 默认配置"),
-    ]),
-    ("系统监控", [
-        ("4",  "系统监控报告",         cmd_monitor,         "CPU/内存/磁盘/网络/进程一览"),
-        ("5",  "实时监控面板",         "monitor_live",      "动态刷新监控面板 (Ctrl+C 退出)"),
-        ("6",  "告警测试",            "monitor_alert",     "强制触发告警，验证通知渠道"),
-        ("7",  "启动后台守护",         "monitor_daemon",    "后台每60秒自动采集数据"),
-        ("8",  "守护进程状态",         "monitor_dstatus",   "查看 PID / 运行时长 / 采集次数"),
-        ("9",  "停止守护进程",         "monitor_stop",      "停止后台采集守护进程"),
-        ("10", "历史对比 (24h)",       "monitor_cmp24h",    "当前值 vs 24小时前均值"),
-        ("11", "历史对比 (7d)",        "monitor_cmp7d",     "当前值 vs 7天前均值"),
-    ]),
-    ("其他工具", [
-        ("12", "文件自动整理",         "organize",          "[待开发] 自动归类整理文件"),
-        ("13", "快捷启动面板",         cmd_launcher,        "快速启动常用程序"),
-        ("14", "快照管理",             cmd_snapshot,        "创建/对比系统快照"),
-    ]),
-    ("数据实验", [
-        ("15", "实验数据管理",         "experiment",        "[待开发] 管理实验数据记录"),
-        ("16", "运行数据分析",         "analyze",           "[待开发] 数据可视化分析"),
-        ("17", "生成分析报告",         cmd_report,          "可视化报告 (7d/24h) + HTML"),
-    ]),
-    ("AI 交互", [
-        ("18", "AI 助手",              "ai",                "[待开发] 轻量 AI 交互界面"),
-        ("19", "Web 仪表盘",           cmd_dashboard,        "浏览器 Web 控制面板"),
-        ("20", "桌面控制台",           cmd_gui,              "桌面 WebView 控制台 (推荐)"),
-    ]),
-    ("开发工具", [
-        ("21", "重启项目",             cmd_restart,          "一键杀进程 + 重启仪表盘/守护"),
-    ]),
-]
-
-_EXIT_OPTIONS = {"0", "q", "quit", "exit"}
-
-_MONITOR_SUB_COMMANDS = {
-    "monitor_alert":    types.SimpleNamespace(alert_test=True),
-    "monitor_daemon":   types.SimpleNamespace(daemon=True),
-    "monitor_stop":     types.SimpleNamespace(stop=True),
-    "monitor_dstatus":  types.SimpleNamespace(daemon_status=True),
-    "monitor_cmp24h":   types.SimpleNamespace(compare="24h"),
-    "monitor_cmp7d":    types.SimpleNamespace(compare="7d"),
-    "monitor_live":     types.SimpleNamespace(live=True, interval=2.0),
-}
-
-_MENU_ITEM_COUNT = sum(len(items) for _, items in _MENU_ITEMS)
-
-
-def _print_menu():
-    _cli_header()
-    for section, items in _MENU_ITEMS:
-        _safe_print("")
-        _safe_print("--- {} ---".format(section))
-        for num, name, _fn, desc in items:
-            _safe_print("  [{:2s}]  {:16s}  {}".format(num, name, desc))
-    _safe_print("")
-    _safe_print("  [0 ]  退出")
-    _safe_print("=" * 56)
-
-
-def _handle_menu_choice(choice):
-    if choice in _EXIT_OPTIONS:
-        return False
-
-    for _section, items in _MENU_ITEMS:
-        for num, name, fn, _desc in items:
-            if choice == num:
-                _safe_print("")
-                _safe_print(">>> 执行: {} <<<".format(name))
-                _safe_print("")
-
-                if callable(fn):
-                    try:
-                        fn()
-                    except KeyboardInterrupt:
-                        _safe_print("")
-                        _safe_print("操作已取消。")
-                    except Exception as e:
-                        _safe_print("")
-                        _safe_print("[ERROR] {}".format(e))
-                elif fn in _MONITOR_SUB_COMMANDS:
-                    try:
-                        cmd_monitor(_MONITOR_SUB_COMMANDS[fn])
-                    except KeyboardInterrupt:
-                        _safe_print("")
-                        _safe_print("操作已取消。")
-                    except Exception as e:
-                        _safe_print("")
-                        _safe_print("[ERROR] {}".format(e))
-                else:
-                    cmd_todo(fn)
-
-                _safe_print("")
-                _pause()
-                return True
-
-    _safe_print("")
-    _safe_print("[!] 无效的选项，请输入 0-{} 之间的数字。".format(_MENU_ITEM_COUNT))
-    _safe_print("")
-    _pause()
-    return True
-
-
-def _interactive_loop():
-    while True:
-        _print_menu()
-        choice = _safe_input("请输入序号 > ")
-        if not _handle_menu_choice(choice):
-            break
-        if sys.platform == "win32":
-            os.system("cls")
-        else:
-            sys.stdout.write("\033[2J\033[H")
 
     _safe_print("")
     _safe_print("感谢使用 DigitalLab，再见！")
@@ -1543,8 +1328,6 @@ def _cli_mode():
     subparsers.add_parser("init", help="初始化目录结构")
     subparsers.add_parser("status", help="显示系统状态")
     subparsers.add_parser("config", help="生成默认配置文件")
-
-    subparsers.add_parser("organize", help="运行文件自动整理")
 
     # state / system 查询
     p_state = subparsers.add_parser("state", help="查看 system_state（全局状态中心）")
@@ -1573,15 +1356,10 @@ def _cli_mode():
     p_launch.add_argument("--path", type=str, default=None, metavar="PATH", help="程序路径 (配合 --add)")
     p_launch.add_argument("--remove", type=str, default=None, metavar="NAME", help="删除快捷方式")
 
-    subparsers.add_parser("experiment", help="管理实验数据")
-    subparsers.add_parser("analyze", help="运行数据分析")
     p_report = subparsers.add_parser("report", help="生成分析报告")
     p_report.add_argument("--source", default="monitor", choices=["monitor"], help="数据源")
     p_report.add_argument("--days", type=int, default=None, help="读取最近 N 天数据")
     p_report.add_argument("--hours", type=int, default=None, help="读取最近 N 小时数据")
-
-    subparsers.add_parser("ai", help="启动 AI 交互界面")
-    subparsers.add_parser("gui", help="启动桌面控制台")
 
     # snapshot with subcommands
     p_snap = subparsers.add_parser("snapshot", help="系统快照管理")
@@ -1597,10 +1375,6 @@ def _cli_mode():
     p_snap_create = snap_subs.add_parser("create", help="创建新快照")
     p_snap_create.add_argument("--note", "-n", default="", help="备注说明")
 
-    p_dash = subparsers.add_parser("dashboard", help="启动 Web 仪表盘")
-    p_dash.add_argument("--port", "-p", type=int, default=None, help="监听端口, 默认8080")
-    p_dash.add_argument("--background", action="store_true", help="后台模式(不阻塞终端)")
-
     args = parser.parse_args()
 
     if args.json_mode:
@@ -1613,12 +1387,9 @@ def _cli_mode():
         "config": cmd_config,
         "monitor": cmd_monitor,
         "report": cmd_report,
-        "dashboard": cmd_dashboard,
         "launcher": cmd_launcher,
-        "gui": cmd_gui,
         "snapshot": cmd_snapshot,
         "state": cmd_system_state,
-        "system": cmd_system_state,
         "hardware": lambda a: (
             cmd_hardware_refresh(a) if getattr(a, "subcommand", None) == "refresh"
             else cmd_system_state(types.SimpleNamespace(subcommand="hardware"))
@@ -1627,8 +1398,6 @@ def _cli_mode():
 
     if args.command in _CLI_COMMANDS:
         _CLI_COMMANDS[args.command](args)
-    elif args.command:
-        cmd_todo(args.command)
     else:
         parser.print_help()
 
