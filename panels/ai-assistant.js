@@ -343,7 +343,8 @@ export async function init(container, api) {
       addMessage('assistant', text);
     } else if (streamingMsg && streamingMsg.contentBubble) {
       // 正常回复：用后端剥离标记后的文本覆盖流式显示与前端历史，避免 [记忆] 标记残留
-      streamingMsg.contentBubble.textContent = text;
+      // 正文为空（例如模型只输出了记忆标记）时给占位，避免气泡空着；历史仍保存真实文本
+      streamingMsg.contentBubble.textContent = (text && text.trim()) ? text : '（本次无正文输出）';
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') lastMsg.content = text;
     }

@@ -457,6 +457,12 @@ ipcMain.handle('set-hardware-accel', function(_event, enabled) {
 //  应用启动
 // ============================================================
 
+// ── 应用名：系统对话框/提示显示为 DigitalLab，而不是包名 digital-lab ──
+// 注意：userData 路径会随应用名变化，这里先冻结原路径，避免升级后配置与日志目录迁移
+const ORIGINAL_USER_DATA = app.getPath('userData');
+app.setName('DigitalLab');
+try { app.setPath('userData', ORIGINAL_USER_DATA); } catch (e) {}
+
 // 第二个实例启动时，聚焦已有窗口
 app.on('second-instance', function() {
   if (mainWindow) {

@@ -336,16 +336,22 @@ export function init(container, api) {
     `;
 
     el.querySelector('#btn-save-ai')?.addEventListener('click', async () => {
+      // 配置尚未加载完成时先补载，避免用空输入覆盖后端已有配置
+      if (!config || !config.ai) { await loadConfig(); }
       if (!config.ai) config.ai = {};
+      const pickAi = (sel) => (el.querySelector(sel)?.value || '').trim();
+      const prevOllama = config.ai.ollama || {};
+      const prevOpenai = config.ai.openai || {};
       config.ai.provider = el.querySelector('#ai-provider-sel')?.value || 'ollama';
+      // 输入框为空时保留原值，不覆盖
       config.ai.ollama = {
-        base_url: el.querySelector('#ai-ollama-url')?.value || '',
-        model: el.querySelector('#ai-ollama-model')?.value || '',
+        base_url: pickAi('#ai-ollama-url') || prevOllama.base_url || '',
+        model: pickAi('#ai-ollama-model') || prevOllama.model || '',
       };
       config.ai.openai = {
-        api_key: el.querySelector('#ai-openai-key')?.value || '',
-        base_url: el.querySelector('#ai-openai-url')?.value || '',
-        model: el.querySelector('#ai-openai-model')?.value || '',
+        api_key: pickAi('#ai-openai-key') || prevOpenai.api_key || '',
+        base_url: pickAi('#ai-openai-url') || prevOpenai.base_url || '',
+        model: pickAi('#ai-openai-model') || prevOpenai.model || '',
       };
       // AI 记忆：开关与目录随 AI 配置一起写回（目录变化时后端会自动迁移旧文件）
       if (!config.ai.memory) config.ai.memory = {};
@@ -358,17 +364,7 @@ export function init(container, api) {
     // 记忆：目录选择 / 查看列表 / 清空
     el.querySelector('#btn-ai-memory-dir')?.addEventListener('click', showMemoryDirModal);
     el.querySelector('#btn-ai-memory-list')?.addEventListener('click', refreshMemoryList);
-    el.querySelector('#btn-ai-memory-clear')?.addEventListener('click', async () => {
-      if (!window.confirm('确定清空全部 AI 记忆？此操作不可撤销。')) return;
-      try {
-        const res = await api.sendCommand({ cmd: 'clear_ai_memory' });
-        const ok = !!(res && res.ok);
-        showToast(ok ? '记忆已清空' : '清空失败', !ok);
-      } catch (e) {
-        showToast('清空失败: ' + e.message, true);
-      }
-      refreshMemoryList();
-    });
+    el.querySelector('#btn-ai-memory-clear')?.addEventListener('click', showClearMemoryModal);
   }
 
   // ── AI 记忆：目录选择对话框（无原生目录选择 API，改为手动输入绝对路径） ──
@@ -418,6 +414,55 @@ export function init(container, api) {
       if (input) input.value = value;
       closeModal();
       showToast('目录已更新，保存后生效');
+    });
+  }
+
+  // ── AI 记忆：清空确认对话框（深色模态框，替代 window.confirm） ──
+  function showClearMemoryModal() {
+    const existing = document.querySelector('.modal-overlay');
+    if (existing) existing.remove();
+
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-content" style="max-width:420px">
+        <div class="modal-header">
+          <span class="modal-title">DigitalLab</span>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div style="color:var(--text-secondary);font-size:0.9rem;text-align:center;line-height:1.7">
+            确定清空全部 AI 记忆？<br/>
+            <span style="color:var(--text-tertiary);font-size:0.75rem">此操作不可撤销</span>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary modal-cancel-btn">取消</button>
+          <button class="btn-primary modal-confirm-btn">确定</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeModal = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKeyDown);
+    };
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeModal(); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', onKeyDown);
+    overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-confirm-btn').addEventListener('click', async () => {
+      closeModal();
+      try {
+        const res = await api.sendCommand({ cmd: 'clear_ai_memory' });
+        const ok = !!(res && res.ok);
+        showToast(ok ? '记忆已清空' : '清空失败', !ok);
+      } catch (e) {
+        showToast('清空失败: ' + e.message, true);
+      }
+      refreshMemoryList();
     });
   }
 
