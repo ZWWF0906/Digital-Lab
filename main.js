@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -450,6 +450,26 @@ ipcMain.handle('set-hardware-accel', function(_event, enabled) {
     return { ok: true, needRestart: true };
   } catch(e) {
     return { ok: false, error: e.message };
+  }
+});
+
+// ── AI 记忆删除确认：Windows 原生警告对话框（不可逆操作，最大化注意力） ──
+ipcMain.handle('confirm-memory-delete', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  const opts = {
+    type: 'warning',
+    title: 'DigitalLab',
+    message: '警告：删除记忆操作不可逆，可能涉及重要数据，谨慎操作！',
+    buttons: ['删除', '取消'],
+    defaultId: 1,   // 默认选中“取消”，防止误按回车直接删除
+    cancelId: 1,    // 关闭对话框等同取消
+    noLink: true,
+  };
+  try {
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return { confirmed: r.response === 0 };
+  } catch (e) {
+    return { confirmed: false, error: e.message };
   }
 });
 

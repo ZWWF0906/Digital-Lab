@@ -73,6 +73,10 @@ contextBridge.exposeInMainWorld('digitalLab', {
     return ipcRenderer.invoke('save-config', config);
   },
 
+  confirmMemoryDelete() {
+    return ipcRenderer.invoke('confirm-memory-delete');
+  },
+
   quit() {
     ipcRenderer.invoke('quit-app');
   },
