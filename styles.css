@@ -685,6 +685,15 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
   text-align: right;
 }
 
+/* NAS 进程表（设备中心 #dc-detail）：列序与本机表不同（PID 首列、命令末列），
+   且该表不在 .collapsible-body 内，故按列对齐到对应数据单元格：
+   PID / CPU % / 内存 % 与 .proc-pid、.proc-num 一致右对齐；名称与命令沿用全局 th 左对齐 */
+.device-detail .process-panel:has(#dc-process-tbody) thead th:nth-child(1),
+.device-detail .process-panel:has(#dc-process-tbody) thead th:nth-child(3),
+.device-detail .process-panel:has(#dc-process-tbody) thead th:nth-child(4) {
+  text-align: right;
+}
+
 /* ── AI Panel ── */
 .ai-placeholder {
   display: flex;
