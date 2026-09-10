@@ -283,6 +283,7 @@ export function init(container, api) {
     const ai = config.ai || {};
     const ollama = ai.ollama || {};
     const openai = ai.openai || {};
+    const memory = ai.memory || {};
     const el = panelEls.ai;
     el.innerHTML = `
       <div class="settings-group">
@@ -306,6 +307,29 @@ export function init(container, api) {
         <div class="settings-row"><label>地址</label><input type="text" id="ai-openai-url" value="${escapeAttr(openai.base_url || '')}" placeholder="https://api.example.com/v1" /></div>
         <div class="settings-row"><label>模型</label><input type="text" id="ai-openai-model" value="${escapeAttr(openai.model || '')}" placeholder="gpt-4o / deepseek-chat / ..." /></div>
       </div>
+      <div class="settings-group">
+        <div class="settings-group-title">AI 记忆</div>
+        <div class="settings-row" style="justify-content:space-between">
+          <div>
+            <div style="font-size:0.85rem;color:var(--text-primary);margin-bottom:2px">启用 AI 记忆</div>
+            <div style="font-size:0.7rem;color:var(--text-tertiary)">开启后，AI 会记住你确认过的长期偏好</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ai-memory-toggle" ${memory.enabled === true ? 'checked' : ''}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>存储目录</label>
+          <input type="text" id="ai-memory-dir" value="${escapeAttr(memory.dir || '')}" placeholder="默认 %APPDATA%\\DigitalLab\\memory" readonly />
+          <button class="btn-secondary" id="btn-ai-memory-dir">选择目录</button>
+        </div>
+        <div class="settings-actions" style="margin-top:8px">
+          <button class="btn-secondary" id="btn-ai-memory-list">查看记忆</button>
+          <button class="btn-secondary" id="btn-ai-memory-clear">清空记忆</button>
+        </div>
+        <div id="ai-memory-list" style="margin-top:10px"></div>
+      </div>
       <div class="settings-actions">
         <button class="btn-primary" id="btn-save-ai">保存 AI 配置</button>
       </div>
@@ -323,8 +347,125 @@ export function init(container, api) {
         base_url: el.querySelector('#ai-openai-url')?.value || '',
         model: el.querySelector('#ai-openai-model')?.value || '',
       };
+      // AI 记忆：开关与目录随 AI 配置一起写回（目录变化时后端会自动迁移旧文件）
+      if (!config.ai.memory) config.ai.memory = {};
+      config.ai.memory.enabled = !!(el.querySelector('#ai-memory-toggle')?.checked);
+      config.ai.memory.dir = (el.querySelector('#ai-memory-dir')?.value || '').trim();
       await saveConfig();
       window.dispatchEvent(new CustomEvent('ai-config-updated', { detail: { provider: config.ai.provider } }));
+    });
+
+    // 记忆：目录选择 / 查看列表 / 清空
+    el.querySelector('#btn-ai-memory-dir')?.addEventListener('click', showMemoryDirModal);
+    el.querySelector('#btn-ai-memory-list')?.addEventListener('click', refreshMemoryList);
+    el.querySelector('#btn-ai-memory-clear')?.addEventListener('click', async () => {
+      if (!window.confirm('确定清空全部 AI 记忆？此操作不可撤销。')) return;
+      try {
+        const res = await api.sendCommand({ cmd: 'clear_ai_memory' });
+        const ok = !!(res && res.ok);
+        showToast(ok ? '记忆已清空' : '清空失败', !ok);
+      } catch (e) {
+        showToast('清空失败: ' + e.message, true);
+      }
+      refreshMemoryList();
+    });
+  }
+
+  // ── AI 记忆：目录选择对话框（无原生目录选择 API，改为手动输入绝对路径） ──
+  function showMemoryDirModal() {
+    const existing = document.querySelector('.modal-overlay');
+    if (existing) existing.remove();
+
+    const current = (config.ai && config.ai.memory && config.ai.memory.dir) || '';
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal-content" style="max-width:460px">
+        <div class="modal-header">
+          <span class="modal-title">选择记忆存储目录</span>
+          <button class="modal-close-btn">&times;</button>
+        </div>
+        <div class="modal-body">
+          <div class="settings-row">
+            <label>目录</label>
+            <input type="text" class="modal-mem-dir" value="${escapeAttr(current)}" placeholder="留空使用默认目录" />
+          </div>
+          <div style="color:var(--text-tertiary);font-size:0.72rem;line-height:1.6;margin-top:8px">
+            填写绝对路径；留空表示使用默认目录 %APPDATA%\\DigitalLab\\memory。<br/>
+            更改目录并保存后，旧记忆文件会复制到新目录，旧文件保留。
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn-secondary modal-cancel-btn">取消</button>
+          <button class="btn-primary modal-save-btn">确定</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeModal = () => {
+      overlay.remove();
+      document.removeEventListener('keydown', onKeyDown);
+    };
+    const onKeyDown = (e) => { if (e.key === 'Escape') closeModal(); };
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', onKeyDown);
+    overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-save-btn').addEventListener('click', () => {
+      const value = overlay.querySelector('.modal-mem-dir')?.value?.trim() || '';
+      const input = panelEls.ai.querySelector('#ai-memory-dir');
+      if (input) input.value = value;
+      closeModal();
+      showToast('目录已更新，保存后生效');
+    });
+  }
+
+  // ── AI 记忆：列表渲染与单条删除 ──
+  async function refreshMemoryList() {
+    const box = panelEls.ai.querySelector('#ai-memory-list');
+    if (!box) return;
+    box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">读取中...</div>';
+    let data = null;
+    try {
+      data = await api.sendCommand({ cmd: 'get_ai_memory' });
+    } catch (e) {
+      data = null;
+    }
+    if (!data || data.error) {
+      box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">记忆读取失败</div>';
+      return;
+    }
+    const items = Array.isArray(data.items) ? data.items : [];
+    if (!items.length) {
+      box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">暂无记忆</div>';
+      return;
+    }
+    box.innerHTML = items.map(it => `
+      <div class="nas-device-card" style="margin-bottom:6px">
+        <div class="nas-device-summary">
+          <div class="nas-device-info">
+            <div class="nas-device-name" style="font-weight:400">${escapeHtml(it.content || '')}</div>
+            <div class="nas-device-sub">${escapeHtml(it.ts || '')}</div>
+          </div>
+          <div class="nas-device-actions">
+            <button class="nas-action-btn nas-action-del btn-del-memory" data-index="${it.index}">删除</button>
+          </div>
+        </div>
+      </div>
+    `).join('');
+    box.querySelectorAll('.btn-del-memory').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const idx = parseInt(btn.dataset.index, 10);
+        try {
+          const res = await api.sendCommand({ cmd: 'delete_ai_memory', index: idx });
+          const ok = !!(res && res.ok);
+          showToast(ok ? '已删除该条记忆' : '删除失败', !ok);
+        } catch (e) {
+          showToast('删除失败: ' + e.message, true);
+        }
+        refreshMemoryList();
+      });
     });
   }
 

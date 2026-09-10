@@ -193,7 +193,7 @@ function startPython() {
         return;
       }
       if (data.type === 'ai_done' && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('ai-done', { text: data.text, requestId: data.requestId });
+        mainWindow.webContents.send('ai-done', { text: data.text, memory: data.memory, requestId: data.requestId });
         return;
       }
       // 兼容旧 AI 响应

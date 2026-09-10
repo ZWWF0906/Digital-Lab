@@ -47,6 +47,7 @@ export async function init(container, api) {
   let unsubState = null;
   let unsubToken = null;
   let unsubDone = null;
+  let memSnapshot = null;   // 发送前的记忆条目快照（用于“已记住”提示兜底）
 
   // ── 渲染 ──
   container.innerHTML = `
@@ -158,6 +159,8 @@ export async function init(container, api) {
 
   // ── 追加 token 到流式消息（增量 DOM，不触发重绘） ──
   function appendToken(token, kind) {
+    // 首个 token 到达即清空“思考中”状态，直接显示输出
+    if (statusEl && statusEl.textContent) statusEl.textContent = '';
     let msg = messages[messages.length - 1];
     if (!msg || msg.role !== 'assistant') {
       // 创建新的 assistant 消息
@@ -187,6 +190,43 @@ export async function init(container, api) {
       }
     }
     scrollBottom();
+  }
+
+  // ── 记忆提示（弱化样式，复用思考内容的小灰字） ──
+  function memKey(item) {
+    return ((item && item.ts) || '') + '|' + ((item && item.content) || '');
+  }
+
+  function showMemoryHints(items) {
+    if (!Array.isArray(items) || !items.length) return;
+    items.forEach(item => {
+      const tip = document.createElement('div');
+      tip.className = 'ai-msg-thinking';
+      tip.textContent = '已记住：' + item;
+      messagesEl.appendChild(tip);
+    });
+    scrollBottom();
+  }
+
+  // 优先使用 ai_done.memory（需主进程转发）；未转发时用发送前后的记忆列表差异兜底
+  async function resolveMemoryHints(data) {
+    // 主进程已转发 memory 字段时走直通路径（空数组表示本轮无新记忆，无需回查）
+    if (Array.isArray(data.memory)) {
+      console.log('[AI记忆] 直通路径：ai_done.memory 条数=' + data.memory.length);
+      showMemoryHints(data.memory);
+      return;
+    }
+    // 兼容未转发 memory 的旧主进程：用发送前后的记忆列表差异兜底
+    if (!memSnapshot) return;
+    try {
+      const after = await api.sendCommand({ cmd: 'get_ai_memory' });
+      if (!after || !after.enabled) return;
+      const fresh = (after.items || [])
+        .filter(it => !memSnapshot.has(memKey(it)))
+        .map(it => it.content);
+      console.log('[AI记忆] 兜底路径：列表差异新增=' + fresh.length);
+      showMemoryHints(fresh);
+    } catch (e) { /* 静默失败，不影响对话 */ }
   }
 
   // ── 渲染消息列表（仅用于初始状态或错误恢复） ──
@@ -221,15 +261,17 @@ export async function init(container, api) {
     inputEl.disabled = true;
     statusEl.textContent = '思考中...';
 
-    // 构建系统上下文
-    const ctx = latestState;
-    const sysMsg = `当前系统状态：CPU ${ctx.monitor?.cpu||'--'}%, 内存 ${ctx.monitor?.memory||'--'}%, 磁盘 ${ctx.monitor?.disk||'--'}%。请基于此信息回答用户问题。
-输出格式要求：不要使用 Markdown 代码块、HTML 标签、反引号、星号加粗等特殊格式字符。如需列举，用纯文本编号或缩进。代码或命令用引号包裹即可。数学公式用纯文本表达。保持简洁自然的纯文本风格。`;
+    // 系统提示（实时系统状态、输出格式约束与记忆注入）统一由 Python 侧构造，前端只发送对话历史
+    const chatMessages = messages.map(m => ({ role: m.role, content: m.content }));
 
-    const chatMessages = [
-      { role: 'system', content: sysMsg },
-      ...messages.map(m => ({ role: m.role, content: m.content })),
-    ];
+    // 记忆提示准备：仅在记忆开启时记录发送前的条目，供“已记住”提示兜底比对
+    memSnapshot = null;
+    try {
+      const snap = await api.sendCommand({ cmd: 'get_ai_memory' });
+      if (snap && snap.enabled) {
+        memSnapshot = new Set((snap.items || []).map(memKey));
+      }
+    } catch (e) { memSnapshot = null; }
 
     try {
       const result = await api.aiChat(chatMessages, provider);
@@ -299,7 +341,14 @@ export async function init(container, api) {
     const text = data.text || '';
     if (text.startsWith('[错误]')) {
       addMessage('assistant', text);
+    } else if (streamingMsg && streamingMsg.contentBubble) {
+      // 正常回复：用后端剥离标记后的文本覆盖流式显示与前端历史，避免 [记忆] 标记残留
+      streamingMsg.contentBubble.textContent = text;
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.role === 'assistant') lastMsg.content = text;
     }
+    // 记忆写入提示：主进程未转发 memory 字段时由记忆列表差异兜底
+    resolveMemoryHints(data);
     finishStream();
   });
 

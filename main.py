@@ -755,6 +755,18 @@ def cmd_json_mode():
             return default
 
     _AI_MAX_HISTORY = 16  # 发送给模型的历史消息条数上限，防止长对话上下文膨胀或脏数据回灌
+    _AI_MEMORY_LIMIT = 10  # 注入 system 提示的长期记忆条数上限
+    # 输出格式约束：原前端 system 消息会被本侧剔除，格式要求统一由 Python 侧下发
+    _AI_FORMAT_RULES = (
+        "输出格式要求：只使用纯文本，不要使用 Markdown 或 HTML，不要使用反引号与星号加粗；"
+        "如需列举，使用纯文本编号或缩进；代码或命令用引号包裹；数学公式用纯文本表达。"
+    )
+    # 记忆指令：仅在 ai.memory.enabled 开启时追加到 system 提示末尾
+    _AI_MEMORY_INSTRUCTION = (
+        "记忆标记：如果用户表达了值得长期记住的偏好或设定（如称呼、设备名、使用习惯），"
+        "在回复最后另起一行写 [记忆]xx[/记忆]，xx 换成你要记的具体信息，"
+        "例如 [记忆]用户喜欢深色主题[/记忆]。没有则不要写这个标记。"
+    )
 
     def _system_context() -> str:
         from core.system_state import system_state
@@ -817,16 +829,25 @@ def cmd_json_mode():
 
         header = ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
                   "你可以访问以下实时系统状态：")
+        # 记忆开关：仅开启时追加记忆指令（关闭时不追加）
+        try:
+            from core import ai_memory as _aim
+            _memory_on = bool(_aim.settings().get("enabled"))
+        except Exception:
+            _memory_on = False
+        suffix = "\n" + _AI_FORMAT_RULES
+        if _memory_on:
+            suffix += "\n" + _AI_MEMORY_INSTRUCTION
         if not lines:
             return ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
                     "当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
-                    "请明确告诉用户暂时无法获取系统数据，不要编造数据。")
+                    "请明确告诉用户暂时无法获取系统数据，不要编造数据。") + suffix
         body = "\n".join(lines)
         if len(body) > 1000:
             body = body[:1000]
         trailer = ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用以上数据回答。\n"
                    "如果系统状态数据不可用，明确告诉用户暂时无法获取，不要编造数据。")
-        return header + "\n" + body + trailer
+        return header + "\n" + body + trailer + suffix
 
     # ── AI 流式对话 ──
     def _handle_ai_chat(messages, provider, request_id):
@@ -855,20 +876,52 @@ def cmd_json_mode():
                     if isinstance(content, str):
                         content = _clean_text(content, 4000)
                     clean_msgs.append({"role": role, "content": content})
+                # 统一剔除前端遗留的 role=system 消息（系统提示改由 Python 侧下发）
+                clean_msgs = [m for m in clean_msgs if m.get("role") != "system"]
+                # 仅保留最近若干条历史，防止长对话上下文膨胀或脏数据回灌
+                if len(clean_msgs) > _AI_MAX_HISTORY:
+                    clean_msgs = clean_msgs[-_AI_MAX_HISTORY:]
+                prefix_msgs = []
                 if system_ctx:
-                    # 去掉遗留的 role=system 消息（统一改用实时系统上下文）
-                    clean_msgs = [m for m in clean_msgs if m.get("role") != "system"]
-                    # 仅保留最近若干条历史，防止长对话上下文膨胀或脏数据回灌
-                    if len(clean_msgs) > _AI_MAX_HISTORY:
-                        clean_msgs = clean_msgs[-_AI_MAX_HISTORY:]
-                    chat_msgs = [{"role": "system", "content": system_ctx}] + clean_msgs
-                else:
-                    chat_msgs = clean_msgs
+                    prefix_msgs.append({"role": "system", "content": system_ctx})
+                # 记忆开关开启时注入最近若干条长期记忆（独立 system 消息，不占用系统状态预算）
+                try:
+                    from core import ai_memory as _aim
+                    if _aim.settings().get("enabled"):
+                        _recent_mem = _aim.load_recent(_AI_MEMORY_LIMIT)
+                        _mem_lines = []
+                        for _item in _recent_mem:
+                            _c = _clean_text(_item.get("content", ""), 200)
+                            if _c:
+                                _mem_lines.append("- " + _c)
+                        if _mem_lines:
+                            prefix_msgs.append({
+                                "role": "system",
+                                "content": "以下是用户此前确认需要长期记住的偏好（越靠后越新）：\n" + "\n".join(_mem_lines),
+                            })
+                except Exception:
+                    pass
+                chat_msgs = prefix_msgs + clean_msgs
                 result = chat_stream(chat_msgs, provider, on_token=_push_token)
+                # 解析并剥离 [记忆]...[/记忆]：无论开关如何都剥离标记，仅在开关开启时写入
+                reply_text = result
+                memory_saved = []
+                try:
+                    from core import ai_memory as _aim
+                    _found = []
+                    if not str(result).startswith("[错误]"):
+                        reply_text, _found = _aim.extract_markers(result)
+                    if _found and _aim.settings().get("enabled"):
+                        for _item in _found:
+                            if _aim.append(_item):
+                                memory_saved.append(_item)
+                except Exception:
+                    memory_saved = []
                 # 发送完成信号
                 done_msg = json.dumps({
                     "type": "ai_done",
-                    "text": result,
+                    "text": reply_text,
+                    "memory": memory_saved,
                     "requestId": request_id,
                 }, ensure_ascii=False)
                 _safe_print(done_msg, flush=True)
@@ -876,6 +929,7 @@ def cmd_json_mode():
                 err_msg = json.dumps({
                     "type": "ai_done",
                     "text": f"[错误] {e}",
+                    "memory": [],
                     "requestId": request_id,
                 }, ensure_ascii=False)
                 _safe_print(err_msg, flush=True)
@@ -916,6 +970,18 @@ def cmd_json_mode():
     def _save_config_data(new_config):
         import json, os
         from core.config import _get_user_config_path, _SENSITIVE_KEYS, BASE_DATA_DIR
+        # 记忆目录变更时迁移旧文件（shutil.copy，不删旧文件；失败不影响保存）
+        try:
+            _new_ai = new_config.get("ai") if isinstance(new_config, dict) else None
+            _new_mem = _new_ai.get("memory") if isinstance(_new_ai, dict) else None
+            _new_dir = _new_mem.get("dir") if isinstance(_new_mem, dict) else None
+            if isinstance(_new_dir, str) and _new_dir.strip():
+                from core import ai_memory as _aim
+                _old_dir = _aim.config_dir()
+                if _old_dir and os.path.abspath(_old_dir) != os.path.abspath(_new_dir.strip()):
+                    _aim.migrate(_old_dir, _new_dir.strip())
+        except Exception:
+            pass
         config_path = cfg.config_file
         # 安全校验：确保写入路径在 APPDATA\DigitalLab 下，绝不写入安装目录（MSIX 只读）
         _appdata_root = os.path.abspath(BASE_DATA_DIR)
@@ -1029,6 +1095,29 @@ def cmd_json_mode():
                 req_id = cmd.get("requestId", "")
                 _handle_ai_chat(messages, provider, req_id)
                 resp = {"ok": True, "streaming": True}
+            elif ctype == "get_ai_memory":
+                from core import ai_memory as _aim
+                _st = _aim.settings()
+                _items = _aim.list_all()
+                resp = {
+                    "enabled": bool(_st.get("enabled")),
+                    "dir": _st.get("dir", ""),
+                    "count": len(_items),
+                    "items": [
+                        {"index": _i, "ts": _it.get("ts", ""), "content": _it.get("content", "")}
+                        for _i, _it in enumerate(_items)
+                    ],
+                }
+            elif ctype == "delete_ai_memory":
+                from core import ai_memory as _aim
+                try:
+                    _idx = int(cmd.get("index"))
+                except Exception:
+                    _idx = -1
+                resp = {"ok": _aim.delete(_idx)}
+            elif ctype == "clear_ai_memory":
+                from core import ai_memory as _aim
+                resp = {"ok": _aim.clear()}
             elif ctype == "ping":
                 resp = {"pong": True}
             elif ctype == "get_config":
