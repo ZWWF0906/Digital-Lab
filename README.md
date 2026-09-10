@@ -156,7 +156,6 @@ DigitalLab/
 │   ├── hardware_classifier.py  # 硬件型号分类
 │   ├── ai_client.py        # AI 客户端（Ollama / OpenAI）
 │   ├── nas_monitor.py      # NAS 远程监控（SSH）
-│   ├── dashboard_server.py # Flask Web Dashboard
 │   ├── logger.py           # 日志系统
 │   ├── system_state.py     # 全局状态管理
 │   ├── event_bus.py        # 事件总线
@@ -164,7 +163,6 @@ DigitalLab/
 │   ├── snapshot.py         # 性能快照存储
 │   ├── renderer.py         # CLI 渲染器
 │   ├── reporter.py         # 图表生成
-│   ├── desktop.py          # pywebview 桌面模式
 │   ├── launcher.py         # 快捷启动器
 │   └── daemon.py           # 守护进程管理
 ├── panels/                 # 前端面板
