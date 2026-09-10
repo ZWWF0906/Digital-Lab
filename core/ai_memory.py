@@ -26,7 +26,17 @@ MAX_CONTENT_LEN = 500
 MAX_PER_REPLY = 3  # 每轮回复最多提取 3 条记忆，超出部分丢弃（标记仍会从正文剥离）
 
 _MARKER_RE = re.compile(r"\[记忆\](.*?)\[/记忆\]", re.S)
+_TRAILING_PUNCT = "。．.，,！!？?；;：:、…~～"
 _TRUTHY = {"1", "true", "yes", "on"}
+
+
+def normalize(text) -> str:
+    """归一化，仅用于去重比较：去首尾空白、压缩内部连续空白、忽略尾部标点。"""
+    if not isinstance(text, str):
+        return ""
+    t = re.sub(r"\s+", " ", text).strip()
+    t = t.rstrip(_TRAILING_PUNCT).strip()
+    return t
 
 
 def _base_data_dir() -> str:
@@ -155,23 +165,42 @@ def list_all() -> list:
 
 
 def load_recent(n: int = 10) -> list:
-    """返回最近 n 条记忆，按时间从旧到新排序；n 非法或非正数返回空列表。"""
+    """返回最近 n 条记忆（按内容归一化去重，同一内容保留最新一条），按时间从旧到新排序。"""
     try:
         count = int(n)
     except Exception:
         return []
     if count <= 0:
         return []
-    return _load_raw()[-count:]
+    window = _load_raw()[-count:]
+    seen = set()
+    picked = []
+    for item in reversed(window):
+        key = normalize(item.get("content", ""))
+        if not key or key in seen:
+            continue
+        seen.add(key)
+        picked.append(item)
+    picked.reverse()
+    return picked
 
 
 def append(content) -> dict:
-    """追加一条记忆；内容为空或写入失败时返回 None。"""
+    """追加一条记忆；内容为空或写入失败时返回 None。
+
+    写入前按归一化内容与库存比对：命中已有内容则跳过不写，返回 {"duplicate": True}；
+    实际新增时返回写入的条目。
+    """
     if not isinstance(content, str):
         return None
     text = content.strip()[:MAX_CONTENT_LEN].strip()
     if not text:
         return None
+    key = normalize(text)
+    if key:
+        for item in _load_raw():
+            if normalize(item.get("content", "")) == key:
+                return {"duplicate": True}
     entry = {
         "ts": datetime.datetime.now().isoformat(timespec="seconds"),
         "content": text,

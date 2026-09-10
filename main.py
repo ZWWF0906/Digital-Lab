@@ -913,7 +913,9 @@ def cmd_json_mode():
                         reply_text, _found = _aim.extract_markers(result)
                     if _found and _aim.settings().get("enabled"):
                         for _item in _found:
-                            if _aim.append(_item):
+                            _r = _aim.append(_item)
+                            # 库存已有相同内容（归一化比较）时跳过，不写入也不提示“已记住”
+                            if _r and not _r.get("duplicate"):
                                 memory_saved.append(_item)
                 except Exception:
                     memory_saved = []
