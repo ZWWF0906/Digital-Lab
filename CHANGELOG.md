@@ -1,5 +1,24 @@
 # Changelog
 
+## v1.2.0 - 2026-09-10
+
+### Added
+
+- Local AI memory: the assistant can remember user preferences and inject them into the system prompt (toggle, storage directory, view/delete/clear in Settings)
+
+### Changed
+
+- Slimmed down the CLI command surface (removed placeholder and legacy commands)
+
+### Fixed
+
+- Application name is shown as DigitalLab in system dialogs
+- Saving AI configuration no longer overwrites stored values with empty inputs
+- Empty AI replies now show a placeholder instead of an empty bubble
+- Memory list no longer requires a second click (config-load race)
+- NAS process table header alignment
+- Memory deletion now uses a native warning dialog
+
 ## v1.1.1 - 2026-09-05
 
 ### Fixed

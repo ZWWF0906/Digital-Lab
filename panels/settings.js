@@ -598,7 +598,7 @@ export function init(container, api) {
     const el = panelEls.about;
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
-        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.1.1</div>
+        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.2.0</div>
         <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">个人数字实验室</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
           <div>仪表盘 · 终端 · AI 助手 · 系统监控</div>
