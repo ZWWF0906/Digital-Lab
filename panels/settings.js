@@ -539,6 +539,11 @@ export function init(container, api) {
       const result = await api.getHardwareAccel();
       const hwEnabled = result && result.enabled !== false;
       const curTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+      let splashOn = true;
+      try {
+        const sr = await api.getSplashAnimation();
+        splashOn = !sr || sr.enabled !== false;
+      } catch (e) { /* 读不到就按开启显示 */ }
       el.innerHTML = `
         <div class="settings-group">
           <div class="settings-group-title">显示</div>
@@ -560,6 +565,16 @@ export function init(container, api) {
             </select>
           </div>
           <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">切换后即时生效并自动保存；浅色主题下终端面板仍保持深色。</div>
+          <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <label>开屏动画</label>
+            <div class="toggle-switch-wrapper">
+              <label class="toggle-switch">
+                <input type="checkbox" id="cfg-splash-animation"${splashOn ? ' checked' : ''} />
+                <span class="toggle-slider"></span>
+              </label>
+            </div>
+          </div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">关闭后启动直接进入主界面；下次启动生效。</div>
         </div>
       `;
 
@@ -567,6 +582,25 @@ export function init(container, api) {
       if (themeSel) {
         themeSel.addEventListener('change', () => {
           applyTheme(themeSel.value);
+        });
+      }
+
+      const splashToggle = el.querySelector('#cfg-splash-animation');
+      if (splashToggle) {
+        splashToggle.addEventListener('change', async () => {
+          const newVal = splashToggle.checked;
+          try {
+            const r = await api.setSplashAnimation(newVal);
+            if (r && r.ok) {
+              showToast(newVal ? '开屏动画已开启，下次启动生效' : '开屏动画已关闭，下次启动生效');
+            } else {
+              showToast('保存失败: ' + ((r && r.error) || '未知错误'), true);
+              splashToggle.checked = !newVal;
+            }
+          } catch (e) {
+            showToast('保存失败: ' + e.message, true);
+            splashToggle.checked = !newVal;
+          }
         });
       }
 
@@ -716,6 +750,8 @@ export function init(container, api) {
     root.classList.add('theme-switching');
     root.setAttribute('data-theme', theme);
     try { localStorage.setItem('digitallab-theme', theme); } catch (e) {}
+    // 同步写进应用级配置：下次启动 main.js 读它决定窗口底色，避免浅色主题下闪黑
+    try { if (api && typeof api.setTheme === 'function') api.setTheme(theme); } catch (e) {}
     setTimeout(() => root.classList.remove('theme-switching'), 350);
     showToast(theme === 'light' ? '已切换至浅色主题' : '已切换至深色主题');
   }

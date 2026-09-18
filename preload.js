@@ -51,6 +51,14 @@ contextBridge.exposeInMainWorld('digitalLab', {
     return () => ipcRenderer.removeListener('python-status', handler);
   },
 
+  // 主进程 show() 之后发来的一次性事件：窗口已显示。
+  // 开屏动画用它当"确实已显示"的硬锚点（配合 rAF 停摆-恢复检测决定起跑时刻）。
+  onWindowShown(callback) {
+    const handler = () => callback();
+    ipcRenderer.on('window-shown', handler);
+    return () => ipcRenderer.removeListener('window-shown', handler);
+  },
+
   onTerminalData(callback) {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('terminal-data', handler);
@@ -75,6 +83,45 @@ contextBridge.exposeInMainWorld('digitalLab', {
 
   confirmMemoryDelete() {
     return ipcRenderer.invoke('confirm-memory-delete');
+  },
+
+  // 快速部署占位：功能未实现，仅弹原生提示框
+  confirmQuickDeploy() {
+    return ipcRenderer.invoke('quick-deploy-soon');
+  },
+
+  // 开屏动画开关（应用级配置，userData 下的 config.json）
+  getSplashAnimation() {
+    return ipcRenderer.invoke('get-splash-animation');
+  },
+
+  setSplashAnimation(enabled) {
+    return ipcRenderer.invoke('set-splash-animation', enabled);
+  },
+
+  // 启动期同步读取：开屏脚本在页面解析阶段就要决定是否渲染，异步 invoke 来不及
+  getSplashAnimationSync() {
+    try {
+      return ipcRenderer.sendSync('get-splash-animation-sync') !== false;
+    } catch (e) {
+      return true;   // 读不到就按"播放"处理，保持原行为
+    }
+  },
+
+  // 主题持久化：供下次启动设置窗口底色，避免浅色主题下闪黑
+  setTheme(theme) {
+    return ipcRenderer.invoke('set-theme', theme);
+  },
+
+  // 启动期同步读取主题（config.json 是权威源）：<head> 脚本要在首帧前定好 data-theme。
+  // 读不到时返回 null，由调用方回退到 localStorage 缓存。
+  getThemeSync() {
+    try {
+      var t = ipcRenderer.sendSync('get-theme-sync');
+      return (t === 'light' || t === 'dark') ? t : null;
+    } catch (e) {
+      return null;
+    }
   },
 
   quit() {

@@ -13,23 +13,33 @@ if (!gotTheLock) {
   app.quit();
 }
 
-// ── 读取硬件加速配置（app.whenReady 之前） ──
+// ── 应用级配置（userData 下的 config.json）：硬件加速、开屏动画、主题等启动期偏好 ──
+// 说明：曾经在开发模式下指向仓库根 config.json，导致运行时把 hardware_acceleration 与
+// auth_token 写进被 git 跟踪的模板文件。现在统一用 userData，与打包模式行为一致。
 function getHwAccelConfigPath() {
-  if (app.isPackaged) {
-    return path.join(app.getPath('userData'), 'config.json');
-  }
-  return path.join(__dirname, 'config.json');
+  return path.join(app.getPath('userData'), 'config.json');
+}
+
+// 读取应用级配置对象（读不到就返回空对象）
+function readAppConfig() {
+  try {
+    var configPath = getHwAccelConfigPath();
+    if (fs.existsSync(configPath)) {
+      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      if (cfg && typeof cfg === 'object') return cfg;
+    }
+  } catch (e) {}
+  return {};
 }
 
 function readHwAccelConfig() {
   try {
     var configPath = getHwAccelConfigPath();
     if (fs.existsSync(configPath)) {
-      var raw = fs.readFileSync(configPath, 'utf-8');
-      var cfg = JSON.parse(raw);
+      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
       return cfg.hardware_acceleration !== false;
     }
-  } catch(e) {}
+  } catch (e) {}
   return false; // 默认关闭，虚拟机兼容
 }
 
@@ -68,18 +78,25 @@ const STDERR_BUFFER_MAX = 30;
 // 待处理的 stdin 请求 Map: requestId → { resolve, reject, timer }
 const pendingRequests = new Map();
 
-function getAppIcon() {
-  return path.join(__dirname, 'build', 'icons', 'icon.png');
+function getWindowIcon() {
+  return path.join(__dirname, 'build', 'icons', 'icon.ico');
+}
+
+function getTrayIcon() {
+  return path.join(__dirname, 'build', 'icons', 'icon_tray.png');
 }
 
 function createWindow() {
-  const windowIcon = nativeImage.createFromPath(getAppIcon());
+  const windowIcon = nativeImage.createFromPath(getWindowIcon());
+  // 窗口底色跟随已保存的主题：否则浅色主题下窗口先以深色底出现约 100~300ms，
+  // 再被浅色开屏覆盖，看起来就是"闪黑"。主题存在应用级 config.json 的 theme 键里。
+  var startupTheme = readAppConfig().theme === 'light' ? 'light' : 'dark';
   mainWindow = new BrowserWindow({
     width: 1100,
     height: 750,
     minWidth: 900,
     minHeight: 600,
-    backgroundColor: '#0f1419',
+    backgroundColor: startupTheme === 'light' ? '#f2f5f8' : '#0f1419',
     show: false,
     icon: windowIcon,
     webPreferences: {
@@ -104,6 +121,13 @@ function createWindow() {
     writeLog('Window ready-to-show');
     clearTimeout(showTimeout);
     mainWindow.show();
+    // ── 正式接口：告诉渲染进程"窗口已显示" ──
+    // 开屏动画据此决定起跑时刻：show() 之后合成器还要几百毫秒才恢复出帧，
+    // 渲染进程收到这个事件才把它当作"确实已显示"的硬锚点（配合 rAF 停摆-恢复检测起跑）。
+    // 与下面的临时探针并行发送：页面优先用 IPC，探针只作兼容与排障。
+    try {
+      mainWindow.webContents.send('window-shown');
+    } catch (e) {}
   });
 
   // 页面加载完成
@@ -321,9 +345,9 @@ function sendToPython(cmd) {
 }
 
 function createTray() {
-  // 创建托盘图标（六边形脉冲logo）
-  const icon = nativeImage.createFromPath(getAppIcon());
-  tray = new Tray(icon.resize({ width: 16, height: 16 }));
+  // 创建托盘图标（六边形 QRS 波形）：单独的 32x32 小尺寸优化版，笔画更粗以便 16px 显示时清晰
+  const icon = nativeImage.createFromPath(getTrayIcon());
+  tray = new Tray(icon);
   tray.setToolTip('DigitalLab');
 
   const contextMenu = Menu.buildFromTemplate([
@@ -453,6 +477,82 @@ ipcMain.handle('set-hardware-accel', function(_event, enabled) {
   }
 });
 
+// ── 开屏动画开关（应用级配置，与硬件加速同一份 config.json，键名 splash_animation） ──
+ipcMain.handle('get-splash-animation', function() {
+  try {
+    var cfg = readAppConfig();
+    return { enabled: cfg.splash_animation !== false };
+  } catch (e) {}
+  return { enabled: true };
+});
+
+ipcMain.handle('set-splash-animation', function(_event, enabled) {
+  try {
+    var p = getHwAccelConfigPath();
+    var cfg = readAppConfig();
+    cfg.splash_animation = !!enabled;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// 启动期同步读取：开屏覆盖层的脚本在页面解析阶段就要决定是否渲染，异步 invoke 来不及，
+// 所以单开一条 sendSync 通道（每次启动只调用一次，开销可忽略）。
+ipcMain.on('get-splash-animation-sync', function(event) {
+  var enabled = true;
+  try {
+    var cfg = readAppConfig();
+    enabled = cfg.splash_animation !== false;
+  } catch (e) {}
+  event.returnValue = enabled;
+});
+
+// 启动期同步读取主题：<head> 里的初始化脚本要在首帧前定好 data-theme，异步来不及。
+// config.json 是主题的唯一权威源；localStorage 只作渲染进程侧的快速缓存。
+ipcMain.on('get-theme-sync', function(event) {
+  var theme = 'dark';
+  try {
+    var cfg = readAppConfig();
+    theme = (cfg.theme === 'light') ? 'light' : 'dark';
+  } catch (e) {}
+  event.returnValue = theme;
+});
+
+// ── 主题持久化（应用级配置，键名 theme）：供下次启动设置窗口底色，避免浅色主题下闪黑 ──
+ipcMain.handle('set-theme', function(_event, theme) {
+  try {
+    var p = getHwAccelConfigPath();
+    var cfg = readAppConfig();
+    cfg.theme = (theme === 'light') ? 'light' : 'dark';
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ── 快速部署占位：功能尚未实现，仅弹原生提示对话框 ──
+ipcMain.handle('quick-deploy-soon', async (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
+  const opts = {
+    type: 'info',
+    title: 'DigitalLab',
+    message: '功能正在开发中，敬请期待',
+    buttons: ['知道了'],
+    defaultId: 0,
+    cancelId: 0,
+    noLink: true,
+  };
+  try {
+    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
+    return { ok: true, response: r.response };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 // ── AI 记忆删除确认：Windows 原生警告对话框（不可逆操作，最大化注意力） ──
 ipcMain.handle('confirm-memory-delete', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
@@ -482,6 +582,13 @@ ipcMain.handle('confirm-memory-delete', async (event) => {
 const ORIGINAL_USER_DATA = app.getPath('userData');
 app.setName('DigitalLab');
 try { app.setPath('userData', ORIGINAL_USER_DATA); } catch (e) {}
+
+// ── 任务栏身份（AppUserModelID）：与 electron-builder 写入快捷方式的 build.appId 保持一致 ──
+// 否则运行进程与安装快捷方式的 AUMID 不一致，固定到任务栏会出现重复按钮/固定项不合并。
+// MSIX/商店包的 AUMID 由系统按包标识分配，硬设会破坏商店包身份，故仅在非商店包设置。
+if (!process.windowsStore) {
+  app.setAppUserModelId('com.digitallab.desktop');
+}
 
 // 第二个实例启动时，聚焦已有窗口
 app.on('second-instance', function() {

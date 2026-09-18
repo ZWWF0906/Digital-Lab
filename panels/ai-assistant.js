@@ -58,6 +58,7 @@ export async function init(container, api) {
           <button class="provider-option${provider === 'openai' ? ' active' : ''}" data-provider="openai">云端 API</button>
         </div>
         <button class="ai-settings-btn" id="ai-settings-btn">设置</button>
+        <button class="ai-settings-btn" id="ai-deploy-btn">快速部署</button>
         <span style="flex:1"></span>
         <span style="font-size:0.7rem;color:var(--text-tertiary)" id="ai-status"></span>
       </div>
@@ -88,6 +89,7 @@ export async function init(container, api) {
   const providerSel = container.querySelector('#ai-provider');
   const statusEl = container.querySelector('#ai-status');
   const settingsBtn = container.querySelector('#ai-settings-btn');
+  const deployBtn = container.querySelector('#ai-deploy-btn');
   const contextBody = container.querySelector('#ai-context-body');
 
   // ── 系统上下文更新 ──
@@ -325,6 +327,21 @@ export async function init(container, api) {
     // 切换到设置面板（通过全局事件）
     window.dispatchEvent(new CustomEvent('switch-panel', { detail: 'settings' }));
   });
+
+  // 快速部署：功能未实现，仅弹原生提示框；任何异常按"取消"处理（静默）
+  if (deployBtn) {
+    deployBtn.addEventListener('click', async () => {
+      try {
+        if (!api || typeof api.confirmQuickDeploy !== 'function') {
+          console.warn('[快速部署] 当前 preload 未提供 confirmQuickDeploy');
+          return;
+        }
+        await api.confirmQuickDeploy();
+      } catch (e) {
+        console.warn('[快速部署] 对话框调用失败:', e);
+      }
+    });
+  }
 
   // ── API 监听 ──
   unsubState = api.onStateUpdate(updateContext);
