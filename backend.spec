@@ -1,7 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 from PyInstaller.utils.hooks import collect_submodules
 
-hiddenimports = ['paramiko', 'psutil', 'pynvml', 'flask']
+hiddenimports = ['paramiko', 'psutil', 'pynvml']
 hiddenimports += collect_submodules('core')
 
 
