@@ -1,5 +1,33 @@
 # Changelog
 
+## v1.3.0 - 2026-09-18
+
+### Added
+
+- Animated startup splash: hexagon and waveform stroke drawing, wordmark reveal, staggered self-check list, closing breath and fade-out
+
+- The startup splash adapts to both the dark and the light theme
+
+- Startup splash toggle in Settings
+
+- "Quick deploy" placeholder button in the AI assistant header
+
+### Changed
+
+- Orbitron, Inter and JetBrains Mono are now bundled with the app, so the interface no longer depends on system or web fonts
+
+- Redrawn application icons for window, taskbar, tray and store assets
+
+### Fixed
+
+- The startup animation no longer starts too early: the hexagon is still at zero progress when the window appears
+
+- The selected theme is kept after the app is force-killed
+
+- The application config file is no longer written into the project folder
+
+- Taskbar identity now matches the installed shortcut
+
 ## v1.2.0 - 2026-09-10
 
 ### Added
