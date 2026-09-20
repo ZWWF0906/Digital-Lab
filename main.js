@@ -28,7 +28,9 @@ function readAppConfig() {
   try {
     var configPath = getHwAccelConfigPath();
     if (fs.existsSync(configPath)) {
-      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      // 去 BOM：用记事本等带 BOM 的工具编辑过 config.json 时，JSON.parse 会直接失败，
+      // 导致主题/语言/硬件加速等设置被静默忽略
+      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''));
       if (cfg && typeof cfg === 'object') return cfg;
     }
   } catch (e) {}

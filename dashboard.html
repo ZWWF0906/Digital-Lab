@@ -49,7 +49,7 @@
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <style>
-  /* ── 启动开屏覆盖层：几何/配色/动画时序与 splash.html 一致，样式全部限定在 #boot-splash 内 ── */
+  /* ── 启动开屏覆盖层：几何/配色/动画时序沿用开屏设计，样式全部限定在 #boot-splash 内 ── */
   #boot-splash {
     /* 覆盖层设计令牌（design-system 的"组件层 token"，取值沿用图标配色，便于统一调整） */
     --bs-bg: #0F1E28;
@@ -334,7 +334,10 @@
 </style>
 </head>
 <body>
-  <!-- ── 启动开屏覆盖层：图形/字标与 splash.html 一致；自检 4 项由真实状态驱动，按 2.6/3.0/3.4/3.8s 逐项点亮 ── -->
+  <!-- ── 启动开屏覆盖层：图形/字标沿用开屏设计；自检 4 项由真实状态驱动，按 2.6/3.0/3.4/3.8s 逐项点亮 ── -->
+  <!-- 文案一律走 i18n：静态部分用 data-i18n 标出，紧随其后的脚本在解析期同步替换（首帧前完成，
+       与 <head> 里主题/语言的初始化同一时机），因此不会出现中文先亮再变英文的闪烁。
+       标签内保留中文作为 i18n 不可用时的兜底显示。 -->
   <div id="boot-splash" role="status" aria-live="polite">
     <div class="bs-mark" aria-hidden="true">
       <svg viewBox="26 56 460 400" xmlns="http://www.w3.org/2000/svg">
@@ -362,13 +365,26 @@
     </div>
     <div class="bs-wordmark" aria-label="DigitalLab"><span>D</span><span>i</span><span>g</span><span>i</span><span>t</span><span>a</span><span>l</span><span>L</span><span>a</span><span>b</span></div>
     <section class="bs-checks">
-      <div class="bs-checks-title">启动自检</div>
-      <div class="bs-item" id="bs-check-backend"><span class="bs-dot"></span><span class="bs-name">后端已启动</span><span class="bs-state">等待中</span></div>
-      <div class="bs-item" id="bs-check-collector"><span class="bs-dot"></span><span class="bs-name">采集器运行</span><span class="bs-state">等待中</span></div>
-      <div class="bs-item" id="bs-check-hardware"><span class="bs-dot"></span><span class="bs-name">硬件就绪</span><span class="bs-state">等待中</span></div>
-      <div class="bs-item" id="bs-check-nas"><span class="bs-dot"></span><span class="bs-name">NAS 连接</span><span class="bs-state">等待中</span></div>
+      <div class="bs-checks-title" data-i18n="boot.selfCheck">启动自检</div>
+      <div class="bs-item" id="bs-check-backend"><span class="bs-dot"></span><span class="bs-name" data-i18n="boot.item.backend">后端已启动</span><span class="bs-state" data-i18n="boot.state.wait">等待中</span></div>
+      <div class="bs-item" id="bs-check-collector"><span class="bs-dot"></span><span class="bs-name" data-i18n="boot.item.collector">采集器运行</span><span class="bs-state" data-i18n="boot.state.wait">等待中</span></div>
+      <div class="bs-item" id="bs-check-hardware"><span class="bs-dot"></span><span class="bs-name" data-i18n="boot.item.hardware">硬件就绪</span><span class="bs-state" data-i18n="boot.state.wait">等待中</span></div>
+      <div class="bs-item" id="bs-check-nas"><span class="bs-dot"></span><span class="bs-name" data-i18n="boot.item.nas">NAS 连接</span><span class="bs-state" data-i18n="boot.state.wait">等待中</span></div>
     </section>
   </div>
+  <script>
+    // 开屏覆盖层静态文案替换：解析到这里就同步跑完（首帧前），语言来自 <head> 里已定好的 i18n 实例。
+    (function () {
+      var I = window.DigitalLabI18n;
+      if (!I || typeof I.t !== 'function') return;
+      var root = document.getElementById('boot-splash');
+      if (!root) return;
+      var nodes = root.querySelectorAll('[data-i18n]');
+      for (var i = 0; i < nodes.length; i++) {
+        nodes[i].textContent = I.t(nodes[i].getAttribute('data-i18n'));
+      }
+    })();
+  </script>
   <script>
     // 启动自检：真实状态驱动 + 固定节奏逐项点亮 + 超时兜底 + 淡出
     (function () {
@@ -393,7 +409,15 @@
       var REVEAL_AT = [2600, 3000, 3400, 3800];   // 第 1..4 项点亮时刻（相对页面加载，ms）
       var DEADLINE_MS = 10000;                    // 超时兜底
       var FINAL = { pass: 1, fail: 1, skip: 1 };
-      var LABEL = { wait: '等待中', pass: '通过', fail: '失败', skip: '跳过' };
+      // 覆盖层文案一律取 i18n（语言在 <head> 已定好，这里只是按当前语言取字符串）
+      var I18N = window.DigitalLabI18n;
+      var T = function (key, params) {
+        return (I18N && typeof I18N.t === 'function') ? I18N.t(key, params) : key;
+      };
+      var LABEL = {
+        wait: T('boot.state.wait'), pass: T('boot.state.pass'),
+        fail: T('boot.state.fail'), skip: T('boot.state.skip')
+      };
       var mq = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
       var reduced = !!(mq && mq.matches);
 
@@ -468,7 +492,7 @@
       var seenFrame = false;
       function onState(state) {
         if (!state || typeof state !== 'object') return;
-        if (!seenFrame) { seenFrame = true; setState('backend', 'pass', '已收到状态帧'); }
+        if (!seenFrame) { seenFrame = true; setState('backend', 'pass', T('boot.detail.frame')); }
 
         var m = state.monitor || {};
         var cpu = typeof m.cpu === 'number' ? m.cpu : 0;
@@ -476,14 +500,16 @@
 
         var hw = state.hardware, hwCount = 0;
         if (hw) hwCount = Array.isArray(hw) ? hw.length : Object.keys(hw).length;
-        if (hwCount > 0) setState('hardware', 'pass', hwCount + ' 项');
+        if (hwCount > 0) setState('hardware', 'pass', T('boot.detail.hardwareCount', { count: hwCount }));
 
         if (Object.prototype.hasOwnProperty.call(state, 'nas')) {
           var nas = state.nas || {}, names = Object.keys(nas);
           var online = names.filter(function (n) { return nas[n] && nas[n].online === true; }).length;
-          setState('nas', 'pass', online ? '在线 ' + online + ' 台' : (names.length ? '无在线设备' : '未配置设备'));
+          setState('nas', 'pass', online
+            ? T('boot.detail.nasOnline', { count: online })
+            : (names.length ? T('boot.detail.nasNoneOnline') : T('boot.detail.nasUnconfigured')));
         } else {
-          setState('nas', 'skip', '无 NAS 状态');
+          setState('nas', 'skip', T('boot.detail.nasNoState'));
         }
       }
 
@@ -491,7 +517,7 @@
       if (api && typeof api.onStateUpdate === 'function') {
         try { api.onStateUpdate(onState); } catch (e) {}
       } else {
-        KEYS.forEach(function (k) { setState(k, 'fail', '预加载不可用'); });
+        KEYS.forEach(function (k) { setState(k, 'fail', T('boot.detail.preloadDown')); });
       }
 
       // ── 起跑判定：等"合成器真正开始出帧"的那一帧，而不是窗口一显示就起跑 ──
@@ -607,7 +633,7 @@
           var it = items[k];
           if (!it || !it.el) return;
           if (!it.shown) { it.shown = true; render(it); shownCount++; }
-          if (!FINAL[it.state]) setState(k, 'fail', '超时未就绪');
+          if (!FINAL[it.state]) setState(k, 'fail', T('boot.detail.timeout'));
         });
         maybeFinish();
       }, Math.max(0, DEADLINE_MS - (performance.now() - SCRIPT_T0)));

@@ -28,7 +28,27 @@
 
     // Settings panel: language
     'set.language':     'Language',
-    'set.languageHint': 'Applies immediately and is saved automatically; kept after restart.'
+    'set.languageHint': 'Applies immediately and is saved automatically; kept after restart.',
+
+    // Boot overlay (dashboard.html)
+    'boot.selfCheck':      'Startup self-check',
+    'boot.item.backend':   'Backend started',
+    'boot.item.collector': 'Collector running',
+    'boot.item.hardware':  'Hardware ready',
+    'boot.item.nas':       'NAS connection',
+    'boot.state.wait':     'Waiting',
+    'boot.state.pass':     'Passed',
+    'boot.state.fail':     'Failed',
+    'boot.state.skip':     'Skipped',
+    // Dependency details: full-sentence templates, placeholder is {count}
+    'boot.detail.frame':          'State frame received',
+    'boot.detail.hardwareCount':  '{count} items',
+    'boot.detail.nasOnline':      '{count} online',
+    'boot.detail.nasNoneOnline':  'No device online',
+    'boot.detail.nasUnconfigured': 'No device configured',
+    'boot.detail.nasNoState':     'No NAS status',
+    'boot.detail.preloadDown':    'Preload unavailable',
+    'boot.detail.timeout':        'Timed out'
   };
 
   if (Locales && Locales.register) { Locales.register('en-US', dict); }

@@ -28,7 +28,27 @@
 
     // 设置面板：语言
     'set.language':     '语言',
-    'set.languageHint': '切换后即时生效并自动保存；重启后保持。'
+    'set.languageHint': '切换后即时生效并自动保存；重启后保持。',
+
+    // 启动开屏覆盖层（dashboard.html）
+    'boot.selfCheck':      '启动自检',
+    'boot.item.backend':   '后端已启动',
+    'boot.item.collector': '采集器运行',
+    'boot.item.hardware':  '硬件就绪',
+    'boot.item.nas':       'NAS 连接',
+    'boot.state.wait':     '等待中',
+    'boot.state.pass':     '通过',
+    'boot.state.fail':     '失败',
+    'boot.state.skip':     '跳过',
+    // 依赖项详情：整句模板，占位符用 {count}
+    'boot.detail.frame':          '已收到状态帧',
+    'boot.detail.hardwareCount':  '{count} 项',
+    'boot.detail.nasOnline':      '在线 {count} 台',
+    'boot.detail.nasNoneOnline':  '无在线设备',
+    'boot.detail.nasUnconfigured': '未配置设备',
+    'boot.detail.nasNoState':     '无 NAS 状态',
+    'boot.detail.preloadDown':    '预加载不可用',
+    'boot.detail.timeout':        '超时未就绪'
   };
 
   if (Locales && Locales.register) { Locales.register('zh-CN', dict); }
