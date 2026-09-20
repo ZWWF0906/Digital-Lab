@@ -25,6 +25,27 @@
     document.documentElement.setAttribute('data-theme', t);
   })();
 </script>
+<script src="locales/index.js"></script>
+<script src="i18n.js"></script>
+<script>
+  // 语言初始化：与主题同一位置、同一时机（首帧前完成）。
+  // 优先级：config.json（启动期一次 sendSync）→ localStorage 缓存 → 系统语言（locales/index.js 的默认语言函数）。
+  (function () {
+    try { if (window.DigitalLabLocales && window.DigitalLabLocales.preloadAll) { window.DigitalLabLocales.preloadAll(); } } catch (e) {}
+    var lang = null;
+    try {
+      var api = window.digitalLab;
+      if (api && typeof api.getLanguageSync === 'function') { lang = api.getLanguageSync(); }
+    } catch (e) {}
+    if (!lang) { try { lang = localStorage.getItem('digitallab-lang'); } catch (e) {} }
+    if (!lang && window.DigitalLabLocales) { lang = window.DigitalLabLocales.getDefaultLanguage(); }
+    var ok = false;
+    try { ok = !!(window.DigitalLabI18n && window.DigitalLabI18n.setLanguage(lang)); } catch (e) {}
+    if (!ok && window.DigitalLabI18n) { lang = window.DigitalLabI18n.getLanguage(); }
+    try { localStorage.setItem('digitallab-lang', lang); } catch (e) {}
+    document.documentElement.setAttribute('lang', lang);
+  })();
+</script>
 <link rel="stylesheet" href="styles.css">
 <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
 <style>
@@ -613,7 +634,7 @@
   </main>
 
   <script type="module">
-    import { PANELS, getPanelById } from './panels/index.js';
+    import { PANELS, getPanelById, getPanelName } from './panels/index.js';
 
     const api = window.digitalLab;
     if (!api) {
@@ -623,33 +644,37 @@
     let currentPanelId = null;
     let currentCleanup = null;
 
-    // Build sidebar navigation
+    // Build sidebar navigation（面板名走 i18n，语言切换时整块重建）
     const nav = document.getElementById('sidebar-nav');
-    PANELS.forEach(panel => {
-      const item = document.createElement('div');
-      item.className = 'nav-item';
-      item.dataset.panelId = panel.id;
-      // 终端默认禁用，等首次状态更新确认有在线 NAS 后再启用
-      if (panel.id === 'terminal') {
-        item.classList.add('disabled');
-        item.title = '请先在设置中添加并连接 NAS 设备';
-      }
-      item.innerHTML = `<span class="nav-icon">${panel.icon}</span>${panel.name}`;
-      item.addEventListener('click', () => {
-        if (item.classList.contains('disabled')) {
-          if (panel.id === 'terminal') {
-            const toast = document.createElement('div');
-            toast.className = 'nav-toast';
-            toast.textContent = '请先在设置中添加并连接 NAS 设备';
-            item.appendChild(toast);
-            setTimeout(() => toast.remove(), 2000);
-          }
-          return;
+    function buildNav() {
+      nav.innerHTML = '';
+      PANELS.forEach(panel => {
+        const item = document.createElement('div');
+        item.className = 'nav-item';
+        item.dataset.panelId = panel.id;
+        // 终端默认禁用，等首次状态更新确认有在线 NAS 后再启用
+        if (panel.id === 'terminal') {
+          item.classList.add('disabled');
+          item.title = '请先在设置中添加并连接 NAS 设备';
         }
-        switchPanel(panel.id);
+        item.innerHTML = `<span class="nav-icon">${panel.icon}</span>${getPanelName(panel.id)}`;
+        item.addEventListener('click', () => {
+          if (item.classList.contains('disabled')) {
+            if (panel.id === 'terminal') {
+              const toast = document.createElement('div');
+              toast.className = 'nav-toast';
+              toast.textContent = '请先在设置中添加并连接 NAS 设备';
+              item.appendChild(toast);
+              setTimeout(() => toast.remove(), 2000);
+            }
+            return;
+          }
+          switchPanel(panel.id);
+        });
+        nav.appendChild(item);
       });
-      nav.appendChild(item);
-    });
+    }
+    buildNav();
 
     // Terminal nav item: disable when no online NAS
     api.onStateUpdate((state) => {
@@ -707,6 +732,16 @@
     // 跨面板导航（AI 设置按钮等）
     window.addEventListener('switch-panel', (e) => {
       switchPanel(e.detail);
+    });
+
+    // 语言切换：重建侧栏文案，并重刷当前面板（面板内容每次都是整块重建，重跑一次 init 即可）
+    window.addEventListener('language-changed', () => {
+      buildNav();
+      const id = currentPanelId;
+      setTimeout(() => {
+        currentPanelId = null;   // 绕开 switchPanel 的同名守卫，强制重新 init
+        switchPanel(id);
+      }, 0);
     });
   </script>
 </body>

@@ -113,6 +113,20 @@ contextBridge.exposeInMainWorld('digitalLab', {
     return ipcRenderer.invoke('set-theme', theme);
   },
 
+  // 语言：启动期同步读取（<head> 脚本要在首帧前定好 <html lang> 并装好词典），运行时切换走 invoke
+  getLanguageSync() {
+    try {
+      var l = ipcRenderer.sendSync('get-language-sync');
+      return typeof l === 'string' ? l : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  setLanguage(lang) {
+    return ipcRenderer.invoke('set-language', lang);
+  },
+
   // 启动期同步读取主题（config.json 是权威源）：<head> 脚本要在首帧前定好 data-theme。
   // 读不到时返回 null，由调用方回退到 localStorage 缓存。
   getThemeSync() {

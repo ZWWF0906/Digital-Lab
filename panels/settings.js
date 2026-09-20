@@ -1,7 +1,10 @@
 // panels/settings.js — 设置面板：NAS 设备管理、AI 配置、采集设置
+// 语言切换会触发整面板重绘，用它记住重绘前停留的分页，重绘后回到同一分页
+let pendingTabRestore = null;
 export function init(container, api) {
   let config = {};
-  let currentTab = 'nas';
+  let currentTab = pendingTabRestore || 'nas';
+  pendingTabRestore = null;
 
   container.innerHTML = `
     <div class="settings-container">
@@ -30,6 +33,12 @@ export function init(container, api) {
   };
 
   // ── Tab 切换 ──
+  if (currentTab !== 'nas') {
+    // 语言切换重绘后回到原来停留的分页
+    tabEls.forEach(t => t.classList.toggle('active', t.dataset.tab === currentTab));
+    Object.values(panelEls).forEach(p => p.classList.remove('active'));
+    panelEls[currentTab]?.classList.add('active');
+  }
   tabEls.forEach(tab => {
     tab.addEventListener('click', () => {
       currentTab = tab.dataset.tab;
@@ -544,6 +553,12 @@ export function init(container, api) {
         const sr = await api.getSplashAnimation();
         splashOn = !sr || sr.enabled !== false;
       } catch (e) { /* 读不到就按开启显示 */ }
+      const i18nApi = (typeof window !== 'undefined' && window.DigitalLabI18n) ? window.DigitalLabI18n : null;
+      const localeList = (typeof window !== 'undefined' && window.DigitalLabLocales && Array.isArray(window.DigitalLabLocales.LANGUAGES))
+        ? window.DigitalLabLocales.LANGUAGES
+        : [{ code: 'zh-CN', name: '简体中文', nativeName: '简体中文' }];
+      const curLang = (i18nApi && i18nApi.getLanguage()) || 'zh-CN';
+      const t = (key) => (i18nApi ? i18nApi.t(key) : key);
       el.innerHTML = `
         <div class="settings-group">
           <div class="settings-group-title">显示</div>
@@ -575,6 +590,13 @@ export function init(container, api) {
             </div>
           </div>
           <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">关闭后启动直接进入主界面；下次启动生效。</div>
+          <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <label>${t('set.language')}</label>
+            <select id="cfg-language-select">
+              ${localeList.map((l) => `<option value="${l.code}"${l.code === curLang ? ' selected' : ''}>${l.nativeName || l.name || l.code}</option>`).join('')}
+            </select>
+          </div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${t('set.languageHint')}</div>
         </div>
       `;
 
@@ -601,6 +623,25 @@ export function init(container, api) {
             showToast('保存失败: ' + e.message, true);
             splashToggle.checked = !newVal;
           }
+        });
+      }
+
+      const langSel = el.querySelector('#cfg-language-select');
+      if (langSel) {
+        langSel.addEventListener('change', async () => {
+          const next = langSel.value;
+          if (!i18nApi || typeof i18nApi.setLanguage !== 'function') return;
+          const ok = i18nApi.setLanguage(next);
+          if (!ok) {
+            showToast('保存失败: 不支持的语言 ' + next, true);
+            langSel.value = curLang;
+            return;
+          }
+          try { localStorage.setItem('digitallab-lang', next); } catch (e) {}
+          document.documentElement.setAttribute('lang', next);
+          pendingTabRestore = currentTab; // 让外层重绘后回到当前分页
+          try { if (api && typeof api.setLanguage === 'function') await api.setLanguage(next); } catch (e) {}
+          window.dispatchEvent(new CustomEvent('language-changed', { detail: next }));
         });
       }
 

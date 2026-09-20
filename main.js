@@ -1,4 +1,7 @@
 const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+// 多语言：语言清单、词典与 t() 机制，与渲染进程共用 locales/ 下的同一份文件
+const Locales = require('./locales/index.js');
+const i18n = require('./i18n.js');
 const { spawn } = require('child_process');
 const path = require('path');
 const fs = require('fs');
@@ -345,6 +348,8 @@ function sendToPython(cmd) {
 }
 
 function createTray() {
+  // 建托盘之前先按配置把语言定好（托盘菜单文案走 i18n）
+  applyConfiguredLanguage();
   // 创建托盘图标（六边形 QRS 波形）：单独的 32x32 小尺寸优化版，笔画更粗以便 16px 显示时清晰
   const icon = nativeImage.createFromPath(getTrayIcon());
   tray = new Tray(icon);
@@ -352,7 +357,7 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: '显示主窗口',
+      label: i18n.t('tray.showMain'),
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -362,7 +367,7 @@ function createTray() {
     },
     { type: 'separator' },
     {
-      label: '退出',
+      label: i18n.t('tray.quit'),
       click: () => {
         isQuitting = true;
         app.quit();
@@ -533,14 +538,53 @@ ipcMain.handle('set-theme', function(_event, theme) {
   }
 });
 
+// ── 语言（应用级配置，键名 language）：与主题同一套写法 ──
+// 默认值来自 locales/index.js 的默认语言函数（系统语言以 zh 开头用 zh-CN，否则 en-US）。
+function resolveConfiguredLanguage() {
+  var lang = null;
+  try {
+    var cfg = readAppConfig();
+    if (typeof cfg.language === 'string' && Locales.hasLanguage(cfg.language)) { lang = cfg.language; }
+  } catch (e) {}
+  if (!lang) { lang = Locales.getDefaultLanguage(); }
+  return lang;
+}
+
+// 把配置里的语言应用到主进程自己的 i18n 实例（托盘菜单与原生对话框都用它取文案）
+function applyConfiguredLanguage() {
+  var lang = resolveConfiguredLanguage();
+  i18n.setLanguage(lang);
+  return lang;
+}
+
+// 启动期同步读取语言：<head> 脚本要在首帧前定好 <html lang> 并装好词典
+ipcMain.on('get-language-sync', function(event) {
+  event.returnValue = resolveConfiguredLanguage();
+});
+
+// 语言切换：校验必须在本语言清单里，非法值直接拒绝（返回 ok:false），不写文件
+ipcMain.handle('set-language', function(_event, lang) {
+  try {
+    if (!Locales.hasLanguage(lang)) { return { ok: false, error: 'unsupported language: ' + lang }; }
+    var p = getHwAccelConfigPath();
+    var cfg = readAppConfig();
+    cfg.language = lang;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
+    i18n.setLanguage(lang);   // 主进程同步切换，后续对话框/托盘立刻用新语言
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
 // ── 快速部署占位：功能尚未实现，仅弹原生提示对话框 ──
 ipcMain.handle('quick-deploy-soon', async (event) => {
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   const opts = {
     type: 'info',
     title: 'DigitalLab',
-    message: '功能正在开发中，敬请期待',
-    buttons: ['知道了'],
+    message: i18n.t('dlg.deploySoon.message'),
+    buttons: [i18n.t('dlg.deploySoon.button')],
     defaultId: 0,
     cancelId: 0,
     noLink: true,
@@ -559,8 +603,8 @@ ipcMain.handle('confirm-memory-delete', async (event) => {
   const opts = {
     type: 'warning',
     title: 'DigitalLab',
-    message: '警告：删除记忆操作不可逆，可能涉及重要数据，谨慎操作！',
-    buttons: ['删除', '取消'],
+    message: i18n.t('dlg.memoryDelete.message'),
+    buttons: [i18n.t('dlg.memoryDelete.delete'), i18n.t('dlg.memoryDelete.cancel')],
     defaultId: 1,   // 默认选中“取消”，防止误按回车直接删除
     cancelId: 1,    // 关闭对话框等同取消
     noLink: true,

@@ -21,6 +21,8 @@
       "dashboard.html",
       "styles.css",
       "panels/**/*",
+      "i18n.js",
+      "locales/**/*",
       "build/icons/**/*",
       "build/fonts/**/*"
     ],
