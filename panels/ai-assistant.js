@@ -1,5 +1,19 @@
 // panels/ai-assistant.js — AI 助手面板：流式对话、模型切换、系统上下文
 
+// 文案走 i18n：i18n.js 由 dashboard.html 在 <head> 里以经典脚本加载，暴露 window.DigitalLabI18n。
+const T = (key, params) => (
+  (typeof window !== 'undefined' && window.DigitalLabI18n)
+    ? window.DigitalLabI18n.t(key, params)
+    : key
+);
+
+// 错误标记：这是前端与 Python 之间的"协议"标记，不是界面文案，所以不进词典、也不翻译。
+//   后端：core/ai_client.py 约 20 处拼 "[错误] ..."，main.py 第 912 行用 startswith("[错误]") 做判断
+//   前端：本文件用 text.startsWith(ERR_MARK) 识别 ai_done 里的异常
+// 两边必须完全一致；要改成英文 [ERROR] 就得同时改 main.py 与 core/（本阶段不允许），
+// 所以这里只做"一个标记只写一处"的收拢。阶段 4 建议改成结构化字段（如 ai_done.error = true），彻底去掉字符串标记。
+const ERR_MARK = '[错误]';
+
 let shownTip = false;
 
 function showTipModal() {
@@ -8,12 +22,12 @@ function showTipModal() {
   overlay.innerHTML = `
     <div class="modal-content modal-tip">
       <div class="modal-header">
-        <span class="modal-title">提示</span>
+        <span class="modal-title">${T('common.tip.title')}</span>
         <button class="modal-close-btn">&times;</button>
       </div>
-      <div class="modal-tip-body">功能仍在测试阶段，可能会出现异常</div>
+      <div class="modal-tip-body">${T('common.tip.body')}</div>
       <div class="modal-tip-footer">
-        <button class="modal-tip-btn">确定</button>
+        <button class="modal-tip-btn">${T('common.ok')}</button>
       </div>
     </div>`;
 
@@ -54,11 +68,11 @@ export async function init(container, api) {
     <div class="ai-chat">
       <div class="ai-chat-header">
         <div class="provider-toggle" id="ai-provider">
-          <button class="provider-option${provider === 'ollama' ? ' active' : ''}" data-provider="ollama">Ollama 本地</button>
-          <button class="provider-option${provider === 'openai' ? ' active' : ''}" data-provider="openai">云端 API</button>
+          <button class="provider-option${provider === 'ollama' ? ' active' : ''}" data-provider="ollama">${T('ai.provider.ollama')}</button>
+          <button class="provider-option${provider === 'openai' ? ' active' : ''}" data-provider="openai">${T('ai.provider.cloud')}</button>
         </div>
-        <button class="ai-settings-btn" id="ai-settings-btn">设置</button>
-        <button class="ai-settings-btn" id="ai-deploy-btn">快速部署</button>
+        <button class="ai-settings-btn" id="ai-settings-btn">${T('ai.btn.settings')}</button>
+        <button class="ai-settings-btn" id="ai-deploy-btn">${T('ai.btn.deploy')}</button>
         <span style="flex:1"></span>
         <span style="font-size:0.7rem;color:var(--text-tertiary)" id="ai-status"></span>
       </div>
@@ -66,16 +80,16 @@ export async function init(container, api) {
         <div style="flex:1;display:flex;flex-direction:column;min-width:0;">
           <div class="ai-messages" id="ai-messages">
             <div class="ai-msg assistant">
-              <div class="ai-msg-bubble">你好！我是 DigitalLab AI 助手。选择模型后即可开始对话。</div>
+              <div class="ai-msg-bubble">${T('ai.greeting')}</div>
             </div>
           </div>
           <div class="ai-input-row">
-            <input type="text" class="ai-input" id="ai-input" placeholder="输入消息... (Enter 发送)" />
-            <button class="ai-send-btn" id="ai-send-btn">发送</button>
+            <input type="text" class="ai-input" id="ai-input" placeholder="${T('ai.input.placeholder')}" />
+            <button class="ai-send-btn" id="ai-send-btn">${T('ai.btn.send')}</button>
           </div>
         </div>
         <div class="ai-context-panel" id="ai-context">
-          <div class="ai-context-title">系统状态</div>
+          <div class="ai-context-title">${T('ai.context.title')}</div>
           <div id="ai-context-body"></div>
         </div>
       </div>
@@ -107,7 +121,7 @@ export async function init(container, api) {
     let nasHtml = '';
     const nasKeys = Object.keys(nas);
     if (nasKeys.length > 0) {
-      nasHtml = '<div class="ai-ctx-section">NAS 设备</div>';
+      nasHtml = `<div class="ai-ctx-section">${T('ai.ctx.nas')}</div>`;
       nasKeys.forEach(k => {
         const d = nas[k] || {};
         const online = d.online !== false;
@@ -116,15 +130,15 @@ export async function init(container, api) {
     }
 
     contextBody.innerHTML = `
-      <div class="ai-ctx-section">性能</div>
+      <div class="ai-ctx-section">${T('ai.ctx.performance')}</div>
       <div class="ai-ctx-row">CPU: ${m.cpu||'--'}%</div>
-      <div class="ai-ctx-row">内存: ${m.memory||'--'}%</div>
-      <div class="ai-ctx-row">磁盘: ${m.disk||'--'}%</div>
-      <div class="ai-ctx-section">硬件</div>
-      <div class="ai-ctx-row">CPU: ${cpu.model||'未知'}</div>
-      <div class="ai-ctx-row">GPU: ${gpu.name||'无'}</div>
-      <div class="ai-ctx-row">内存: ${mem.total_gb||'--'} GB</div>
-      <div class="ai-ctx-row">系统: ${sys.os||''} ${sys.edition||''}</div>
+      <div class="ai-ctx-row">${T('ai.ctx.memoryRow', { value: m.memory||'--' })}</div>
+      <div class="ai-ctx-row">${T('ai.ctx.diskRow', { value: m.disk||'--' })}</div>
+      <div class="ai-ctx-section">${T('ai.ctx.hardware')}</div>
+      <div class="ai-ctx-row">CPU: ${cpu.model||T('ai.ctx.unknown')}</div>
+      <div class="ai-ctx-row">GPU: ${gpu.name||T('ai.ctx.none')}</div>
+      <div class="ai-ctx-row">${T('ai.ctx.memoryGb', { value: mem.total_gb||'--' })}</div>
+      <div class="ai-ctx-row">${T('ai.ctx.system', { os: sys.os||'', edition: sys.edition||'' })}</div>
       ${nasHtml}
     `;
   }
@@ -204,7 +218,7 @@ export async function init(container, api) {
     items.forEach(item => {
       const tip = document.createElement('div');
       tip.className = 'ai-msg-thinking';
-      tip.textContent = '已记住：' + item;
+      tip.textContent = T('ai.memory.remembered', { item: item });
       messagesEl.appendChild(tip);
     });
     scrollBottom();
@@ -214,7 +228,7 @@ export async function init(container, api) {
   async function resolveMemoryHints(data) {
     // 主进程已转发 memory 字段时走直通路径（空数组表示本轮无新记忆，无需回查）
     if (Array.isArray(data.memory)) {
-      console.log('[AI记忆] 直通路径：ai_done.memory 条数=' + data.memory.length);
+      console.log(T('log.aiMemory.passthrough', { count: data.memory.length }));
       showMemoryHints(data.memory);
       return;
     }
@@ -226,7 +240,7 @@ export async function init(container, api) {
       const fresh = (after.items || [])
         .filter(it => !memSnapshot.has(memKey(it)))
         .map(it => it.content);
-      console.log('[AI记忆] 兜底路径：列表差异新增=' + fresh.length);
+      console.log(T('log.aiMemory.fallback', { count: fresh.length }));
       showMemoryHints(fresh);
     } catch (e) { /* 静默失败，不影响对话 */ }
   }
@@ -261,7 +275,7 @@ export async function init(container, api) {
     isStreaming = true;
     sendBtn.disabled = true;
     inputEl.disabled = true;
-    statusEl.textContent = '思考中...';
+    statusEl.textContent = T('ai.status.thinking');
 
     // 系统提示（实时系统状态、输出格式约束与记忆注入）统一由 Python 侧构造，前端只发送对话历史
     const chatMessages = messages.map(m => ({ role: m.role, content: m.content }));
@@ -278,12 +292,13 @@ export async function init(container, api) {
     try {
       const result = await api.aiChat(chatMessages, provider);
       if (result.error) {
-        addMessage('assistant', `[错误] ${result.error}`);
+        // result.error 是后端文案（阶段 4 范围），这里只补协议标记
+        addMessage('assistant', `${ERR_MARK} ${result.error}`);
         finishStream();
       }
       // 流式输出由 onAiToken/onAiDone 回调处理
     } catch (e) {
-      addMessage('assistant', `[错误] ${e.message}`);
+      addMessage('assistant', `${ERR_MARK} ${e.message}`);
       finishStream();
     }
   }
@@ -333,12 +348,12 @@ export async function init(container, api) {
     deployBtn.addEventListener('click', async () => {
       try {
         if (!api || typeof api.confirmQuickDeploy !== 'function') {
-          console.warn('[快速部署] 当前 preload 未提供 confirmQuickDeploy');
+          console.warn(T('log.deploy.noApi'));
           return;
         }
         await api.confirmQuickDeploy();
       } catch (e) {
-        console.warn('[快速部署] 对话框调用失败:', e);
+        console.warn(T('log.deploy.dialogFailed', { error: e.message }));
       }
     });
   }
@@ -354,14 +369,14 @@ export async function init(container, api) {
 
   unsubDone = api.onAiDone((data) => {
     statusEl.textContent = '';
-    // 错误消息：ai_done.text 以 [错误] 开头表示异常
+    // 错误消息：ai_done.text 以错误标记开头表示异常（标记定义见文件头 ERR_MARK）
     const text = data.text || '';
-    if (text.startsWith('[错误]')) {
+    if (text.startsWith(ERR_MARK)) {
       addMessage('assistant', text);
     } else if (streamingMsg && streamingMsg.contentBubble) {
       // 正常回复：用后端剥离标记后的文本覆盖流式显示与前端历史，避免 [记忆] 标记残留
       // 正文为空（例如模型只输出了记忆标记）时给占位，避免气泡空着；历史仍保存真实文本
-      streamingMsg.contentBubble.textContent = (text && text.trim()) ? text : '（本次无正文输出）';
+      streamingMsg.contentBubble.textContent = (text && text.trim()) ? text : T('ai.emptyReply');
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') lastMsg.content = text;
     }

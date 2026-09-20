@@ -1,6 +1,16 @@
 // panels/settings.js — 设置面板：NAS 设备管理、AI 配置、采集设置
 // 语言切换会触发整面板重绘，用它记住重绘前停留的分页，重绘后回到同一分页
 let pendingTabRestore = null;
+
+// 文案走 i18n：i18n.js 由 dashboard.html 在 <head> 里以经典脚本加载，暴露 window.DigitalLabI18n。
+// 通用词（确定/取消/删除/关闭/提示/保存失败/未知错误）统一用 common.*，
+// 提示弹窗文案三处共用 common.tip.*；AI 提供方名称复用 ai.provider.*，不重复定义。
+const T = (key, params) => (
+  (typeof window !== 'undefined' && window.DigitalLabI18n)
+    ? window.DigitalLabI18n.t(key, params)
+    : key
+);
+
 export function init(container, api) {
   let config = {};
   let currentTab = pendingTabRestore || 'nas';
@@ -9,11 +19,11 @@ export function init(container, api) {
   container.innerHTML = `
     <div class="settings-container">
       <div class="settings-tabs">
-        <div class="settings-tab active" data-tab="nas">NAS 设备</div>
-        <div class="settings-tab" data-tab="ai">AI 配置</div>
-        <div class="settings-tab" data-tab="collect">采集设置</div>
-        <div class="settings-tab" data-tab="software">软件</div>
-        <div class="settings-tab" data-tab="about">关于</div>
+        <div class="settings-tab active" data-tab="nas">${T('set.tab.nas')}</div>
+        <div class="settings-tab" data-tab="ai">${T('set.tab.ai')}</div>
+        <div class="settings-tab" data-tab="collect">${T('set.tab.collect')}</div>
+        <div class="settings-tab" data-tab="software">${T('set.tab.software')}</div>
+        <div class="settings-tab" data-tab="about">${T('set.tab.about')}</div>
       </div>
       <div class="settings-panel active" id="sp-nas"></div>
       <div class="settings-panel" id="sp-ai"></div>
@@ -77,39 +87,39 @@ export function init(container, api) {
     overlay.innerHTML = `
       <div class="modal-content">
         <div class="modal-header">
-          <span class="modal-title">${isEdit ? '编辑设备' : '添加设备'}</span>
+          <span class="modal-title">${isEdit ? T('set.dev.editTitle') : T('set.dev.addTitle')}</span>
           <button class="modal-close-btn">&times;</button>
         </div>
         <div class="modal-body">
           <div class="settings-row">
-            <label>名称</label>
-            <input type="text" class="modal-dev-name" value="${escapeAttr(device.name || '')}" placeholder="设备名称" />
+            <label>${T('set.dev.name')}</label>
+            <input type="text" class="modal-dev-name" value="${escapeAttr(device.name || '')}" placeholder="${T('set.dev.namePh')}" />
           </div>
           <div class="settings-row">
-            <label>主机</label>
-            <input type="text" class="modal-dev-host" value="${escapeAttr(device.host || '')}" placeholder="IP 地址" />
+            <label>${T('set.dev.host')}</label>
+            <input type="text" class="modal-dev-host" value="${escapeAttr(device.host || '')}" placeholder="${T('set.dev.hostPh')}" />
           </div>
           <div class="settings-row">
-            <label>端口</label>
+            <label>${T('set.dev.port')}</label>
             <input type="number" class="modal-dev-port" value="${device.port || 22}" />
           </div>
           <div class="settings-row">
-            <label>用户名</label>
-            <input type="text" class="modal-dev-user" value="${escapeAttr(device.username || '')}" placeholder="SSH 用户名" />
+            <label>${T('set.dev.username')}</label>
+            <input type="text" class="modal-dev-user" value="${escapeAttr(device.username || '')}" placeholder="${T('set.dev.userPh')}" />
           </div>
           <div class="settings-row">
-            <label>密码</label>
-            <input type="password" class="modal-dev-pass" value="${escapeAttr(device.password || '')}" placeholder="SSH 密码" />
+            <label>${T('set.dev.password')}</label>
+            <input type="password" class="modal-dev-pass" value="${escapeAttr(device.password || '')}" placeholder="${T('set.dev.passPh')}" />
           </div>
           ${isEdit ? `
           <div class="settings-actions" style="margin-top:6px">
-            <button class="test-conn-btn modal-test-btn">测试连接</button>
+            <button class="test-conn-btn modal-test-btn">${T('set.dev.test')}</button>
             <span class="test-result" id="modal-test-result"></span>
           </div>` : ''}
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary modal-cancel-btn">取消</button>
-          <button class="btn-primary modal-save-btn">${isEdit ? '保存修改' : '添加设备'}</button>
+          <button class="btn-secondary modal-cancel-btn">${T('common.cancel')}</button>
+          <button class="btn-primary modal-save-btn">${isEdit ? T('set.dev.saveEdit') : T('set.dev.addTitle')}</button>
         </div>
       </div>
     `;
@@ -171,22 +181,22 @@ export function init(container, api) {
           password: overlay.querySelector('.modal-dev-pass')?.value || '',
         };
         btn.classList.add('testing');
-        btn.textContent = '测试中...';
+        btn.textContent = T('set.dev.testing');
         if (resultEl) resultEl.textContent = '';
         try {
           const res = await api.sendCommand({ cmd: 'test_nas_connection', device });
           if (resultEl) {
-            resultEl.textContent = res.ok ? '✓ 连接成功' : '✗ ' + (res.message || '连接失败');
+            resultEl.textContent = res.ok ? T('set.dev.testOk') : T('set.dev.testFail', { message: res.message || T('set.dev.connFailed') });
             resultEl.style.color = res.ok ? 'var(--accent)' : 'var(--accent-pink)';
           }
         } catch (e) {
           if (resultEl) {
-            resultEl.textContent = '✗ ' + e.message;
+            resultEl.textContent = T('set.dev.testFail', { message: e.message });
             resultEl.style.color = 'var(--accent-pink)';
           }
         }
         btn.classList.remove('testing');
-        btn.textContent = '测试连接';
+        btn.textContent = T('set.dev.test');
       });
     }
 
@@ -207,8 +217,8 @@ export function init(container, api) {
       deviceCardsHtml = devices.map((d, i) => {
         const hasName = d.name && d.name.trim();
         const hasHost = d.host && d.host.trim();
-        const label = hasName ? d.name : (hasHost ? d.host : '未命名设备');
-        const sub = hasHost ? `${d.host}${d.port && d.port !== 22 ? ':' + d.port : ''}` : (hasName ? '未配置主机' : '');
+        const label = hasName ? d.name : (hasHost ? d.host : T('set.nas.unnamed'));
+        const sub = hasHost ? `${d.host}${d.port && d.port !== 22 ? ':' + d.port : ''}` : (hasName ? T('set.nas.noHost') : '');
 
         return `
         <div class="nas-device-card" data-index="${i}">
@@ -219,8 +229,8 @@ export function init(container, api) {
               ${sub ? `<div class="nas-device-sub">${escapeHtml(sub)}</div>` : ''}
             </div>
             <div class="nas-device-actions">
-              <button class="nas-action-btn btn-edit-nas" data-index="${i}">编辑</button>
-              <button class="nas-action-btn nas-action-del btn-del-nas" data-index="${i}">删除</button>
+              <button class="nas-action-btn btn-edit-nas" data-index="${i}">${T('set.nas.edit')}</button>
+              <button class="nas-action-btn nas-action-del btn-del-nas" data-index="${i}">${T('common.delete')}</button>
             </div>
           </div>
         </div>`;
@@ -229,21 +239,21 @@ export function init(container, api) {
 
     el.innerHTML = `
       <div class="settings-group">
-        <div class="settings-group-title">NAS 设备列表</div>
+        <div class="settings-group-title">${T('set.nas.list')}</div>
         <div id="nas-device-list">
-          ${devices.length === 0 ? '<div class="nas-empty-hint">暂无设备，点击下方按钮添加</div>' : deviceCardsHtml}
+          ${devices.length === 0 ? `<div class="nas-empty-hint">${T('set.nas.empty')}</div>` : deviceCardsHtml}
         </div>
         <div class="settings-actions" style="margin-top:12px">
-          <button class="btn-primary" id="btn-add-device">+ 添加设备</button>
-          <button class="btn-secondary" id="btn-save-nas">保存全部</button>
+          <button class="btn-primary" id="btn-add-device">${T('set.nas.addBtn')}</button>
+          <button class="btn-secondary" id="btn-save-nas">${T('set.nas.saveAll')}</button>
         </div>
       </div>
       <div class="settings-group">
-        <div class="settings-group-title">示例 NAS</div>
+        <div class="settings-group-title">${T('set.nas.mockTitle')}</div>
         <div class="settings-row" style="justify-content:space-between">
           <div>
             <div style="font-size:0.85rem;color:var(--text-primary);margin-bottom:2px">Mock-NAS</div>
-            <div style="font-size:0.7rem;color:var(--text-tertiary)">用于开发测试，模拟真实 NAS 数据</div>
+            <div style="font-size:0.7rem;color:var(--text-tertiary)">${T('set.nas.mockDesc')}</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="mock-nas-toggle" ${mockEnabled ? 'checked' : ''}>
@@ -296,32 +306,32 @@ export function init(container, api) {
     const el = panelEls.ai;
     el.innerHTML = `
       <div class="settings-group">
-        <div class="settings-group-title">AI 提供方</div>
+        <div class="settings-group-title">${T('set.ai.providerTitle')}</div>
         <div class="settings-row">
-          <label>默认模型</label>
+          <label>${T('set.ai.defaultModel')}</label>
           <select id="ai-provider-sel">
-            <option value="ollama" ${ai.provider === 'ollama' ? 'selected' : ''}>Ollama 本地</option>
-            <option value="openai" ${ai.provider === 'openai' ? 'selected' : ''}>云端 API</option>
+            <option value="ollama" ${ai.provider === 'ollama' ? 'selected' : ''}>${T('ai.provider.ollama')}</option>
+            <option value="openai" ${ai.provider === 'openai' ? 'selected' : ''}>${T('ai.provider.cloud')}</option>
           </select>
         </div>
       </div>
       <div class="settings-group">
-        <div class="settings-group-title">Ollama 本地</div>
-        <div class="settings-row"><label>地址</label><input type="text" id="ai-ollama-url" value="${escapeAttr(ollama.base_url || '')}" placeholder="http://localhost:11434" /></div>
-        <div class="settings-row"><label>模型</label><input type="text" id="ai-ollama-model" value="${escapeAttr(ollama.model || '')}" placeholder="llama3" /></div>
+        <div class="settings-group-title">${T('ai.provider.ollama')}</div>
+        <div class="settings-row"><label>${T('set.ai.addr')}</label><input type="text" id="ai-ollama-url" value="${escapeAttr(ollama.base_url || '')}" placeholder="http://localhost:11434" /></div>
+        <div class="settings-row"><label>${T('set.ai.model')}</label><input type="text" id="ai-ollama-model" value="${escapeAttr(ollama.model || '')}" placeholder="llama3" /></div>
       </div>
       <div class="settings-group">
-        <div class="settings-group-title">云端 API</div>
+        <div class="settings-group-title">${T('ai.provider.cloud')}</div>
         <div class="settings-row"><label>API Key</label><input type="password" id="ai-openai-key" value="${escapeAttr(openai.api_key || '')}" placeholder="sk-..." /></div>
-        <div class="settings-row"><label>地址</label><input type="text" id="ai-openai-url" value="${escapeAttr(openai.base_url || '')}" placeholder="https://api.example.com/v1" /></div>
-        <div class="settings-row"><label>模型</label><input type="text" id="ai-openai-model" value="${escapeAttr(openai.model || '')}" placeholder="gpt-4o / deepseek-chat / ..." /></div>
+        <div class="settings-row"><label>${T('set.ai.addr')}</label><input type="text" id="ai-openai-url" value="${escapeAttr(openai.base_url || '')}" placeholder="https://api.example.com/v1" /></div>
+        <div class="settings-row"><label>${T('set.ai.model')}</label><input type="text" id="ai-openai-model" value="${escapeAttr(openai.model || '')}" placeholder="gpt-4o / deepseek-chat / ..." /></div>
       </div>
       <div class="settings-group">
-        <div class="settings-group-title">AI 记忆</div>
+        <div class="settings-group-title">${T('set.ai.memoryTitle')}</div>
         <div class="settings-row" style="justify-content:space-between">
           <div>
-            <div style="font-size:0.85rem;color:var(--text-primary);margin-bottom:2px">启用 AI 记忆</div>
-            <div style="font-size:0.7rem;color:var(--text-tertiary)">开启后，AI 会记住你确认过的长期偏好</div>
+            <div style="font-size:0.85rem;color:var(--text-primary);margin-bottom:2px">${T('set.ai.memoryEnable')}</div>
+            <div style="font-size:0.7rem;color:var(--text-tertiary)">${T('set.ai.memoryEnableHint')}</div>
           </div>
           <label class="toggle-switch">
             <input type="checkbox" id="ai-memory-toggle" ${memory.enabled === true ? 'checked' : ''}>
@@ -329,18 +339,18 @@ export function init(container, api) {
           </label>
         </div>
         <div class="settings-row">
-          <label>存储目录</label>
-          <input type="text" id="ai-memory-dir" value="${escapeAttr(memory.dir || '')}" placeholder="默认 %APPDATA%\\DigitalLab\\memory" readonly />
-          <button class="btn-secondary" id="btn-ai-memory-dir">选择目录</button>
+          <label>${T('set.ai.memoryDir')}</label>
+          <input type="text" id="ai-memory-dir" value="${escapeAttr(memory.dir || '')}" placeholder="${T('set.ai.memoryDirPh')}" readonly />
+          <button class="btn-secondary" id="btn-ai-memory-dir">${T('set.ai.chooseDir')}</button>
         </div>
         <div class="settings-actions" style="margin-top:8px">
-          <button class="btn-secondary" id="btn-ai-memory-list">查看记忆</button>
-          <button class="btn-secondary" id="btn-ai-memory-clear">清空记忆</button>
+          <button class="btn-secondary" id="btn-ai-memory-list">${T('set.ai.viewMemory')}</button>
+          <button class="btn-secondary" id="btn-ai-memory-clear">${T('set.ai.clearMemory')}</button>
         </div>
         <div id="ai-memory-list" style="margin-top:10px"></div>
       </div>
       <div class="settings-actions">
-        <button class="btn-primary" id="btn-save-ai">保存 AI 配置</button>
+        <button class="btn-primary" id="btn-save-ai">${T('set.ai.save')}</button>
       </div>
     `;
 
@@ -379,9 +389,9 @@ export function init(container, api) {
       try {
         const res = await api.sendCommand({ cmd: 'clear_ai_memory' });
         const ok = !!(res && res.ok);
-        showToast(ok ? '记忆已清空' : '清空失败', !ok);
+        showToast(ok ? T('set.mem.cleared') : T('set.mem.clearFailed'), !ok);
       } catch (e) {
-        showToast('清空失败: ' + e.message, true);
+        showToast(T('set.mem.clearFailedDetail', { message: e.message }), true);
       }
       refreshMemoryList();
     });
@@ -398,22 +408,22 @@ export function init(container, api) {
     overlay.innerHTML = `
       <div class="modal-content" style="max-width:460px">
         <div class="modal-header">
-          <span class="modal-title">选择记忆存储目录</span>
+          <span class="modal-title">${T('set.memDir.title')}</span>
           <button class="modal-close-btn">&times;</button>
         </div>
         <div class="modal-body">
           <div class="settings-row">
-            <label>目录</label>
-            <input type="text" class="modal-mem-dir" value="${escapeAttr(current)}" placeholder="留空使用默认目录" />
+            <label>${T('set.memDir.label')}</label>
+            <input type="text" class="modal-mem-dir" value="${escapeAttr(current)}" placeholder="${T('set.memDir.ph')}" />
           </div>
           <div style="color:var(--text-tertiary);font-size:0.72rem;line-height:1.6;margin-top:8px">
-            填写绝对路径；留空表示使用默认目录 %APPDATA%\\DigitalLab\\memory。<br/>
-            更改目录并保存后，旧记忆文件会复制到新目录，旧文件保留。
+            ${T('set.memDir.hint1')}<br/>
+            ${T('set.memDir.hint2')}
           </div>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary modal-cancel-btn">取消</button>
-          <button class="btn-primary modal-save-btn">确定</button>
+          <button class="btn-secondary modal-cancel-btn">${T('common.cancel')}</button>
+          <button class="btn-primary modal-save-btn">${T('common.ok')}</button>
         </div>
       </div>
     `;
@@ -433,7 +443,7 @@ export function init(container, api) {
       const input = panelEls.ai.querySelector('#ai-memory-dir');
       if (input) input.value = value;
       closeModal();
-      showToast('目录已更新，保存后生效');
+      showToast(T('set.memDir.updated'));
     });
   }
 
@@ -441,13 +451,13 @@ export function init(container, api) {
   async function confirmMemoryDelete() {
     try {
       if (!api || typeof api.confirmMemoryDelete !== 'function') {
-        console.warn('[AI记忆] 当前 preload 未提供 confirmMemoryDelete，取消删除');
+        console.warn(T('log.aiMemory.noConfirmApi'));
         return false;
       }
       const r = await api.confirmMemoryDelete();
       return !!(r && r.confirmed);
     } catch (e) {
-      console.warn('[AI记忆] 删除确认调用失败，取消删除:', e);
+      console.warn(T('log.aiMemory.confirmFailed', { error: e.message }));
       return false;
     }
   }
@@ -460,7 +470,7 @@ export function init(container, api) {
     }
     let box = panelEls.ai.querySelector('#ai-memory-list');
     if (!box) return;
-    box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">读取中...</div>';
+    box.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">${T('set.mem.loading')}</div>`;
     let data = null;
     try {
       data = await api.sendCommand({ cmd: 'get_ai_memory' });
@@ -471,12 +481,12 @@ export function init(container, api) {
     box = panelEls.ai.querySelector('#ai-memory-list');
     if (!box) return;
     if (!data || data.error) {
-      box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">记忆读取失败</div>';
+      box.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">${T('set.mem.readFailed')}</div>`;
       return;
     }
     const items = Array.isArray(data.items) ? data.items : [];
     if (!items.length) {
-      box.innerHTML = '<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">暂无记忆</div>';
+      box.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">${T('set.mem.empty')}</div>`;
       return;
     }
     box.innerHTML = items.map(it => `
@@ -487,7 +497,7 @@ export function init(container, api) {
             <div class="nas-device-sub">${escapeHtml(it.ts || '')}</div>
           </div>
           <div class="nas-device-actions">
-            <button class="nas-action-btn nas-action-del btn-del-memory" data-index="${it.index}">删除</button>
+            <button class="nas-action-btn nas-action-del btn-del-memory" data-index="${it.index}">${T('common.delete')}</button>
           </div>
         </div>
       </div>
@@ -500,9 +510,9 @@ export function init(container, api) {
         try {
           const res = await api.sendCommand({ cmd: 'delete_ai_memory', index: idx });
           const ok = !!(res && res.ok);
-          showToast(ok ? '已删除该条记忆' : '删除失败', !ok);
+          showToast(ok ? T('set.mem.deleted') : T('set.mem.deleteFailed'), !ok);
         } catch (e) {
-          showToast('删除失败: ' + e.message, true);
+          showToast(T('set.mem.deleteFailedDetail', { message: e.message }), true);
         }
         refreshMemoryList();
       });
@@ -516,18 +526,18 @@ export function init(container, api) {
     const nasInterval = config.nas_interval || 15;
     el.innerHTML = `
       <div class="settings-group">
-        <div class="settings-group-title">采集参数</div>
-        <div class="settings-row"><label>本地采集间隔</label><input type="number" id="cfg-local-interval" value="${localInterval}" min="1" max="60" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">秒</span></div>
-        <div class="settings-row"><label>NAS 采集间隔</label><input type="number" id="cfg-nas-interval" value="${nasInterval}" min="5" max="300" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">秒</span></div>
+        <div class="settings-group-title">${T('set.collect.params')}</div>
+        <div class="settings-row"><label>${T('set.collect.localInterval')}</label><input type="number" id="cfg-local-interval" value="${localInterval}" min="1" max="60" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">${T('set.collect.seconds')}</span></div>
+        <div class="settings-row"><label>${T('set.collect.nasInterval')}</label><input type="number" id="cfg-nas-interval" value="${nasInterval}" min="5" max="300" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">${T('set.collect.seconds')}</span></div>
       </div>
       <div class="settings-group">
-        <div class="settings-group-title">监控阈值</div>
-        <div class="settings-row"><label>CPU 告警</label><input type="number" id="cfg-cpu-threshold" value="${config.monitor_threshold_cpu || 80}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
-        <div class="settings-row"><label>内存告警</label><input type="number" id="cfg-mem-threshold" value="${config.monitor_threshold_memory || 85}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
-        <div class="settings-row"><label>磁盘告警</label><input type="number" id="cfg-disk-threshold" value="${config.monitor_threshold_disk || 90}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
+        <div class="settings-group-title">${T('set.collect.thresholds')}</div>
+        <div class="settings-row"><label>${T('set.collect.cpuAlarm')}</label><input type="number" id="cfg-cpu-threshold" value="${config.monitor_threshold_cpu || 80}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
+        <div class="settings-row"><label>${T('set.collect.memAlarm')}</label><input type="number" id="cfg-mem-threshold" value="${config.monitor_threshold_memory || 85}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
+        <div class="settings-row"><label>${T('set.collect.diskAlarm')}</label><input type="number" id="cfg-disk-threshold" value="${config.monitor_threshold_disk || 90}" min="10" max="100" /> <span style="font-size:0.7rem;color:var(--text-tertiary)">%</span></div>
       </div>
       <div class="settings-actions">
-        <button class="btn-primary" id="btn-save-collect">保存采集设置</button>
+        <button class="btn-primary" id="btn-save-collect">${T('set.collect.save')}</button>
       </div>
     `;
 
@@ -558,12 +568,11 @@ export function init(container, api) {
         ? window.DigitalLabLocales.LANGUAGES
         : [{ code: 'zh-CN', name: '简体中文', nativeName: '简体中文' }];
       const curLang = (i18nApi && i18nApi.getLanguage()) || 'zh-CN';
-      const t = (key) => (i18nApi ? i18nApi.t(key) : key);
       el.innerHTML = `
         <div class="settings-group">
-          <div class="settings-group-title">显示</div>
+          <div class="settings-group-title">${T('set.soft.display')}</div>
           <div class="settings-row">
-            <label>硬件加速</label>
+            <label>${T('set.soft.hwAccel')}</label>
             <div class="toggle-switch-wrapper">
               <label class="toggle-switch">
                 <input type="checkbox" id="cfg-hw-accel"${hwEnabled ? ' checked' : ''} />
@@ -571,17 +580,17 @@ export function init(container, api) {
               </label>
             </div>
           </div>
-          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">关闭后可解决虚拟机窗口不显示问题，但性能会降低。修改后需重启应用。</div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.soft.hwAccelHint')}</div>
           <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <label>主题</label>
+            <label>${T('set.soft.theme')}</label>
             <select id="cfg-theme-select">
-              <option value="dark"${curTheme === 'dark' ? ' selected' : ''}>深色（默认）</option>
-              <option value="light"${curTheme === 'light' ? ' selected' : ''}>浅色</option>
+              <option value="dark"${curTheme === 'dark' ? ' selected' : ''}>${T('set.soft.themeDark')}</option>
+              <option value="light"${curTheme === 'light' ? ' selected' : ''}>${T('set.soft.themeLight')}</option>
             </select>
           </div>
-          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">切换后即时生效并自动保存；浅色主题下终端面板仍保持深色。</div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.soft.themeHint')}</div>
           <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <label>开屏动画</label>
+            <label>${T('set.soft.splash')}</label>
             <div class="toggle-switch-wrapper">
               <label class="toggle-switch">
                 <input type="checkbox" id="cfg-splash-animation"${splashOn ? ' checked' : ''} />
@@ -589,14 +598,14 @@ export function init(container, api) {
               </label>
             </div>
           </div>
-          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">关闭后启动直接进入主界面；下次启动生效。</div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.soft.splashHint')}</div>
           <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
-            <label>${t('set.language')}</label>
+            <label>${T('set.language')}</label>
             <select id="cfg-language-select">
               ${localeList.map((l) => `<option value="${l.code}"${l.code === curLang ? ' selected' : ''}>${l.nativeName || l.name || l.code}</option>`).join('')}
             </select>
           </div>
-          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${t('set.languageHint')}</div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.languageHint')}</div>
         </div>
       `;
 
@@ -614,13 +623,13 @@ export function init(container, api) {
           try {
             const r = await api.setSplashAnimation(newVal);
             if (r && r.ok) {
-              showToast(newVal ? '开屏动画已开启，下次启动生效' : '开屏动画已关闭，下次启动生效');
+              showToast(newVal ? T('set.soft.splashOn') : T('set.soft.splashOff'));
             } else {
-              showToast('保存失败: ' + ((r && r.error) || '未知错误'), true);
+              showToast(T('common.saveFailed', { message: (r && r.error) || T('common.unknownError') }), true);
               splashToggle.checked = !newVal;
             }
           } catch (e) {
-            showToast('保存失败: ' + e.message, true);
+            showToast(T('common.saveFailed', { message: e.message }), true);
             splashToggle.checked = !newVal;
           }
         });
@@ -633,7 +642,7 @@ export function init(container, api) {
           if (!i18nApi || typeof i18nApi.setLanguage !== 'function') return;
           const ok = i18nApi.setLanguage(next);
           if (!ok) {
-            showToast('保存失败: 不支持的语言 ' + next, true);
+            showToast(T('common.saveFailed', { message: T('set.lang.unsupported', { lang: next }) }), true);
             langSel.value = curLang;
             return;
           }
@@ -652,19 +661,19 @@ export function init(container, api) {
           try {
             const r = await api.setHardwareAccel(newVal);
             if (r && r.ok) {
-              showToast(`硬件加速已${newVal ? '启用' : '关闭'}，请重启应用生效`);
+              showToast(newVal ? T('set.soft.hwOn') : T('set.soft.hwOff'));
             } else {
-              showToast('保存失败: ' + ((r && r.error) || '未知错误'), true);
+              showToast(T('common.saveFailed', { message: (r && r.error) || T('common.unknownError') }), true);
               toggle.checked = !newVal;
             }
           } catch (e) {
-            showToast('保存失败: ' + e.message, true);
+            showToast(T('common.saveFailed', { message: e.message }), true);
             toggle.checked = !newVal;
           }
         });
       }
     } catch (e) {
-      el.innerHTML = '<div class="settings-group"><div class="settings-group-title">显示</div><div class="settings-row"><label>硬件加速</label><span style="color:var(--text-tertiary);font-size:0.85rem">加载失败</span></div></div>';
+      el.innerHTML = `<div class="settings-group"><div class="settings-group-title">${T('set.soft.display')}</div><div class="settings-row"><label>${T('set.soft.hwAccel')}</label><span style="color:var(--text-tertiary);font-size:0.85rem">${T('set.soft.loadFailed')}</span></div></div>`;
     }
   }
 
@@ -674,15 +683,15 @@ export function init(container, api) {
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
         <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.3.0</div>
-        <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">个人数字实验室</div>
+        <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">${T('set.about.slogan')}</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
-          <div>仪表盘 · 终端 · AI 助手 · 系统监控</div>
-          <div style="margin-top:12px">作者：ZWWF0906</div>
+          <div>${T('set.about.features')}</div>
+          <div style="margin-top:12px">${T('set.about.author')}</div>
           <div>© 2026 ZWWF0906</div>
-          <div style="margin-top:12px">DigitalLab 开源软件，遵循 MIT 许可</div>
+          <div style="margin-top:12px">${T('set.about.license')}</div>
         </div>
         <div style="margin-top:24px">
-          <button class="btn-primary" id="btn-feedback">问题反馈</button>
+          <button class="btn-primary" id="btn-feedback">${T('set.about.feedback')}</button>
         </div>
       </div>
     `;
@@ -700,17 +709,17 @@ export function init(container, api) {
     overlay.innerHTML = `
       <div class="modal-content" style="max-width:420px">
         <div class="modal-header">
-          <span class="modal-title">问题反馈与举报</span>
+          <span class="modal-title">${T('set.fb.title')}</span>
           <button class="modal-close-btn">&times;</button>
         </div>
         <div class="modal-body">
-          <div style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;text-align:center">请选择反馈方式</div>
-          <div style="color:var(--text-tertiary);font-size:0.75rem;margin-bottom:16px;text-align:center;line-height:1.6">如遇 AI 生成不当内容，请一并在此反馈<br/>我们将在收到反馈后尽快处理</div>
-          <button class="btn-primary" id="feedback-mail" style="width:100%;margin-bottom:10px">✉ 邮件反馈</button>
-          <button class="btn-secondary" id="feedback-github" style="width:100%">GitHub 反馈</button>
+          <div style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;text-align:center">${T('set.fb.choose')}</div>
+          <div style="color:var(--text-tertiary);font-size:0.75rem;margin-bottom:16px;text-align:center;line-height:1.6">${T('set.fb.note1')}<br/>${T('set.fb.note2')}</div>
+          <button class="btn-primary" id="feedback-mail" style="width:100%;margin-bottom:10px">${T('set.fb.mail')}</button>
+          <button class="btn-secondary" id="feedback-github" style="width:100%">${T('set.fb.github')}</button>
         </div>
         <div class="modal-footer">
-          <button class="btn-secondary modal-cancel-btn" style="width:100%">关闭</button>
+          <button class="btn-secondary modal-cancel-btn" style="width:100%">${T('set.fb.close')}</button>
         </div>
       </div>
     `;
@@ -732,7 +741,7 @@ export function init(container, api) {
 
     // 邮件反馈：调起默认邮件客户端
     overlay.querySelector('#feedback-mail').addEventListener('click', () => {
-      const subject = encodeURIComponent('DigitalLab 问题反馈');
+      const subject = encodeURIComponent(T('set.fb.mailSubject'));
       window.location.href = 'mailto:ZWWF0906@outlook.com?subject=' + subject;
     });
 
@@ -747,12 +756,12 @@ export function init(container, api) {
     try {
       const result = await api.saveConfig(config);
       if (result.ok) {
-        showToast('配置已保存');
+        showToast(T('set.saved'));
         // 通知 Python 重载配置（含 NAS 监控重启）
         try {
           const reloadResult = await api.sendCommand({ cmd: 'reload_config' });
           if (reloadResult && reloadResult.warnings && reloadResult.warnings.length > 0) {
-            showToast('配置已保存，部分组件重载异常', true);
+            showToast(T('set.savedPartial'), true);
             console.warn('reload_config warnings:', reloadResult.warnings);
           }
         } catch (reloadErr) {
@@ -760,10 +769,10 @@ export function init(container, api) {
           console.warn('reload_config failed:', reloadErr);
         }
       } else {
-        showToast('保存失败: ' + (result.error || '未知错误'), true);
+        showToast(T('common.saveFailed', { message: result.error || T('common.unknownError') }), true);
       }
     } catch (e) {
-      showToast('保存失败: ' + e.message, true);
+      showToast(T('common.saveFailed', { message: e.message }), true);
     }
   }
 
@@ -794,7 +803,7 @@ export function init(container, api) {
     // 同步写进应用级配置：下次启动 main.js 读它决定窗口底色，避免浅色主题下闪黑
     try { if (api && typeof api.setTheme === 'function') api.setTheme(theme); } catch (e) {}
     setTimeout(() => root.classList.remove('theme-switching'), 350);
-    showToast(theme === 'light' ? '已切换至浅色主题' : '已切换至深色主题');
+    showToast(theme === 'light' ? T('set.soft.themeLightDone') : T('set.soft.themeDarkDone'));
   }
 
   // ── 加载配置 ──
@@ -805,7 +814,7 @@ export function init(container, api) {
         config = data;
       }
     } catch (e) {
-      console.error('加载配置失败:', e);
+      console.error(T('log.config.loadFailed', { error: e.message }));
     }
     renderTab(currentTab);
   }

@@ -662,9 +662,16 @@
   <script type="module">
     import { PANELS, getPanelById, getPanelName } from './panels/index.js';
 
+    // 外壳自己的文案也走 i18n（词典与 t() 由 <head> 里的 i18n.js 提供）
+    const T = (key, params) => (
+      (typeof window !== 'undefined' && window.DigitalLabI18n)
+        ? window.DigitalLabI18n.t(key, params)
+        : key
+    );
+
     const api = window.digitalLab;
     if (!api) {
-      document.body.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f43f5e;font-size:16px;font-family:system-ui,sans-serif;background:#0f1419">预加载失败，请重启应用</div>';
+      document.body.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100vh;color:#f43f5e;font-size:16px;font-family:system-ui,sans-serif;background:#0f1419">${T('boot.fail.preload')}</div>`;
       throw new Error('window.digitalLab not available');
     }
     let currentPanelId = null;
@@ -681,7 +688,7 @@
         // 终端默认禁用，等首次状态更新确认有在线 NAS 后再启用
         if (panel.id === 'terminal') {
           item.classList.add('disabled');
-          item.title = '请先在设置中添加并连接 NAS 设备';
+          item.title = T('nav.hint.terminalNoNas');
         }
         item.innerHTML = `<span class="nav-icon">${panel.icon}</span>${getPanelName(panel.id)}`;
         item.addEventListener('click', () => {
@@ -689,7 +696,7 @@
             if (panel.id === 'terminal') {
               const toast = document.createElement('div');
               toast.className = 'nav-toast';
-              toast.textContent = '请先在设置中添加并连接 NAS 设备';
+              toast.textContent = T('nav.hint.terminalNoNas');
               item.appendChild(toast);
               setTimeout(() => toast.remove(), 2000);
             }
@@ -713,7 +720,7 @@
         terminalItem.title = '';
       } else {
         terminalItem.classList.add('disabled');
-        terminalItem.title = '请先在设置中添加并连接 NAS 设备';
+        terminalItem.title = T('nav.hint.terminalNoNas');
       }
     });
 
@@ -748,7 +755,7 @@
         currentPanelId = id;
       } catch (e) {
         console.error(`Failed to init panel ${id}:`, e);
-        container.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-tertiary)">面板加载失败</div>';
+        container.innerHTML = `<div style="text-align:center;padding:40px;color:var(--text-tertiary)">${T('boot.fail.panel')}</div>`;
       }
     }
 

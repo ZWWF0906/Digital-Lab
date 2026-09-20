@@ -1,5 +1,13 @@
 // panels/device-center.js — 多设备总览中心
 // Device Center ≠ Gateway，不是快捷链接中心，是设备状态聚合中心
+// 文案走 i18n：i18n.js 由 dashboard.html 在 <head> 里以经典脚本加载，暴露 window.DigitalLabI18n。
+// 本文件的中文原先写成 \uXXXX 转义，迁移时同样按 t() 处理，别只搜字面中文。
+// 这里的函数都是每次渲染/状态帧调用，t() 取的是当前语言，不存在模块级常量被语言切换冻住的问题。
+const t = (key, params) => (
+  (typeof window !== 'undefined' && window.DigitalLabI18n)
+    ? window.DigitalLabI18n.t(key, params)
+    : key
+);
 
 function statusColor(value, thresholds) {
   if (!thresholds || !thresholds.length) return 'var(--accent)';
@@ -46,12 +54,12 @@ function deviceCardHTML(device) {
           <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.cpu}%;background:${statusColor(device.cpu, [60, 85])}"></div></div>
         </div>
         <div class="mc-mini">
-          <span class="mc-mini-label">\u5185\u5b58</span>
+          <span class="mc-mini-label">${t('dev.card.memory')}</span>
           <span class="mc-mini-val" style="color:${statusColor(device.memory, [70, 90])}">${device.memory.toFixed(1)}%</span>
           <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.memory}%;background:${statusColor(device.memory, [70, 90])}"></div></div>
         </div>
         <div class="mc-mini">
-          <span class="mc-mini-label">\u78c1\u76d8</span>
+          <span class="mc-mini-label">${t('dev.card.disk')}</span>
           <span class="mc-mini-val" style="color:${statusColor(device.disk, [75, 92])}">${device.disk.toFixed(1)}%</span>
           <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.disk}%;background:${statusColor(device.disk, [75, 92])}"></div></div>
         </div>
@@ -73,12 +81,12 @@ function detailHTML(device) {
         <div class="mc-bar-wrap"><div class="mc-bar" id="dc-cpu-bar" style="width:${device.cpu}%;background:${statusColor(device.cpu, [60, 85])}"></div></div>
       </div>
       <div class="metric-card">
-        <div class="mc-header"><span class="mc-status ${statusClass(device.memory, [70, 90])}" id="dc-mem-status"></span><span class="mc-label">\u5185\u5b58</span></div>
+        <div class="mc-header"><span class="mc-status ${statusClass(device.memory, [70, 90])}" id="dc-mem-status"></span><span class="mc-label">${t('dev.card.memory')}</span></div>
         <div class="mc-value-row"><span class="mc-value" id="dc-mem-val" style="color:${statusColor(device.memory, [70, 90])}">${device.memory.toFixed(1)}</span><span class="mc-unit">%</span></div>
         <div class="mc-bar-wrap"><div class="mc-bar" id="dc-mem-bar" style="width:${device.memory}%;background:${statusColor(device.memory, [70, 90])}"></div></div>
       </div>
       <div class="metric-card">
-        <div class="mc-header"><span class="mc-status ${statusClass(device.disk, [75, 92])}" id="dc-disk-status"></span><span class="mc-label">\u78c1\u76d8</span></div>
+        <div class="mc-header"><span class="mc-status ${statusClass(device.disk, [75, 92])}" id="dc-disk-status"></span><span class="mc-label">${t('dev.card.disk')}</span></div>
         <div class="mc-value-row"><span class="mc-value" id="dc-disk-val" style="color:${statusColor(device.disk, [75, 92])}">${device.disk.toFixed(1)}</span><span class="mc-unit">%</span></div>
         <div class="mc-bar-wrap"><div class="mc-bar" id="dc-disk-bar" style="width:${device.disk}%;background:${statusColor(device.disk, [75, 92])}"></div></div>
       </div>
@@ -92,14 +100,14 @@ function detailHTML(device) {
 
   // 进程表
   const processes = device.processes || [];
-  let processTableHTML = '<div class="section-title" style="margin-top:20px">\u8fdb\u7a0b TOP15</div>';
+  let processTableHTML = `<div class="section-title" style="margin-top:20px">${t('dev.section.processes')}</div>`;
   if (processes.length === 0) {
-    processTableHTML += '<div class="mc-empty" id="dc-process-empty">\u6682\u65e0\u6570\u636e</div>';
+    processTableHTML += `<div class="mc-empty" id="dc-process-empty">${t('dev.empty')}</div>`;
   } else {
     processTableHTML += `
       <div class="process-panel" style="margin-bottom:16px">
         <table>
-          <thead><tr><th>PID</th><th>\u540d\u79f0</th><th>CPU %</th><th>\u5185\u5b58 %</th><th>\u547d\u4ee4</th></tr></thead>
+          <thead><tr><th>PID</th><th>${t('dev.col.name')}</th><th>CPU %</th><th>${t('dev.col.memory')}</th><th>${t('dev.col.command')}</th></tr></thead>
           <tbody id="dc-process-tbody"></tbody>
         </table>
       </div>`;
@@ -109,10 +117,10 @@ function detailHTML(device) {
   let dockerHTML = '';
   if (device.type === 'NAS') {
     dockerHTML = `
-      <div class="section-title">Docker \u5bb9\u5668</div>
+      <div class="section-title">${t('dev.docker.title')}</div>
       <div class="process-panel">
         <table>
-          <thead><tr><th>\u540d\u79f0</th><th>\u955c\u50cf</th><th>\u72b6\u6001</th></tr></thead>
+          <thead><tr><th>${t('dev.col.name')}</th><th>${t('dev.col.image')}</th><th>${t('dev.col.status')}</th></tr></thead>
           <tbody id="dc-docker-tbody"></tbody>
         </table>
       </div>
@@ -185,8 +193,8 @@ function updateDetail(device) {
     const nasInfo = document.getElementById('dc-nas-info');
     if (nasInfo) {
       const parts = [];
-      if (device.temperature != null) parts.push(`\u{1F321} \u6e29\u5ea6: ${device.temperature}\u00B0C`);
-      if (device.uptime) parts.push(`\u23F1 \u8fd0\u884c: ${device.uptime}`);
+      if (device.temperature != null) parts.push(`\u{1F321} ${t('dev.nas.temperature', { temp: device.temperature })}`);
+      if (device.uptime) parts.push(`\u23F1 ${t('dev.nas.uptime', { uptime: device.uptime })}`);
       if (device.host) parts.push(`\u{1F310} ${device.host}`);
       nasInfo.textContent = parts.join(' | ');
     }
@@ -219,7 +227,7 @@ function updateDetail(device) {
           <td><span class="mc-status ${c.status && c.status.toLowerCase().startsWith('up') ? 'ok' : 'danger'}"></span> ${c.status || ''}</td>
         </tr>`).join('');
       if (dockerSummary) {
-        dockerSummary.textContent = `\u25CF \u8fd0\u884c\u4e2d: ${docker.running || 0} \u25CF \u603b\u8ba1: ${docker.total_containers || 0}`;
+        dockerSummary.textContent = t('dev.docker.summary', { running: docker.running || 0, total: docker.total_containers || 0 });
       }
     }
   }
@@ -232,7 +240,7 @@ function mapDevices(state) {
   // Local PC
   devices.push({
     id: 'local',
-    name: '\u672c\u5730\u4e3b\u673a',
+    name: t('dev.device.local'),
     type: 'PC',
     online: true,
     cpu: monitor.cpu || 0,
@@ -269,7 +277,7 @@ export function init(container, api) {
   let detailInitialized = false;  // 详情 DOM 是否已创建（首次渲染后为 true）
 
   container.innerHTML = `
-    <div class="section-title">\u8bbe\u5907\u603b\u89c8</div>
+    <div class="section-title">${t('dev.section.overview')}</div>
     <div class="device-grid" id="dc-grid"></div>
     <div id="dc-detail"></div>`;
 

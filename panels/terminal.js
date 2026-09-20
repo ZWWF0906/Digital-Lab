@@ -7,6 +7,22 @@
 import { Terminal } from '../node_modules/@xterm/xterm/lib/xterm.mjs';
 import { FitAddon } from '../node_modules/@xterm/addon-fit/lib/addon-fit.mjs';
 
+// 文案走 i18n：i18n.js 由 dashboard.html 在 <head> 里以经典脚本加载，暴露 window.DigitalLabI18n。
+// 本文件的中文原先一部分写成 \uXXXX 转义，迁移与复查都不要只搜字面中文。
+// 取名 T 而不是 t：openSession() 里的 xterm 实例就叫 t，会把同名助手遮住。
+const T = (key, params) => (
+  (typeof window !== 'undefined' && window.DigitalLabI18n)
+    ? window.DigitalLabI18n.t(key, params)
+    : key
+);
+
+// 终端里的报错行：ANSI 红色（\x1b[31m ... \x1b[0m）只包在文案外面，颜色码不进词典。
+// 前缀 [ERROR] 保持英文常量：全仓没有任何代码解析它（无 startsWith/indexOf/正则匹配），
+// 它只是给人看的行首标记；只有后面的说明文字走 i18n。
+function errorLine(message) {
+  return `\x1b[31m[ERROR] ${message}\x1b[0m`;
+}
+
 const TERM_STYLE = `
   .xterm { padding: 12px; }
   .xterm .xterm-viewport { background-color: #0c0c0c !important; }
@@ -28,12 +44,12 @@ function showTipModal() {
   overlay.innerHTML = `
     <div class="modal-content modal-tip">
       <div class="modal-header">
-        <span class="modal-title">提示</span>
+        <span class="modal-title">${T('common.tip.title')}</span>
         <button class="modal-close-btn">&times;</button>
       </div>
-      <div class="modal-tip-body">功能仍在测试阶段，可能会出现异常</div>
+      <div class="modal-tip-body">${T('common.tip.body')}</div>
       <div class="modal-tip-footer">
-        <button class="modal-tip-btn">确定</button>
+        <button class="modal-tip-btn">${T('common.ok')}</button>
       </div>
     </div>`;
 
@@ -120,13 +136,13 @@ export function init(container, api) {
   function showPlaceholder(message) {
     teardownActive();
     initGeneration++;  // 中止任何正在运行的连接流程
-    const desc = message || '暂无可用 NAS 设备';
+    const desc = message || T('term.placeholder.desc');
     container.innerHTML = `
       <div class="terminal-placeholder">
         <div class="terminal-placeholder-icon">\u2263</div>
-        <div class="terminal-placeholder-title">NAS 终端</div>
+        <div class="terminal-placeholder-title">${T('term.placeholder.title')}</div>
         <div class="terminal-placeholder-desc">${desc}</div>
-        <button class="terminal-placeholder-btn">前往设置添加 NAS</button>
+        <button class="terminal-placeholder-btn">${T('term.placeholder.btn')}</button>
       </div>`;
 
     const btn = container.querySelector('.terminal-placeholder-btn');
@@ -279,7 +295,7 @@ export function init(container, api) {
 
     // 建立 SSH 会话：携带真实终端尺寸，后端据此创建 PTY
     try {
-      t.writeln(`\u6b63\u5728\u8fde\u63a5 ${session.name}...`);
+      t.writeln(T('term.connecting', { name: session.name }));
       const resp = await api.sendCommand({
         cmd: 'ssh_terminal_init',
         host: session.name,
@@ -297,13 +313,14 @@ export function init(container, api) {
         act.sessionId = resp.session_id;
         session.sessionId = resp.session_id;
       } else if (resp && resp.error) {
-        t.writeln(`\x1b[31m[ERROR] ${resp.error}\x1b[0m`);
+        // resp.error 是后端返回的文案（阶段 4 范围，前端只负责套红色与 [ERROR] 前缀）
+        t.writeln(errorLine(resp.error));
       } else {
-        t.writeln(`\x1b[31m[ERROR] \u8fde\u63a5\u5931\u8d25\uff0c\u672a\u77e5\u9519\u8bef\x1b[0m`);
+        t.writeln(errorLine(T('term.error.unknown')));
       }
     } catch (e) {
       if (gen !== initGeneration || active !== act) return;
-      t.writeln(`\x1b[31m[ERROR] SSH \u8fde\u63a5\u5931\u8d25: ${e.message}\x1b[0m`);
+      t.writeln(errorLine(T('term.error.ssh', { message: e.message })));
     }
   }
 
@@ -314,7 +331,7 @@ export function init(container, api) {
 
     if (onlineDevices.length === 0) {
       const hasAnyNas = nas && Object.keys(nas).length > 0;
-      const message = hasAnyNas ? 'NAS 设备当前离线' : '暂无可用 NAS 设备';
+      const message = hasAnyNas ? T('term.offline') : T('term.placeholder.desc');
       lastOnlineNames = [];
       if (currentMode !== 'placeholder') {
         showPlaceholder(message);

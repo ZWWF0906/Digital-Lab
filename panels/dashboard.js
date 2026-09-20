@@ -1,10 +1,19 @@
 // panels/dashboard.js — 5 Metric Cards + NAS Cards + 可折叠硬件/进程子区域
+// 文案走 i18n：i18n.js 由 dashboard.html 在 <head> 里以经典脚本加载，暴露 window.DigitalLabI18n。
+// 注意：模块级常量只存 key 不存译文——ESM 模块只求值一次，语言切换后要重跑 init 也必须重新取词，
+// 所以 METRICS 用 labelKey，译文在 cardHTML() 里现取。
+const t = (key, params) => (
+  (typeof window !== 'undefined' && window.DigitalLabI18n)
+    ? window.DigitalLabI18n.t(key, params)
+    : key
+);
+
 const METRICS = [
-  { key: 'cpu', label: 'CPU', unit: '%', icon: '\u25C9', threshold: [60, 85] },
-  { key: 'memory', label: '内存', unit: '%', icon: '\u25A0', threshold: [70, 90] },
-  { key: 'disk', label: '磁盘', unit: '%', icon: '\u25A3', threshold: [75, 92] },
-  { key: 'network', label: '网络', unit: 'Mbps', icon: '\u21CC', threshold: [] },
-  { key: 'gpu', label: 'GPU', unit: '%', icon: '\u25C7', threshold: [70, 88] },
+  { key: 'cpu', labelKey: 'dash.metric.cpu', unit: '%', icon: '\u25C9', threshold: [60, 85] },
+  { key: 'memory', labelKey: 'dash.metric.memory', unit: '%', icon: '\u25A0', threshold: [70, 90] },
+  { key: 'disk', labelKey: 'dash.metric.disk', unit: '%', icon: '\u25A3', threshold: [75, 92] },
+  { key: 'network', labelKey: 'dash.metric.network', unit: 'Mbps', icon: '\u21CC', threshold: [] },
+  { key: 'gpu', labelKey: 'dash.metric.gpu', unit: '%', icon: '\u25C7', threshold: [70, 88] },
 ];
 
 function statusColor(value, thresholds) {
@@ -45,7 +54,7 @@ function renderProcesses(processes) {
   const tbody = document.getElementById('proc-tbody');
   if (!tbody) return;
   if (!processes || !processes.length) {
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">暂无数据</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">${t('dash.proc.empty')}</td></tr>`;
     return;
   }
   tbody.innerHTML = processes.map(p => `
@@ -66,17 +75,17 @@ function renderHardwareLocal(hardware) {
   const cpu = hardware.cpu;
   if (cpu) {
     cards.push({
-      icon: '\u{1F5A5}', title: '处理器',
-      model: cpu.model || '未知',
-      detail: (cpu.cores ? `${cpu.cores} 核 · ${cpu.threads} 线程` : '') +
+      icon: '\u{1F5A5}', title: t('dash.hw.cpu'),
+      model: cpu.model || t('dash.unknown'),
+      detail: (cpu.cores ? t('dash.hw.cpuDetail', { cores: cpu.cores, threads: cpu.threads }) : '') +
               (cpu.freq_current ? ` · ${cpu.freq_current} GHz` : ''),
     });
   }
   const gpu = hardware.gpu;
   if (gpu) {
     cards.push({
-      icon: '\u{1F3AE}', title: '显卡',
-      model: gpu.name || '未检测到',
+      icon: '\u{1F3AE}', title: t('dash.hw.gpu'),
+      model: gpu.name || t('dash.notDetected'),
       detail: (gpu.vram_gb ? `${gpu.vram_gb} GB` : '') +
               (gpu.vram_type ? ` ${gpu.vram_type}` : ''),
     });
@@ -84,7 +93,7 @@ function renderHardwareLocal(hardware) {
   const mem = hardware.memory;
   if (mem) {
     cards.push({
-      icon: '\u{1F4BE}', title: '内存',
+      icon: '\u{1F4BE}', title: t('dash.hw.memory'),
       model: `${mem.total_gb || '-'} GB`,
       detail: `${mem.type || ''} ${mem.frequency || ''}`,
     });
@@ -92,7 +101,7 @@ function renderHardwareLocal(hardware) {
   const disk = hardware.disk;
   if (disk) {
     cards.push({
-      icon: '\u{1F4BF}', title: '硬盘',
+      icon: '\u{1F4BF}', title: t('dash.hw.disk'),
       model: `${disk.capacity_gb || '-'} GB`,
       detail: disk.model ? disk.model.slice(0, 30) : (disk.type || ''),
     });
@@ -100,8 +109,8 @@ function renderHardwareLocal(hardware) {
   const sys = hardware.system;
   if (sys) {
     cards.push({
-      icon: '\u2699', title: '系统',
-      model: sys.os || '未知',
+      icon: '\u2699', title: t('dash.hw.system'),
+      model: sys.os || t('dash.unknown'),
       detail: sys.edition || '',
     });
   }
@@ -135,7 +144,7 @@ function renderHardwareNas(nasData) {
           <div class="hw-icon">\u{1F4E1}</div>
           <div class="hw-title">${name}</div>
           <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${dev.host || ''}</div>
-          <div class="nas-hw-rows"><div class="nas-hw-row"><span>硬件信息采集中...</span></div></div>
+          <div class="nas-hw-rows"><div class="nas-hw-row"><span>${t('dash.nasHw.collecting')}</span></div></div>
         </div>`;
     }
     return `
@@ -144,11 +153,11 @@ function renderHardwareNas(nasData) {
         <div class="hw-title">${name}</div>
         <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${dev.host || ''}</div>
         <div class="nas-hw-rows">
-          <div class="nas-hw-row"><span>CPU</span><span>${hw.cpu_model || '未知'}</span></div>
-          <div class="nas-hw-row"><span>核心数</span><span>${hw.cpu_cores || '未知'}</span></div>
-          <div class="nas-hw-row"><span>内存</span><span>${hw.memory_total || '未知'}</span></div>
-          <div class="nas-hw-row"><span>磁盘</span><span>${hw.disk_total || '未知'} (${hw.disk_model || '未知'})</span></div>
-          <div class="nas-hw-row"><span>系统</span><span>${hw.os || '未知'}</span></div>
+          <div class="nas-hw-row"><span>CPU</span><span>${hw.cpu_model || t('dash.unknown')}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.nasHw.cores')}</span><span>${hw.cpu_cores || t('dash.unknown')}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.hw.memory')}</span><span>${hw.memory_total || t('dash.unknown')}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.metric.disk')}</span><span>${hw.disk_total || t('dash.unknown')} (${hw.disk_model || t('dash.unknown')})</span></div>
+          <div class="nas-hw-row"><span>${t('dash.hw.system')}</span><span>${hw.os || t('dash.unknown')}</span></div>
         </div>
       </div>`;
   }).join('');
@@ -166,7 +175,7 @@ export function init(container, api) {
       <div class="metric-card" id="${id}">
         <div class="mc-header">
           <span class="mc-status" id="${id}-status"></span>
-          <span class="mc-label">${m.icon} ${m.label}</span>
+          <span class="mc-label">${m.icon} ${t(m.labelKey)}</span>
         </div>
         <div class="mc-value-row">
           <span class="mc-value" id="${id}-val">--</span>
@@ -183,42 +192,42 @@ export function init(container, api) {
   }
 
   container.innerHTML = `
-    <div class="section-title">\u5b9e\u65f6\u76d1\u63a7</div>
+    <div class="section-title">${t('dash.section.realtime')}</div>
     <div class="metrics-grid" id="metrics-grid">
       ${METRICS.map(cardHTML).join('')}
     </div>
-    <div class="section-title" style="margin-top:28px">NAS \u8bbe\u5907</div>
+    <div class="section-title" style="margin-top:28px">${t('dash.section.nas')}</div>
     <div class="metrics-grid" id="nas-grid"></div>
-    <div class="section-title" style="margin-top:28px">\u672c\u5730\u8be6\u60c5</div>
+    <div class="section-title" style="margin-top:28px">${t('dash.section.local')}</div>
     <div class="collapsible-section" id="cs-hardware">
       <div class="collapsible-header" id="ch-hardware">
-        <span>\u786c\u4ef6\u4fe1\u606f</span>
+        <span>${t('dash.hw.title')}</span>
         <span class="collapsible-chevron">\u25B8</span>
       </div>
       <div class="collapsible-body" id="cb-hardware">
         <div class="hardware-grid" id="hw-grid">
-          <div class="hw-card"><div class="hw-icon">\u{1F5A5}</div><div class="hw-title">处理器</div><div class="hw-model">加载中...</div></div>
-          <div class="hw-card"><div class="hw-icon">\u{1F3AE}</div><div class="hw-title">显卡</div><div class="hw-model">加载中...</div></div>
-          <div class="hw-card"><div class="hw-icon">\u{1F4BE}</div><div class="hw-title">内存</div><div class="hw-model">加载中...</div></div>
-          <div class="hw-card"><div class="hw-icon">\u{1F4BF}</div><div class="hw-title">硬盘</div><div class="hw-model">加载中...</div></div>
-          <div class="hw-card"><div class="hw-icon">\u2699</div><div class="hw-title">系统</div><div class="hw-model">加载中...</div></div>
+          <div class="hw-card"><div class="hw-icon">\u{1F5A5}</div><div class="hw-title">${t('dash.hw.cpu')}</div><div class="hw-model">${t('dash.loading')}</div></div>
+          <div class="hw-card"><div class="hw-icon">\u{1F3AE}</div><div class="hw-title">${t('dash.hw.gpu')}</div><div class="hw-model">${t('dash.loading')}</div></div>
+          <div class="hw-card"><div class="hw-icon">\u{1F4BE}</div><div class="hw-title">${t('dash.hw.memory')}</div><div class="hw-model">${t('dash.loading')}</div></div>
+          <div class="hw-card"><div class="hw-icon">\u{1F4BF}</div><div class="hw-title">${t('dash.hw.disk')}</div><div class="hw-model">${t('dash.loading')}</div></div>
+          <div class="hw-card"><div class="hw-icon">\u2699</div><div class="hw-title">${t('dash.hw.system')}</div><div class="hw-model">${t('dash.loading')}</div></div>
         </div>
         <div id="nas-hw-section"></div>
       </div>
     </div>
     <div class="collapsible-section" id="cs-processes">
       <div class="collapsible-header" id="ch-processes">
-        <span>\u8fdb\u7a0b Top 15</span>
+        <span>${t('dash.proc.title')}</span>
         <span class="collapsible-chevron">\u25B8</span>
       </div>
       <div class="collapsible-body" id="cb-processes">
         <div class="process-panel">
           <table>
             <thead>
-              <tr><th>名称</th><th>CPU %</th><th>内存 %</th><th>RSS</th><th>PID</th></tr>
+              <tr><th>${t('dash.proc.name')}</th><th>CPU %</th><th>${t('dash.proc.memory')}</th><th>RSS</th><th>PID</th></tr>
             </thead>
             <tbody id="proc-tbody">
-              <tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">加载中...</td></tr>
+              <tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">${t('dash.loading')}</td></tr>
             </tbody>
           </table>
         </div>
@@ -311,7 +320,7 @@ export function init(container, api) {
     if (nasGrid) {
       const nasEntries = Object.entries(nas);
       if (nasEntries.length === 0) {
-        nasGrid.innerHTML = '<div class="mc-empty">\u672a\u914d\u7f6e NAS \u8bbe\u5907\uff0c\u8bf7\u5728\u8bbe\u7f6e\u4e2d\u6dfb\u52a0</div>';
+        nasGrid.innerHTML = `<div class="mc-empty">${t('dash.nas.empty')}</div>`;
         nasGrid.removeAttribute('data-animated');
       } else {
         nasGrid.innerHTML = nasEntries.map(([name, dev]) => {
@@ -329,7 +338,7 @@ export function init(container, api) {
               <div class="mc-header">
                 ${status}
                 <span class="mc-label">\u{1F4E1} ${name}</span>
-                ${!online ? '<button class="nas-retry-btn" data-device="${name}">\u91cd\u8bd5</button>' : ''}
+                ${!online ? `<button class="nas-retry-btn" data-device="${name}">${t('dash.nas.retry')}</button>` : ''}
               </div>
               <div class="mc-multi">
                 <div class="mc-mini">
@@ -338,12 +347,12 @@ export function init(container, api) {
                   <div class="mc-bar-wrap"><div class="mc-bar" style="width:${cpu}%;background:${statusColor(cpu, [60,85])}"></div></div>
                 </div>
                 <div class="mc-mini">
-                  <span class="mc-mini-label">\u5185\u5b58</span>
+                  <span class="mc-mini-label">${t('dash.hw.memory')}</span>
                   <span class="mc-mini-val" style="color:${statusColor(mem, [70,90])}">${mem.toFixed(1)}%</span>
                   <div class="mc-bar-wrap"><div class="mc-bar" style="width:${mem}%;background:${statusColor(mem, [70,90])}"></div></div>
                 </div>
                 <div class="mc-mini">
-                  <span class="mc-mini-label">\u78c1\u76d8</span>
+                  <span class="mc-mini-label">${t('dash.metric.disk')}</span>
                   <span class="mc-mini-val" style="color:${statusColor(disk, [75,92])}">${disk.toFixed(1)}%</span>
                   <div class="mc-bar-wrap"><div class="mc-bar" style="width:${disk}%;background:${statusColor(disk, [75,92])}"></div></div>
                 </div>
@@ -358,12 +367,12 @@ export function init(container, api) {
 
         nasGrid.querySelectorAll('.nas-retry-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
-            btn.textContent = '重试中...';
+            btn.textContent = t('dash.nas.retrying');
             btn.disabled = true;
             try {
               await api.sendCommand({ cmd: 'reload_config' });
             } catch (e) {}
-            setTimeout(() => { btn.textContent = '重试'; btn.disabled = false; }, 3000);
+            setTimeout(() => { btn.textContent = t('dash.nas.retry'); btn.disabled = false; }, 3000);
           });
         });
         nasGrid.setAttribute('data-animated', '1');

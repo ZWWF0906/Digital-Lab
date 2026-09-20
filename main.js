@@ -41,7 +41,7 @@ function readHwAccelConfig() {
   try {
     var configPath = getHwAccelConfigPath();
     if (fs.existsSync(configPath)) {
-      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8'));
+      var cfg = JSON.parse(fs.readFileSync(configPath, 'utf-8').replace(/^\uFEFF/, ''));
       return cfg.hardware_acceleration !== false;
     }
   } catch (e) {}
@@ -462,7 +462,7 @@ ipcMain.handle('get-hardware-accel', function() {
   try {
     var p = getHwAccelConfigPath();
     if (fs.existsSync(p)) {
-      var cfg = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      var cfg = JSON.parse(fs.readFileSync(p, 'utf-8').replace(/^\uFEFF/, ''));
       return { enabled: cfg.hardware_acceleration !== false };
     }
   } catch(e) {}
@@ -474,7 +474,7 @@ ipcMain.handle('set-hardware-accel', function(_event, enabled) {
     var p = getHwAccelConfigPath();
     var cfg = {};
     if (fs.existsSync(p)) {
-      cfg = JSON.parse(fs.readFileSync(p, 'utf-8'));
+      cfg = JSON.parse(fs.readFileSync(p, 'utf-8').replace(/^\uFEFF/, ''));
     }
     cfg.hardware_acceleration = !!enabled;
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
