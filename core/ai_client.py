@@ -9,31 +9,40 @@ import threading
 from typing import Iterator, Optional
 
 
-def _human_error(provider: str, err: Exception) -> str:
-    """将技术异常转换为人性化中文提示。"""
+def _err(code: str, **params) -> dict:
+    """结构化错误：{"code": ..., "params": {...}}。
+
+    后端不再拼中文文案，文案由前端按 code 查词典渲染（见 locales/*.js 的 ai.err.*）。
+    code 与前端词典 key 完全同名，缺 key 时前端会显示 code 本身而不是空白。
+    """
+    return {"code": code, "params": params}
+
+
+def _human_error(provider: str, err: Exception) -> dict:
+    """将技术异常转换为结构化错误（code + params）。"""
     msg = str(err)
     # ── 连接被拒绝 / 无法连接 ──
     if "ConnectionRefusedError" in msg or "Connection refused" in msg or "WinError 10061" in msg:
         if provider == "ollama":
-            return "[错误] 本地模型未接入，请确认 Ollama 服务已启动"
-        return "[错误] 云端模型未接入，无法连接到 API 服务器"
+            return _err("ai.err.ollamaNotRunning")
+        return _err("ai.err.cloudUnreachable")
     # ── DNS 解析失败 ──
     if "getaddrinfo" in msg or "Name or service not known" in msg or "No address" in msg:
         if provider == "ollama":
-            return "[错误] 本地模型未接入，无法解析 Ollama 地址，请检查地址配置"
-        return "[错误] 云端模型未接入，无法解析 API 地址，请检查地址配置"
+            return _err("ai.err.ollamaBadAddress")
+        return _err("ai.err.cloudBadAddress")
     # ── 超时 ──
     if "timeout" in msg.lower() or "timed out" in msg:
         if provider == "ollama":
-            return "[错误] 本地模型响应超时，请检查 Ollama 服务是否正常运行"
-        return "[错误] 云端模型响应超时，请检查网络连接或稍后重试"
+            return _err("ai.err.ollamaTimeout")
+        return _err("ai.err.cloudTimeout")
     # ── SSL / 证书错误 ──
     if "SSL" in msg or "certificate" in msg.lower():
-        return "[错误] 安全连接失败，API 服务器证书无效"
+        return _err("ai.err.tlsInvalid")
     # ── 兜底 ──
     if provider == "ollama":
-        return f"[错误] 本地模型请求失败（{msg}）"
-    return f"[错误] 云端模型请求失败（{msg}）"
+        return _err("ai.err.ollamaRequestFailed", detail=msg)
+    return _err("ai.err.cloudRequestFailed", detail=msg)
 
 
 def _load_ai_config() -> dict:
@@ -81,19 +90,23 @@ def chat_stream(
     provider: str = "ollama",
     on_token=None,
     config_override: Optional[dict] = None,
-) -> str:
+    lang: str = "zh-CN",
+) -> "str | dict":
     """
     流式对话，每收到一个 token 调用 on_token(token_text)。
-    返回完整回复文本。
+
+    lang：界面语言，用于选择流式截断提示的文案；未知值回退中文（旧前端不带该字段）。
+    成功返回完整回复文本（str）；失败返回结构化错误 dict（{"code": ..., "params": {...}}），
+    文案由前端按 code 渲染，后端不再拼中文。
     """
     ai_cfg = config_override or _load_ai_config()
     if not ai_cfg:
-        return "[错误] 未配置 AI 参数，请在设置面板中配置"
+        return _err("ai.err.notConfigured")
 
     if provider == "ollama":
-        return _ollama_stream(messages, ai_cfg.get("ollama", {}), on_token)
+        return _ollama_stream(messages, ai_cfg.get("ollama", {}), on_token, lang)
     else:
-        return _openai_stream(messages, ai_cfg.get("openai", {}), on_token)
+        return _openai_stream(messages, ai_cfg.get("openai", {}), on_token, lang)
 
 
 def _iter_response_lines(resp) -> Iterator[str]:
@@ -130,7 +143,16 @@ _MAX_REPLY_CHARS = 4096   # 单次回复字符数上限
 _REPEAT_MIN_PERIOD = 2    # 重复片段最小周期（字符）
 _REPEAT_MAX_PERIOD = 12   # 重复片段最大周期（字符）
 _REPEAT_MAX_COUNT = 6     # 同一片段连续重复达到该次数即判定失控
-_STOP_NOTE = "\n[检测到模型重复输出，已自动停止]"
+# 流式截断提示：按界面语言选择（lang 随 ai_chat 请求下发，缺省中文；旧前端不带 lang 时走中文）
+_STOP_NOTES = {
+    "zh-CN": "\n[检测到模型重复输出，已自动停止]",
+    "en-US": "\n[Model output was repeating; generation stopped automatically]",
+    "ja-JP": "\n[モデルの出力が繰り返しになったため、自動的に停止しました]",
+}
+
+
+def _stop_note(lang: str) -> str:
+    return _STOP_NOTES.get(lang, _STOP_NOTES["zh-CN"])
 
 
 def _should_stop(text: str) -> bool:
@@ -144,7 +166,7 @@ def _should_stop(text: str) -> bool:
     return False
 
 
-def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
+def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN") -> str:
     """Ollama 流式 API。"""
     base_url = cfg.get("base_url", "http://localhost:11434")
     model = cfg.get("model", "llama3")
@@ -186,9 +208,10 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
                         if on_token:
                             on_token(token, "content")
                         if _should_stop(full_text):
-                            full_text += _STOP_NOTE
+                            note = _stop_note(lang)
+                            full_text += note
                             if on_token:
-                                on_token(_STOP_NOTE, "content")
+                                on_token(note, "content")
                             break
                     if chunk.get("done"):
                         break
@@ -199,22 +222,22 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token) -> str:
 
     except urllib.error.HTTPError as e:
         if e.code == 404:
-            return f"[错误] 本地模型未接入，模型 '{model}' 未找到，请确认已通过 ollama pull 下载"
-        return f"[错误] 本地模型未接入，服务返回异常 (HTTP {e.code})"
+            return _err("ai.err.ollamaModelMissing", model=model)
+        return _err("ai.err.ollamaHttpError", status=e.code)
     except urllib.error.URLError as e:
         return _human_error("ollama", e.reason)
     except Exception as e:
         return _human_error("ollama", e)
 
 
-def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
+def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN") -> str:
     """OpenAI 兼容 API 流式（DeepSeek 等）。"""
     api_key = cfg.get("api_key", "")
     base_url = cfg.get("base_url", "https://api.deepseek.com")
     model = cfg.get("model", "deepseek-chat")
 
     if not api_key:
-        return "[错误] 云端模型未接入，请在设置中填写 API Key"
+        return _err("ai.err.cloudNoApiKey")
 
     url = f"{base_url.rstrip('/')}/v1/chat/completions"
     body = json.dumps({
@@ -259,9 +282,10 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
                         if on_token:
                             on_token(token, "content")
                         if _should_stop(full_text):
-                            full_text += _STOP_NOTE
+                            note = _stop_note(lang)
+                            full_text += note
                             if on_token:
-                                on_token(_STOP_NOTE, "content")
+                                on_token(note, "content")
                             break
                 except json.JSONDecodeError:
                     continue
@@ -270,15 +294,15 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
 
     except urllib.error.HTTPError as e:
         if e.code == 401:
-            return "[错误] 云端模型未接入，API Key 无效或已过期，请检查设置"
+            return _err("ai.err.cloudInvalidKey")
         elif e.code == 402:
-            return "[错误] 云端模型欠费，请充值后重试"
+            return _err("ai.err.cloudNoBalance")
         elif e.code == 403:
-            return "[错误] 云端模型未接入，API Key 无权限访问该模型"
+            return _err("ai.err.cloudNoPermission")
         elif e.code == 429:
-            return "[错误] 云端模型请求过于频繁，请稍后重试"
+            return _err("ai.err.cloudRateLimited")
         elif e.code == 503:
-            return "[错误] 云端模型服务暂时不可用，请稍后重试"
+            return _err("ai.err.cloudUnavailable")
         else:
             err_body = ""
             try:
@@ -286,8 +310,8 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token) -> str:
             except Exception:
                 pass
             if "insufficient" in err_body.lower() or "balance" in err_body.lower() or "quota" in err_body.lower():
-                return "[错误] 云端模型欠费，请充值后重试"
-            return f"[错误] 云端模型返回异常 (HTTP {e.code})"
+                return _err("ai.err.cloudNoBalance")
+            return _err("ai.err.cloudHttpError", status=e.code)
     except urllib.error.URLError as e:
         return _human_error("openai", e.reason)
     except Exception as e:

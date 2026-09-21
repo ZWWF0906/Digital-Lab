@@ -23,6 +23,16 @@ function errorLine(message) {
   return `\x1b[31m[ERROR] ${message}\x1b[0m`;
 }
 
+// 后端错误转文案（双兼容）：
+//   新后端：{code, params} → 查词典（code 与词典 key 同名，缺 key 时 t() 返回 key 本身）
+//   旧后端：直接给字符串（例如 "未找到设备配置: Mock-NAS"）→ 原样显示，绝不是空白
+function backendErrorText(err) {
+  if (err && typeof err === 'object' && err.code) {
+    return T(err.code, err.params || {}) || String(err.code);
+  }
+  return String(err == null ? '' : err);
+}
+
 const TERM_STYLE = `
   .xterm { padding: 12px; }
   .xterm .xterm-viewport { background-color: #0c0c0c !important; }
@@ -313,8 +323,8 @@ export function init(container, api) {
         act.sessionId = resp.session_id;
         session.sessionId = resp.session_id;
       } else if (resp && resp.error) {
-        // resp.error 是后端返回的文案（阶段 4 范围，前端只负责套红色与 [ERROR] 前缀）
-        t.writeln(errorLine(resp.error));
+        // resp.error：新后端是 {code, params}（查词典），旧后端是字符串（原样显示）
+        t.writeln(errorLine(backendErrorText(resp.error)));
       } else {
         t.writeln(errorLine(T('term.error.unknown')));
       }

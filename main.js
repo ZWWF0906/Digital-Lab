@@ -222,7 +222,10 @@ function startPython() {
         return;
       }
       if (data.type === 'ai_done' && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('ai-done', { text: data.text, memory: data.memory, requestId: data.requestId });
+        // 这里的载荷是逐字段重建的，新增字段必须在这里带上，否则渲染进程永远收不到。
+        // error：阶段 4a 的结构化错误（{code, params}）；旧后端没有该字段时为 undefined，
+        // 前端回退到 text 的 [错误] 前缀判断，两条路都不会空白。
+        mainWindow.webContents.send('ai-done', { text: data.text, memory: data.memory, error: data.error, requestId: data.requestId });
         return;
       }
       // 兼容旧 AI 响应

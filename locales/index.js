@@ -12,7 +12,8 @@
 
   var LANGUAGES = [
     { code: 'zh-CN', name: '简体中文', nativeName: '简体中文' },
-    { code: 'en-US', name: 'English',  nativeName: 'English'  }
+    { code: 'en-US', name: 'English',  nativeName: 'English'  },
+    { code: 'ja-JP', name: 'Japanese', nativeName: '日本語'    }
   ];
   var FALLBACK = 'zh-CN';     // 词典缺失时的兜底语言
   var dicts = {};
@@ -45,11 +46,12 @@
     return '';
   }
 
-  // 默认语言规则：系统语言以 zh 开头用 zh-CN，否则 en-US。
-  // 将来加语言（例如 ja-JP）只改这一个函数。
+  // 默认语言规则：系统语言以 zh 开头用 zh-CN，以 ja 开头用 ja-JP，否则 en-US。
+  // 加语言时改这一个函数即可（外加 LANGUAGES 一行与词典文件）。
   function getDefaultLanguage() {
     var l = String(systemLocale() || '').toLowerCase();
     if (l.indexOf('zh') === 0) { return 'zh-CN'; }
+    if (l.indexOf('ja') === 0) { return 'ja-JP'; }
     return 'en-US';
   }
 

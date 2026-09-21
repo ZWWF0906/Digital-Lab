@@ -263,7 +263,38 @@
     'log.aiMemory.confirmFailed': '[AI memory] delete confirmation call failed; delete cancelled: {error}',
     'log.deploy.noApi':           '[Quick deploy] preload does not provide confirmQuickDeploy',
     'log.deploy.dialogFailed':    '[Quick deploy] dialog call failed: {error}',
-    'log.config.loadFailed':      'Failed to load configuration: {error}'
+    'log.config.loadFailed':      'Failed to load configuration: {error}',
+
+    // ── Structured backend errors (phase 4a): codes match the backend exactly ──
+    // AI errors (core/ai_client.py _err(...))
+    'ai.err.ollamaNotRunning':     'Local model unavailable — make sure the Ollama service is running',
+    'ai.err.cloudUnreachable':     'Cloud model unavailable — cannot reach the API server',
+    'ai.err.ollamaBadAddress':     'Local model unavailable — cannot resolve the Ollama address; check the address setting',
+    'ai.err.cloudBadAddress':      'Cloud model unavailable — cannot resolve the API address; check the address setting',
+    'ai.err.ollamaTimeout':        'Local model timed out — check that the Ollama service is running properly',
+    'ai.err.cloudTimeout':         'Cloud model timed out — check your network connection or try again later',
+    'ai.err.tlsInvalid':           'Secure connection failed — the API server certificate is invalid',
+    'ai.err.ollamaRequestFailed':  'Local model request failed ({detail})',
+    'ai.err.cloudRequestFailed':   'Cloud model request failed ({detail})',
+    'ai.err.notConfigured':        'AI settings are not configured; set them up in the Settings panel',
+    'ai.err.ollamaModelMissing':   'Local model unavailable — model {model} was not found; download it with ollama pull',
+    'ai.err.ollamaHttpError':      'Local model unavailable — the service returned an error (HTTP {status})',
+    'ai.err.cloudNoApiKey':        'Cloud model unavailable — enter your API key in Settings',
+    'ai.err.cloudInvalidKey':      'Cloud model unavailable — the API key is invalid or expired; check your settings',
+    'ai.err.cloudNoBalance':       'Cloud model balance exhausted — top up and try again',
+    'ai.err.cloudNoPermission':    'Cloud model unavailable — the API key has no permission for this model',
+    'ai.err.cloudRateLimited':     'Cloud model rate limit reached — please try again later',
+    'ai.err.cloudUnavailable':     'Cloud model service is temporarily unavailable — please try again later',
+    'ai.err.cloudHttpError':       'Cloud model returned an error (HTTP {status})',
+    'ai.err.internal':             'Internal AI request error: {detail}',
+    // Terminal errors (main.py ssh_terminal_init)
+    'term.err.deviceNotConfigured': 'Device is not configured: {host}',
+    'term.err.deviceUserMissing':   'No username configured for device: {host}',
+    // Generic network error (main.py test_nas_connection)
+    'net.connectFailed':            'Connection failed: {detail}',
+    // Config reload (main.py reload_config; not shown in the UI yet, kept for later)
+    'cfg.reloaded':                 'Configuration reloaded',
+    'cfg.reloadedWithErrors':       'Configuration reloaded (with errors)'
   };
 
   if (Locales && Locales.register) { Locales.register('en-US', dict); }

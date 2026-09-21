@@ -263,7 +263,38 @@
     'log.aiMemory.confirmFailed': '[AI记忆] 删除确认调用失败，取消删除: {error}',
     'log.deploy.noApi':           '[快速部署] 当前 preload 未提供 confirmQuickDeploy',
     'log.deploy.dialogFailed':    '[快速部署] 对话框调用失败: {error}',
-    'log.config.loadFailed':      '加载配置失败: {error}'
+    'log.config.loadFailed':      '加载配置失败: {error}',
+
+    // ── 后端结构化错误（阶段 4a）：code 与后端返回的 code 完全同名 ──
+    // AI 错误（core/ai_client.py 的 _err(...)）
+    'ai.err.ollamaNotRunning':     '本地模型未接入，请确认 Ollama 服务已启动',
+    'ai.err.cloudUnreachable':     '云端模型未接入，无法连接到 API 服务器',
+    'ai.err.ollamaBadAddress':     '本地模型未接入，无法解析 Ollama 地址，请检查地址配置',
+    'ai.err.cloudBadAddress':      '云端模型未接入，无法解析 API 地址，请检查地址配置',
+    'ai.err.ollamaTimeout':        '本地模型响应超时，请检查 Ollama 服务是否正常运行',
+    'ai.err.cloudTimeout':         '云端模型响应超时，请检查网络连接或稍后重试',
+    'ai.err.tlsInvalid':           '安全连接失败，API 服务器证书无效',
+    'ai.err.ollamaRequestFailed':  '本地模型请求失败（{detail}）',
+    'ai.err.cloudRequestFailed':   '云端模型请求失败（{detail}）',
+    'ai.err.notConfigured':        '未配置 AI 参数，请在设置面板中配置',
+    'ai.err.ollamaModelMissing':   '本地模型未接入，模型 {model} 未找到，请确认已通过 ollama pull 下载',
+    'ai.err.ollamaHttpError':      '本地模型未接入，服务返回异常 (HTTP {status})',
+    'ai.err.cloudNoApiKey':        '云端模型未接入，请在设置中填写 API Key',
+    'ai.err.cloudInvalidKey':      '云端模型未接入，API Key 无效或已过期，请检查设置',
+    'ai.err.cloudNoBalance':       '云端模型欠费，请充值后重试',
+    'ai.err.cloudNoPermission':    '云端模型未接入，API Key 无权限访问该模型',
+    'ai.err.cloudRateLimited':     '云端模型请求过于频繁，请稍后重试',
+    'ai.err.cloudUnavailable':     '云端模型服务暂时不可用，请稍后重试',
+    'ai.err.cloudHttpError':       '云端模型返回异常 (HTTP {status})',
+    'ai.err.internal':             'AI 请求内部错误：{detail}',
+    // 终端错误（main.py 的 ssh_terminal_init）
+    'term.err.deviceNotConfigured': '未找到设备配置: {host}',
+    'term.err.deviceUserMissing':   '设备未配置用户名: {host}',
+    // 通用网络错误（main.py 的 test_nas_connection）
+    'net.connectFailed':            '连接失败: {detail}',
+    // 配置重载（main.py 的 reload_config；当前界面不显示，留给后续使用）
+    'cfg.reloaded':                 '配置已重载',
+    'cfg.reloadedWithErrors':       '配置已重载（部分错误）'
   };
 
   if (Locales && Locales.register) { Locales.register('zh-CN', dict); }

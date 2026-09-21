@@ -11,6 +11,20 @@ const T = (key, params) => (
     : key
 );
 
+// 后端错误转文案（双兼容）：
+//   新后端：{error: {code, params}}（或直接 {code, params}）→ 查词典
+//   旧后端：{error: "字符串"} 或 {ok:false, message: "字符串"} → 原样显示
+// 任何分支都不返回空白，避免"错误提示消失"。
+function backendErrorText(obj) {
+  if (!obj) return '';
+  const err = (obj.error !== undefined) ? obj.error : null;
+  if (err && typeof err === 'object' && err.code) return T(err.code, err.params || {}) || String(err.code);
+  if (typeof err === 'string' && err) return err;
+  if (obj.code) return T(obj.code, obj.params || {}) || String(obj.code);   // 直接传 {code, params}
+  if (typeof obj.message === 'string' && obj.message) return obj.message;   // 旧后端 {ok:false, message}
+  return '';
+}
+
 export function init(container, api) {
   let config = {};
   let currentTab = pendingTabRestore || 'nas';
@@ -186,7 +200,9 @@ export function init(container, api) {
         try {
           const res = await api.sendCommand({ cmd: 'test_nas_connection', device });
           if (resultEl) {
-            resultEl.textContent = res.ok ? T('set.dev.testOk') : T('set.dev.testFail', { message: res.message || T('set.dev.connFailed') });
+            resultEl.textContent = res.ok
+              ? T('set.dev.testOk')
+              : T('set.dev.testFail', { message: backendErrorText(res) || T('set.dev.connFailed') });
             resultEl.style.color = res.ok ? 'var(--accent)' : 'var(--accent-pink)';
           }
         } catch (e) {
@@ -769,7 +785,7 @@ export function init(container, api) {
           console.warn('reload_config failed:', reloadErr);
         }
       } else {
-        showToast(T('common.saveFailed', { message: result.error || T('common.unknownError') }), true);
+        showToast(T('common.saveFailed', { message: backendErrorText(result) || T('common.unknownError') }), true);
       }
     } catch (e) {
       showToast(T('common.saveFailed', { message: e.message }), true);

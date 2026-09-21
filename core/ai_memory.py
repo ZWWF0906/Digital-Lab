@@ -25,7 +25,10 @@ DEFAULT_DIR_NAME = "memory"
 MAX_CONTENT_LEN = 500
 MAX_PER_REPLY = 3  # 每轮回复最多提取 3 条记忆，超出部分丢弃（标记仍会从正文剥离）
 
-_MARKER_RE = re.compile(r"\[记忆\](.*?)\[/记忆\]", re.S)
+# 记忆标记：中文 [记忆]...[/记忆] 为默认，英文 <mem>...</mem>；两种都识别、都从正文剥离。
+# 用一个组合正则而不是两个：既保留标记在正文中的先后顺序，sub() 也能一次清干净。
+# 已写入的记忆条目存的是剥离后的内容，所以标记换代不影响旧记忆的读取。
+_MARKER_RE = re.compile(r"\[记忆\](.*?)\[/记忆\]|<mem>(.*?)</mem>", re.S | re.I)
 _TRAILING_PUNCT = "。．.，,！!？?；;：:、…~～"
 _TRUTHY = {"1", "true", "yes", "on"}
 
@@ -282,8 +285,9 @@ def migrate(old_dir: str, new_dir: str) -> dict:
 
 
 def extract_markers(text) -> tuple:
-    """从回复文本提取 [记忆]...[/记忆] 并剥离标记。
+    """从回复文本提取记忆标记并剥离标记。
 
+    支持的标记：中文 [记忆]...[/记忆]（默认）与英文 <mem>...</mem>，两种等价、可混用。
     容错原则：只有成对且内容非空的标记会被提取；格式不合法时保留原文、
     不写入、不抛异常。每轮最多提取 MAX_PER_REPLY 条，超出的丢弃；
     无论是否超出，所有成对标记都会从正文剥离。
@@ -297,7 +301,9 @@ def extract_markers(text) -> tuple:
     for match in _MARKER_RE.finditer(text):
         if len(found) >= MAX_PER_REPLY:
             break
-        item = (match.group(1) or "").strip()[:MAX_CONTENT_LEN].strip()
+        # 组合正则有两个分组，命中的那个才是内容
+        raw = next((g for g in match.groups() if g is not None), "")
+        item = (raw or "").strip()[:MAX_CONTENT_LEN].strip()
         if not item or item in found:
             continue
         found.append(item)

@@ -654,11 +654,11 @@ def cmd_json_mode():
             # 按设备名称匹配（name），不是 host IP
             device = next((d for d in nas_devices if d.get("name") == host), None)
             if not device:
-                return {"error": "\u672a\u627e\u5230\u8bbe\u5907\u914d\u7f6e: {}".format(host)}
+                return {"error": {"code": "term.err.deviceNotConfigured", "params": {"host": host}}}
             username = device.get("username", "")
             password = device.get("password", "")
             if not username:
-                return {"error": "\u8bbe\u5907\u672a\u914d\u7f6e\u7528\u6237\u540d: {}".format(host)}
+                return {"error": {"code": "term.err.deviceUserMissing", "params": {"host": host}}}
 
             # 使用设备配置中的实际 IP 和端口进行 SSH 连接
             ssh_host = device.get("host", host)
@@ -756,20 +756,110 @@ def cmd_json_mode():
 
     _AI_MAX_HISTORY = 16  # 发送给模型的历史消息条数上限，防止长对话上下文膨胀或脏数据回灌
     _AI_MEMORY_LIMIT = 10  # 注入 system 提示的长期记忆条数上限
-    # 输出格式约束：原前端 system 消息会被本侧剔除，格式要求统一由 Python 侧下发
-    _AI_FORMAT_RULES = (
-        "输出格式要求：只使用纯文本，不要使用 Markdown 或 HTML，不要使用反引号与星号加粗；"
-        "如需列举，使用纯文本编号或缩进；代码或命令用引号包裹；数学公式用纯文本表达。"
-    )
-    # 记忆指令：仅在 ai.memory.enabled 开启时追加到 system 提示末尾
-    _AI_MEMORY_INSTRUCTION = (
-        "记忆标记：如果用户表达了值得长期记住的偏好或设定（如称呼、设备名、使用习惯），"
-        "在回复最后另起一行写 [记忆]xx[/记忆]，xx 换成你要记的具体信息，"
-        "例如 [记忆]用户喜欢深色主题[/记忆]。没有则不要写这个标记。"
-    )
 
-    def _system_context() -> str:
+    # ── 提示词多语表（阶段 4b 双语 → 本轮加日语）──
+    # 规则：下面每一张表都按 lang 二选一，同一次请求的 system 消息里
+    # 绝不允许同时出现两种语言的规则（整体替换，不是叠加）。
+    # lang 由前端 ai_chat 请求携带；未知值或缺省（旧前端/旧 preload）一律回退中文。
+    _AI_LANG_FALLBACK = "zh-CN"
+    _AI_HEADER = {
+        "zh-CN": ("你是 DigitalLab 的 AI 助手，必须始终使用简体中文回答用户问题。\n"
+                  "你可以访问以下实时系统状态："),
+        "en-US": ("You are the DigitalLab AI assistant. You must always respond in English.\n"
+                  "You can access the following real-time system status:"),
+        "ja-JP": ("あなたは DigitalLab の AI アシスタントです。必ず日本語で回答してください。\n"
+                  "以下のリアルタイムなシステム状態を参照できます："),
+    }
+    _AI_HEADER_NO_DATA = {
+        "zh-CN": ("你是 DigitalLab 的 AI 助手，必须始终使用简体中文回答用户问题。\n"
+                  "当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
+                  "请明确告诉用户暂时无法获取系统数据，不要编造数据。"),
+        "en-US": ("You are the DigitalLab AI assistant. You must always respond in English.\n"
+                  "Real-time system status data is currently unavailable. If the user asks about the computer, "
+                  "devices, NAS, performance or similar, say clearly that the data cannot be fetched right now "
+                  "and do not make anything up."),
+        "ja-JP": ("あなたは DigitalLab の AI アシスタントです。必ず日本語で回答してください。\n"
+                  "現在、システム状態のデータを取得できません。パソコン、デバイス、NAS、性能などについて"
+                  "質問された場合は、データを取得できないことをはっきり伝え、推測で答えないでください。"),
+    }
+    _AI_TRAILER = {
+        "zh-CN": ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用以上数据回答。\n"
+                  "如果系统状态数据不可用，明确告诉用户暂时无法获取，不要编造数据。"),
+        "en-US": ("\nWhen the user asks about the computer, devices, NAS, performance or similar, answer by "
+                  "quoting the data above.\nIf the system status data is unavailable, say so clearly and do not "
+                  "make anything up."),
+        "ja-JP": ("\nパソコン、デバイス、NAS、性能などについて質問された場合は、上記のデータを引用して回答してください。\n"
+                  "システム状態のデータを取得できない場合は、その旨をはっきり伝え、推測で答えないでください。"),
+    }
+    # 输出格式约束：原前端 system 消息会被本侧剔除，格式要求统一由 Python 侧下发
+    _AI_FORMAT_RULES = {
+        "zh-CN": ("输出格式要求：只使用纯文本，不要使用 Markdown 或 HTML，不要使用反引号与星号加粗；"
+                  "如需列举，使用纯文本编号或缩进；代码或命令用引号包裹；数学公式用纯文本表达。"),
+        "en-US": ("Output format: plain text only — no Markdown or HTML, no backticks and no asterisk bold. "
+                  "For lists use plain-text numbering or indentation; wrap code or commands in quotes; "
+                  "write formulas in plain text."),
+        "ja-JP": ("出力形式の指定：プレーンテキストのみを使用し、Markdown や HTML は使わないでください。"
+                  "バッククォートやアスタリスクによる太字も使わないでください。箇条書きはプレーンテキストの番号か"
+                  "インデントで示し、コードやコマンドは引用符で囲み、数式はプレーンテキストで表してください。"),
+    }
+    # 记忆指令：仅在 ai.memory.enabled 开启时追加到 system 提示末尾
+    # 标记按语言选择：中文 [记忆]xx[/记忆]，英文与日文都用 <mem>xx</mem>
+    _AI_MEMORY_INSTRUCTION = {
+        "zh-CN": ("记忆标记：如果用户表达了值得长期记住的偏好或设定（如称呼、设备名、使用习惯），"
+                  "在回复最后另起一行写 [记忆]xx[/记忆]，xx 换成你要记的具体信息，"
+                  "例如 [记忆]用户喜欢深色主题[/记忆]。没有则不要写这个标记。"),
+        "en-US": ("Memory marker: if the user states a preference or setting worth remembering long term "
+                  "(a form of address, a device name, a habit), add one extra last line with <mem>xx</mem>, "
+                  "replacing xx with the exact information to remember, for example "
+                  "<mem>The user prefers the dark theme</mem>. If there is nothing to remember, do not write the marker."),
+        "ja-JP": ("記憶マーカー：ユーザーが長期的に覚えておくべき好みや設定（呼び方、デバイス名、使用習慣など）を"
+                  "示した場合は、返答の最後に改行して <mem>xx</mem> と書いてください。xx には覚える具体的な内容を"
+                  "入れてください。例：<mem>ユーザーはダークテーマを好みます</mem>。"
+                  "覚えることがない場合はこのマーカーを書かないでください。"),
+    }
+    # 记忆注入段的小标题：跟记忆指令同语言，避免非中文请求里混入中文行
+    _AI_MEMORY_HEADER = {
+        "zh-CN": "以下是用户此前确认需要长期记住的偏好（越靠后越新）：\n",
+        "en-US": "These are the long-term preferences the user has confirmed (newest last):\n",
+        "ja-JP": "以下はユーザーが以前に確認した長期的に記憶すべき好みです（下ほど新しい）：\n",
+    }
+    # 状态文本标签：数值格式不变，只换文案（含时间/单位/括号与分隔符）
+    _AI_LABELS = {
+        "zh-CN": {
+            "cpu": "CPU使用率: {:.1f}%", "memory": "内存使用率: {:.1f}%", "disk": "磁盘使用率: {:.1f}%",
+            "hardware": "硬件: ", "mem_gb": "{}GB 内存", "nas": "NAS设备: ",
+            "online": "在线", "offline": "离线",
+            "nas_open": "{}（{}", "nas_close": "）", "nas_sep": "；",
+            "nas_memory": ", 内存 {:.1f}%", "nas_disk": ", 磁盘 {:.1f}%", "nas_temp": ", 温度{:.1f}°C",
+        },
+        "en-US": {
+            "cpu": "CPU usage: {:.1f}%", "memory": "Memory usage: {:.1f}%", "disk": "Disk usage: {:.1f}%",
+            "hardware": "Hardware: ", "mem_gb": "{}GB RAM", "nas": "NAS devices: ",
+            "online": "online", "offline": "offline",
+            "nas_open": "{} ({}", "nas_close": ")", "nas_sep": "; ",
+            "nas_memory": ", memory {:.1f}%", "nas_disk": ", disk {:.1f}%", "nas_temp": ", temp {:.1f}°C",
+        },
+        "ja-JP": {
+            "cpu": "CPU 使用率: {:.1f}%", "memory": "メモリ使用率: {:.1f}%", "disk": "ディスク使用率: {:.1f}%",
+            "hardware": "ハードウェア: ", "mem_gb": "{}GB メモリ", "nas": "NAS デバイス: ",
+            "online": "オンライン", "offline": "オフライン",
+            "nas_open": "{}（{}", "nas_close": "）", "nas_sep": "、",
+            "nas_memory": "、メモリ {:.1f}%", "nas_disk": "、ディスク {:.1f}%", "nas_temp": "、温度{:.1f}°C",
+        },
+    }
+
+    def _ai_text(table: dict, lang: str) -> str:
+        """按 lang 二选一；未知语言（含缺省）回退中文。"""
+        return table.get(lang) or table[_AI_LANG_FALLBACK]
+
+    def _system_context(lang: str = "zh-CN") -> str:
         from core.system_state import system_state
+
+        # 三张文本表都按 lang 二选一（整体替换）：同一次请求里只会有一套语言的规则
+        labels = _ai_text(_AI_LABELS, lang)
+        header_text = _ai_text(_AI_HEADER, lang)
+        no_data_text = _ai_text(_AI_HEADER_NO_DATA, lang)
+        trailer_text = _ai_text(_AI_TRAILER, lang)
 
         snap = {}
         try:
@@ -781,9 +871,9 @@ def cmd_json_mode():
 
         lines = []
         mon = snap.get("monitor", {}) or {}
-        lines.append("CPU使用率: {:.1f}%".format(_num(mon.get("cpu"))))
-        lines.append("内存使用率: {:.1f}%".format(_num(mon.get("memory"))))
-        lines.append("磁盘使用率: {:.1f}%".format(_num(mon.get("disk"))))
+        lines.append(labels["cpu"].format(_num(mon.get("cpu"))))
+        lines.append(labels["memory"].format(_num(mon.get("memory"))))
+        lines.append(labels["disk"].format(_num(mon.get("disk"))))
 
         hw = snap.get("hardware", {}) or {}
         cpu_m = _clean_text((hw.get("cpu") or {}).get("model"), 60)
@@ -795,9 +885,9 @@ def cmd_json_mode():
         if gpu_m:
             hw_bits.append(gpu_m)
         if mem_gb > 0:
-            hw_bits.append("{}GB 内存".format(int(mem_gb)))
+            hw_bits.append(labels["mem_gb"].format(int(mem_gb)))
         if hw_bits:
-            lines.append("硬件: " + ", ".join(hw_bits))
+            lines.append(labels["hardware"] + ", ".join(hw_bits))
 
         nas = snap.get("nas", {}) or {}
         if isinstance(nas, dict):
@@ -811,47 +901,50 @@ def cmd_json_mode():
                 online_raw = dv.get("online")
                 online = not (online_raw is False
                               or str(online_raw).strip().lower() in ("false", "0", "offline", "off"))
-                bit = "{}（{}".format(clean_name, "在线" if online else "离线")
+                bit = labels["nas_open"].format(clean_name, labels["online"] if online else labels["offline"])
                 if online:
                     nm = dv.get("memory")
                     npct = nm.get("percent") if isinstance(nm, dict) else nm
                     nd = dv.get("disk")
                     dpct = nd.get("percent") if isinstance(nd, dict) else nd
                     bit += ", CPU {:.1f}%".format(_num(dv.get("cpu")))
-                    bit += ", 内存 {:.1f}%".format(_num(npct))
-                    bit += ", 磁盘 {:.1f}%".format(_num(dpct))
+                    bit += labels["nas_memory"].format(_num(npct))
+                    bit += labels["nas_disk"].format(_num(dpct))
                     temp = _num(dv.get("temperature"), None)
                     if temp is not None:
-                        bit += ", 温度{:.1f}°C".format(temp)
-                nas_bits.append(bit + "）")
+                        bit += labels["nas_temp"].format(temp)
+                nas_bits.append(bit + labels["nas_close"])
             if nas_bits:
-                lines.append("NAS设备: " + "；".join(nas_bits))
+                lines.append(labels["nas"] + labels["nas_sep"].join(nas_bits))
 
-        header = ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
-                  "你可以访问以下实时系统状态：")
-        # 记忆开关：仅开启时追加记忆指令（关闭时不追加）
+        header = header_text
+        # 记忆开关：仅开启时追加记忆指令（关闭时不追加）；指令语言与 system 提示保持一致
         try:
             from core import ai_memory as _aim
             _memory_on = bool(_aim.settings().get("enabled"))
         except Exception:
             _memory_on = False
-        suffix = "\n" + _AI_FORMAT_RULES
+        suffix = "\n" + _ai_text(_AI_FORMAT_RULES, lang)
         if _memory_on:
-            suffix += "\n" + _AI_MEMORY_INSTRUCTION
+            suffix += "\n" + _ai_text(_AI_MEMORY_INSTRUCTION, lang)
         if not lines:
-            return ("你是 DigitalLab 的 AI 助手，必须始终使用中文回答用户问题。\n"
-                    "当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
-                    "请明确告诉用户暂时无法获取系统数据，不要编造数据。") + suffix
+            return no_data_text + suffix
         body = "\n".join(lines)
         if len(body) > 1000:
             body = body[:1000]
-        trailer = ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用以上数据回答。\n"
-                   "如果系统状态数据不可用，明确告诉用户暂时无法获取，不要编造数据。")
-        return header + "\n" + body + trailer + suffix
+        return header + "\n" + body + trailer_text + suffix
 
     # ── AI 流式对话 ──
-    def _handle_ai_chat(messages, provider, request_id):
-        """在独立线程中执行 AI 流式对话，通过 stdout 推送 token。"""
+    def _handle_ai_chat(messages, provider, request_id, lang="zh-CN"):
+        """在独立线程中执行 AI 流式对话，通过 stdout 推送 token。
+
+        lang：界面语言（zh-CN / en-US），决定 system 提示词、记忆标记与截断提示的语言。
+        无状态设计：每次对话都由前端带上 lang，后端不记忆上次的语言，避免语言漂移。
+        未知值或缺省（旧前端 / 旧 preload / 旧 backend 组合）一律回退中文。
+        """
+        # 只接受已知语言，其余回退默认（避免把任意字符串塞进提示词表查询）
+        if lang not in _AI_HEADER:
+            lang = _AI_LANG_FALLBACK
         def _run():
             from core.ai_client import chat_stream
             def _push_token(token, token_type="content"):
@@ -862,7 +955,7 @@ def cmd_json_mode():
                 }, ensure_ascii=False)
                 _safe_print(msg, flush=True)
             try:
-                system_ctx = _system_context()
+                system_ctx = _system_context(lang)
                 base_msgs = messages if isinstance(messages, list) else []
                 # 历史消息清洗：只保留合法角色；字符串内容做同样的安全清理，避免脏字符回灌模型
                 clean_msgs = []
@@ -897,19 +990,20 @@ def cmd_json_mode():
                         if _mem_lines:
                             prefix_msgs.append({
                                 "role": "system",
-                                "content": "以下是用户此前确认需要长期记住的偏好（越靠后越新）：\n" + "\n".join(_mem_lines),
+                                "content": _ai_text(_AI_MEMORY_HEADER, lang) + "\n".join(_mem_lines),
                             })
                 except Exception:
                     pass
                 chat_msgs = prefix_msgs + clean_msgs
-                result = chat_stream(chat_msgs, provider, on_token=_push_token)
-                # 解析并剥离 [记忆]...[/记忆]：无论开关如何都剥离标记，仅在开关开启时写入
-                reply_text = result
+                result = chat_stream(chat_msgs, provider, on_token=_push_token, lang=lang)
+                # 结构化错误：chat_stream 失败时返回 {"code": ..., "params": {...}}，此时正文为空
+                ai_error = result if isinstance(result, dict) else None
+                reply_text = "" if ai_error else result
                 memory_saved = []
                 try:
                     from core import ai_memory as _aim
                     _found = []
-                    if not str(result).startswith("[错误]"):
+                    if ai_error is None:
                         reply_text, _found = _aim.extract_markers(result)
                     if _found and _aim.settings().get("enabled"):
                         for _item in _found:
@@ -924,14 +1018,16 @@ def cmd_json_mode():
                     "type": "ai_done",
                     "text": reply_text,
                     "memory": memory_saved,
+                    "error": ai_error,
                     "requestId": request_id,
                 }, ensure_ascii=False)
                 _safe_print(done_msg, flush=True)
             except Exception as e:
                 err_msg = json.dumps({
                     "type": "ai_done",
-                    "text": f"[错误] {e}",
+                    "text": "",
                     "memory": [],
+                    "error": {"code": "ai.err.internal", "params": {"detail": str(e)}},
                     "requestId": request_id,
                 }, ensure_ascii=False)
                 _safe_print(err_msg, flush=True)
@@ -1042,9 +1138,9 @@ def cmd_json_mode():
                 auth_timeout=5,
             )
             client.close()
-            return {"ok": True, "message": "\u8fde\u63a5\u6210\u529f"}
+            return {"ok": True}
         except Exception as e:
-            return {"ok": False, "message": str(e)}
+            return {"ok": False, "error": {"code": "net.connectFailed", "params": {"detail": str(e)}}}
 
     def _get_nas_devices():
         import json, os
@@ -1095,7 +1191,8 @@ def cmd_json_mode():
                 messages = cmd.get("messages", [])
                 provider = cmd.get("provider", "ollama")
                 req_id = cmd.get("requestId", "")
-                _handle_ai_chat(messages, provider, req_id)
+                # 界面语言随请求下发（缺省中文，旧前端不带该字段）
+                _handle_ai_chat(messages, provider, req_id, cmd.get("lang", _AI_LANG_FALLBACK))
                 resp = {"ok": True, "streaming": True}
             elif ctype == "get_ai_memory":
                 from core import ai_memory as _aim
@@ -1158,9 +1255,9 @@ def cmd_json_mode():
                     reload_errors.append("start_nas: " + str(_e))
 
                 if reload_errors:
-                    resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d\uff08\u90e8\u5206\u9519\u8bef\uff09", "warnings": reload_errors}
+                    resp = {"ok": True, "message": {"code": "cfg.reloadedWithErrors", "params": {}}, "warnings": reload_errors}
                 else:
-                    resp = {"ok": True, "message": "\u914d\u7f6e\u5df2\u91cd\u8f7d"}
+                    resp = {"ok": True, "message": {"code": "cfg.reloaded", "params": {}}}
             elif ctype == "get_nas_devices":
                 resp = {"devices": _get_nas_devices()}
             elif ctype == "terminal_input":

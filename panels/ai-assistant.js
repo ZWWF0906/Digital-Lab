@@ -8,10 +8,10 @@ const T = (key, params) => (
 );
 
 // 错误标记：这是前端与 Python 之间的"协议"标记，不是界面文案，所以不进词典、也不翻译。
-//   后端：core/ai_client.py 约 20 处拼 "[错误] ..."，main.py 第 912 行用 startswith("[错误]") 做判断
-//   前端：本文件用 text.startsWith(ERR_MARK) 识别 ai_done 里的异常
-// 两边必须完全一致；要改成英文 [ERROR] 就得同时改 main.py 与 core/（本阶段不允许），
-// 所以这里只做"一个标记只写一处"的收拢。阶段 4 建议改成结构化字段（如 ai_done.error = true），彻底去掉字符串标记。
+//   后端：新版本已改为结构化 error（{"code","params"}），不再发这个前缀；
+//        旧版 backend.exe（core/ai_client.py 早期版本）仍会把 [错误] 拼在 ai_done.text 前面。
+//   前端：保留 ERR_MARK 与 startsWith 判断作为旧后端的兼容回退，两条路都映射到同一套词典文案。
+// 阶段 4b 建议：等旧后端彻底退出后，这个常量与回退分支就可以删掉。
 const ERR_MARK = '[错误]';
 
 let shownTip = false;
@@ -290,7 +290,15 @@ export async function init(container, api) {
     } catch (e) { memSnapshot = null; }
 
     try {
-      const result = await api.aiChat(chatMessages, provider);
+      // 界面语言随每次请求一起下发（无状态，避免后端记忆的语言漂移）：
+      // 用 sendCommand 而不是 api.aiChat，是因为 aiChat 的签名固定为 (messages, provider)，
+      // 而 preload 不在本轮允许改动的文件里；sendCommand 会把整个对象透传给后端。
+      // 旧后端会忽略 lang 字段（回退中文），行为不受影响。
+      const reqLang = (typeof window !== 'undefined' && window.DigitalLabI18n && window.DigitalLabI18n.getLanguage)
+        ? window.DigitalLabI18n.getLanguage() : 'zh-CN';
+      const result = (api && typeof api.sendCommand === 'function')
+        ? await api.sendCommand({ cmd: 'ai_chat', messages: chatMessages, provider, lang: reqLang })
+        : await api.aiChat(chatMessages, provider);   // 旧 preload 兜底
       if (result.error) {
         // result.error 是后端文案（阶段 4 范围），这里只补协议标记
         addMessage('assistant', `${ERR_MARK} ${result.error}`);
@@ -369,9 +377,16 @@ export async function init(container, api) {
 
   unsubDone = api.onAiDone((data) => {
     statusEl.textContent = '';
-    // 错误消息：ai_done.text 以错误标记开头表示异常（标记定义见文件头 ERR_MARK）
     const text = data.text || '';
-    if (text.startsWith(ERR_MARK)) {
+    // 错误两条路都要能显示（双兼容）：
+    //   新后端：data.error = {code, params}，文案查词典（code 与词典 key 同名）
+    //   旧后端：只给以 [错误] 开头的 text（backend.exe 未更新时）
+    // 词典缺 key 时 t() 会返回 key 本身，所以不会出现空白气泡。
+    const structured = (data.error && typeof data.error === 'object') ? data.error : null;
+    if (structured) {
+      const msg = structured.code ? T(structured.code, structured.params || {}) : '';
+      addMessage('assistant', msg || T('common.unknownError'));
+    } else if (text.startsWith(ERR_MARK)) {
       addMessage('assistant', text);
     } else if (streamingMsg && streamingMsg.contentBubble) {
       // 正常回复：用后端剥离标记后的文本覆盖流式显示与前端历史，避免 [记忆] 标记残留

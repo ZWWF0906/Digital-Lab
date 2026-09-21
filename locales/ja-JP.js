@@ -1,0 +1,302 @@
+// locales/ja-JP.js — 日本語辞書（自注册・zh-CN と同じ key 集合）
+(function (root, factory) {
+  if (typeof module === 'object' && module.exports) { module.exports = factory(require('./index.js')); }
+  else { factory(root.DigitalLabLocales); }
+})(typeof self !== 'undefined' ? self : this, function (Locales) {
+  'use strict';
+
+  var dict = {
+    // ── 共通語（複数パネルで共用） ──
+    'common.ok':            'OK',
+    'common.cancel':        'キャンセル',
+    'common.delete':        '削除',
+    'common.close':         '閉じる',
+    'common.tip.title':     'お知らせ',
+    'common.tip.body':      'この機能はまだテスト段階のため、異常が発生する可能性があります',
+    'common.saveFailed':    '保存に失敗しました: {message}',
+    'common.unknownError':  '不明なエラー',
+
+    // サイドバー（panels/index.js）
+    'nav.dashboard':    'ダッシュボード',
+    'nav.deviceCenter': 'デバイスセンター',
+    'nav.terminal':     'ターミナル',
+    'nav.ai':           'AI アシスタント',
+    'nav.settings':     '設定',
+
+    // メインプロセス：トレイメニュー
+    'tray.showMain':    'メインウィンドウを表示',
+    'tray.quit':        '終了',
+
+    // メインプロセス：クイックデプロイのダイアログ
+    'dlg.deploySoon.message': 'この機能は開発中です。今しばらくお待ちください',
+    'dlg.deploySoon.button':  '了解しました',
+
+    // メインプロセス：AI メモリ削除の確認
+    'dlg.memoryDelete.message': '警告：メモリの削除は元に戻せません。重要なデータが含まれている可能性がありますので、慎重に操作してください。',
+    'dlg.memoryDelete.delete':  '削除',
+    'dlg.memoryDelete.cancel':  'キャンセル',
+
+    // 設定パネル：言語
+    'set.language':     '言語',
+    'set.languageHint': '切り替えるとすぐに反映され、自動的に保存されます。再起動後も保持されます。',
+
+    // 起動スプラッシュのオーバーレイ（dashboard.html）
+    'boot.selfCheck':      '起動セルフチェック',
+    'boot.item.backend':   'バックエンド起動済み',
+    'boot.item.collector': 'コレクター稼働中',
+    'boot.item.hardware':  'ハードウェア準備完了',
+    'boot.item.nas':       'NAS 接続',
+    'boot.state.wait':     '待機中',
+    'boot.state.pass':     '成功',
+    'boot.state.fail':     '失敗',
+    'boot.state.skip':     'スキップ',
+    // 依存項目の詳細：文テンプレート、プレースホルダーは {count}
+    'boot.detail.frame':          'ステータスフレームを受信しました',
+    'boot.detail.hardwareCount':  '{count} 項目',
+    'boot.detail.nasOnline':      'オンライン {count} 台',
+    'boot.detail.nasNoneOnline':  'オンラインのデバイスがありません',
+    'boot.detail.nasUnconfigured': 'デバイスが未設定です',
+    'boot.detail.nasNoState':     'NAS のステータスがありません',
+    'boot.detail.preloadDown':    'プリロードを利用できません',
+    'boot.detail.timeout':        'タイムアウトしました',
+
+    // ダッシュボードパネル（panels/dashboard.js）
+    'dash.section.realtime': 'リアルタイム監視',
+    'dash.section.nas':      'NAS デバイス',
+    'dash.section.local':    'ローカル詳細',
+    'dash.metric.cpu':       'CPU',
+    'dash.metric.gpu':       'GPU',
+    'dash.metric.memory':    'メモリ',
+    'dash.metric.disk':      'ディスク',
+    'dash.metric.network':   'ネットワーク',
+    'dash.hw.title':         'ハードウェア情報',
+    'dash.proc.title':       'プロセス Top 15',
+    'dash.hw.cpu':           'プロセッサ',
+    'dash.hw.gpu':           'グラフィックスカード',
+    'dash.hw.memory':        'メモリ',
+    'dash.hw.disk':          'ドライブ',
+    'dash.hw.system':        'システム',
+    'dash.hw.cpuDetail':     '{cores} コア · {threads} スレッド',
+    'dash.nasHw.collecting': 'ハードウェア情報を取得しています...',
+    'dash.nasHw.cores':      'コア数',
+    'dash.unknown':          '不明',
+    'dash.notDetected':      '未検出',
+    'dash.loading':          '読み込み中...',
+    'dash.proc.name':        '名前',
+    'dash.proc.memory':      'メモリ %',
+    'dash.proc.empty':       'データがありません',
+    'dash.nas.empty':        'NAS デバイスが未設定です。設定から追加してください',
+    'dash.nas.retry':        '再試行',
+    'dash.nas.retrying':     '再試行しています...',
+
+    // デバイスセンターパネル（panels/device-center.js）
+    'dev.section.overview':  'デバイス一覧',
+    'dev.device.local':      'ローカルホスト',
+    'dev.card.memory':       'メモリ',
+    'dev.card.disk':         'ディスク',
+    'dev.section.processes': 'プロセス TOP15',
+    'dev.empty':             'データがありません',
+    'dev.col.name':          '名前',
+    'dev.col.memory':        'メモリ %',
+    'dev.col.command':       'コマンド',
+    'dev.docker.title':      'Docker コンテナ',
+    'dev.col.image':         'イメージ',
+    'dev.col.status':        '状態',
+    // NAS 情報行と Docker 集計：文テンプレート
+    'dev.nas.temperature':   '温度: {temp}°C',
+    'dev.nas.uptime':        '稼働時間: {uptime}',
+    'dev.docker.summary':    '● 稼働中: {running} ● 合計: {total}',
+
+    // ターミナルパネル（panels/terminal.js）—— 通知ダイアログは common.tip.* を共用
+    'term.placeholder.title': 'NAS ターミナル',
+    'term.placeholder.desc':  '利用可能な NAS デバイスがありません',
+    'term.placeholder.btn':   '設定で NAS を追加',
+    'term.offline':          'NAS デバイスは現在オフラインです',
+    // ターミナル内の通知行：文テンプレート。[ERROR] 接頭辞と ANSI カラーコードはコード側に残す
+    'term.connecting':       '{name} に接続しています...',
+    'term.error.unknown':    '接続に失敗しました。不明なエラーです',
+    'term.error.ssh':        'SSH 接続に失敗しました: {message}',
+
+    // AI アシスタントパネル（panels/ai-assistant.js）
+    'ai.provider.ollama':   'Ollama ローカル',
+    'ai.provider.cloud':    'クラウド API',
+    'ai.btn.settings':      '設定',
+    'ai.btn.deploy':        'クイックデプロイ',
+    'ai.btn.send':          '送信',
+    'ai.greeting':          'こんにちは。DigitalLab AI アシスタントです。モデルを選択すると会話を始められます。',
+    'ai.input.placeholder': 'メッセージを入力...（Enter で送信）',
+    'ai.context.title':     'システム状態',
+    'ai.ctx.performance':   'パフォーマンス',
+    'ai.ctx.memoryRow':     'メモリ: {value}%',
+    'ai.ctx.diskRow':       'ディスク: {value}%',
+    'ai.ctx.hardware':      'ハードウェア',
+    'ai.ctx.memoryGb':      'メモリ: {value} GB',
+    'ai.ctx.system':        'システム: {os} {edition}',
+    'ai.ctx.unknown':       '不明',
+    'ai.ctx.none':          'なし',
+    'ai.ctx.nas':           'NAS デバイス',
+    'ai.memory.remembered': '記憶しました：{item}',
+    'ai.status.thinking':   '考えています...',
+    'ai.emptyReply':        '（今回の本文出力はありません）',
+
+    // 設定パネル（panels/settings.js）
+    'set.tab.nas':        'NAS デバイス',
+    'set.tab.ai':         'AI 設定',
+    'set.tab.collect':    '収集設定',
+    'set.tab.software':   'ソフトウェア',
+    'set.tab.about':      'このアプリについて',
+    // NAS デバイスページ
+    'set.nas.list':       'NAS デバイス一覧',
+    'set.nas.empty':      'デバイスがありません。下のボタンから追加してください',
+    'set.nas.addBtn':     '+ デバイスを追加',
+    'set.nas.saveAll':    'すべて保存',
+    'set.nas.unnamed':    '名称未設定のデバイス',
+    'set.nas.noHost':     'ホストが未設定',
+    'set.nas.edit':       '編集',
+    'set.nas.mockTitle':  'サンプル NAS',
+    'set.nas.mockDesc':   '開発テスト用で、実際の NAS データを模擬します',
+    // デバイス編集ダイアログ
+    'set.dev.editTitle':  'デバイスを編集',
+    'set.dev.addTitle':   'デバイスを追加',
+    'set.dev.saveEdit':   '変更を保存',
+    'set.dev.name':       '名前',
+    'set.dev.host':       'ホスト',
+    'set.dev.port':       'ポート',
+    'set.dev.username':   'ユーザー名',
+    'set.dev.password':   'パスワード',
+    'set.dev.namePh':     'デバイス名',
+    'set.dev.hostPh':     'IP アドレス',
+    'set.dev.userPh':     'SSH ユーザー名',
+    'set.dev.passPh':     'SSH パスワード',
+    'set.dev.test':       '接続テスト',
+    'set.dev.testing':    'テストしています...',
+    'set.dev.testOk':     '✓ 接続に成功しました',
+    'set.dev.testFail':   '✗ {message}',
+    'set.dev.connFailed': '接続に失敗しました',
+    // AI 設定ページ（プロバイダー名は ai.provider.* を再利用）
+    'set.ai.providerTitle':    'AI プロバイダー',
+    'set.ai.defaultModel':     '既定のモデル',
+    'set.ai.addr':             'アドレス',
+    'set.ai.model':            'モデル',
+    'set.ai.memoryTitle':      'AI メモリ',
+    'set.ai.memoryEnable':     'AI メモリを有効にする',
+    'set.ai.memoryEnableHint': '有効にすると、確認済みの長期的な好みを AI が記憶します',
+    'set.ai.memoryDir':        '保存ディレクトリ',
+    'set.ai.memoryDirPh':      '既定 %APPDATA%\\DigitalLab\\memory',
+    'set.ai.chooseDir':        'ディレクトリを選択',
+    'set.ai.viewMemory':       'メモリを表示',
+    'set.ai.clearMemory':      'メモリを消去',
+    'set.ai.save':             'AI 設定を保存',
+    // メモリ保存ディレクトリのダイアログ
+    'set.memDir.title':   'メモリの保存ディレクトリを選択',
+    'set.memDir.label':   'ディレクトリ',
+    'set.memDir.ph':      '空欄の場合は既定のディレクトリを使用します',
+    'set.memDir.hint1':   '絶対パスを入力してください。空欄の場合は既定の %APPDATA%\\DigitalLab\\memory を使用します。',
+    'set.memDir.hint2':   'ディレクトリを変更して保存すると、既存のメモリファイルは新しいディレクトリにコピーされ、元のファイルは保持されます。',
+    'set.memDir.updated': 'ディレクトリを更新しました。保存後に反映されます',
+    // メモリ一覧
+    'set.mem.loading':            '読み込み中...',
+    'set.mem.readFailed':         'メモリの読み込みに失敗しました',
+    'set.mem.empty':              'メモリはまだありません',
+    'set.mem.deleted':            'このメモリを削除しました',
+    'set.mem.deleteFailed':       '削除に失敗しました',
+    'set.mem.deleteFailedDetail': '削除に失敗しました: {message}',
+    'set.mem.cleared':            'メモリを消去しました',
+    'set.mem.clearFailed':        '消去に失敗しました',
+    'set.mem.clearFailedDetail':  '消去に失敗しました: {message}',
+    // 収集設定ページ
+    'set.collect.params':        '収集パラメータ',
+    'set.collect.localInterval': 'ローカル収集間隔',
+    'set.collect.nasInterval':   'NAS 収集間隔',
+    'set.collect.seconds':       '秒',
+    'set.collect.thresholds':    '監視しきい値',
+    'set.collect.cpuAlarm':      'CPU アラート',
+    'set.collect.memAlarm':      'メモリアラート',
+    'set.collect.diskAlarm':     'ディスクアラート',
+    'set.collect.save':          '収集設定を保存',
+    // ソフトウェアページ（言語の行は set.language / set.languageHint を使用）
+    'set.soft.display':          '表示',
+    'set.soft.hwAccel':          'ハードウェアアクセラレーション',
+    'set.soft.hwAccelHint':      'オフにすると仮想マシンでウィンドウが表示されない問題を解決できますが、性能は低下します。変更後はアプリの再起動が必要です。',
+    'set.soft.theme':            'テーマ',
+    'set.soft.themeDark':        'ダーク（既定）',
+    'set.soft.themeLight':       'ライト',
+    'set.soft.themeHint':        '切り替えるとすぐに反映され、自動的に保存されます。ライトテーマでもターミナルパネルはダークのままです。',
+    'set.soft.splash':           'スプラッシュアニメーション',
+    'set.soft.splashHint':       'オフにすると起動時に直接メイン画面を表示します。次回の起動から有効です。',
+    'set.soft.loadFailed':       '読み込みに失敗しました',
+    'set.soft.splashOn':         'スプラッシュアニメーションを有効にしました。次回の起動から有効です',
+    'set.soft.splashOff':        'スプラッシュアニメーションを無効にしました。次回の起動から有効です',
+    'set.soft.hwOn':             'ハードウェアアクセラレーションを有効にしました。反映にはアプリの再起動が必要です',
+    'set.soft.hwOff':            'ハードウェアアクセラレーションを無効にしました。反映にはアプリの再起動が必要です',
+    'set.soft.themeLightDone':   'ライトテーマに切り替えました',
+    'set.soft.themeDarkDone':    'ダークテーマに切り替えました',
+    'set.lang.unsupported':      '未対応の言語です {lang}',
+    // このアプリについてページ
+    'set.about.slogan':   '個人向けデジタルラボ',
+    'set.about.features': 'ダッシュボード · ターミナル · AI アシスタント · システム監視',
+    'set.about.author':   '作者：ZWWF0906',
+    'set.about.license':  'DigitalLab は MIT ライセンスのオープンソースソフトウェアです',
+    'set.about.feedback': 'フィードバック',
+    // フィードバックダイアログ
+    'set.fb.title':       'フィードバックと報告',
+    'set.fb.choose':      'フィードバック方法を選択してください',
+    'set.fb.note1':       'AI が不適切な内容を生成した場合は、こちらから併せて報告してください',
+    'set.fb.note2':       'フィードバックを受け取り次第、速やかに対応します',
+    'set.fb.mail':        '✉ メールでフィードバック',
+    'set.fb.github':      'GitHub でフィードバック',
+    'set.fb.close':       '閉じる',
+    'set.fb.mailSubject': 'DigitalLab へのフィードバック',
+    // 保存結果の通知
+    'set.saved':        '設定を保存しました',
+    'set.savedPartial': '設定を保存しましたが、一部のコンポーネントの再読み込みに失敗しました',
+
+    // シェル（dashboard.html）
+    'nav.hint.terminalNoNas': '先に設定で NAS デバイスを追加して接続してください',
+    'boot.fail.preload':      'プリロードに失敗しました。アプリを再起動してください',
+    'boot.fail.panel':        'パネルの読み込みに失敗しました',
+
+    // 開発者コンソールのログ（DevTools のみ）
+    'log.aiMemory.passthrough':   '[AIメモリ] 直通路：ai_done.memory の件数={count}',
+    'log.aiMemory.fallback':      '[AIメモリ] 代替路：リスト差分の新規={count}',
+    'log.aiMemory.noConfirmApi':  '[AIメモリ] 現在の preload に confirmMemoryDelete がないため、削除を中止します',
+    'log.aiMemory.confirmFailed': '[AIメモリ] 削除確認の呼び出しに失敗したため、削除を中止します: {error}',
+    'log.deploy.noApi':           '[クイックデプロイ] 現在の preload に confirmQuickDeploy がありません',
+    'log.deploy.dialogFailed':    '[クイックデプロイ] ダイアログの呼び出しに失敗しました: {error}',
+    'log.config.loadFailed':      '設定の読み込みに失敗しました: {error}',
+
+    // ── バックエンドの構造化エラー（code はバックエンドと完全に同名）──
+    // AI エラー（core/ai_client.py の _err(...)）
+    'ai.err.ollamaNotRunning':     'ローカルモデルを利用できません。Ollama サービスが起動しているか確認してください',
+    'ai.err.cloudUnreachable':     'クラウドモデルを利用できません。API サーバーに接続できません',
+    'ai.err.ollamaBadAddress':     'ローカルモデルを利用できません。Ollama のアドレスを解決できません。アドレス設定を確認してください',
+    'ai.err.cloudBadAddress':      'クラウドモデルを利用できません。API のアドレスを解決できません。アドレス設定を確認してください',
+    'ai.err.ollamaTimeout':        'ローカルモデルがタイムアウトしました。Ollama サービスが正常に動作しているか確認してください',
+    'ai.err.cloudTimeout':         'クラウドモデルがタイムアウトしました。ネットワーク接続を確認するか、しばらくして再試行してください',
+    'ai.err.tlsInvalid':           '安全な接続に失敗しました。API サーバーの証明書が無効です',
+    'ai.err.ollamaRequestFailed':  'ローカルモデルのリクエストに失敗しました（{detail}）',
+    'ai.err.cloudRequestFailed':   'クラウドモデルのリクエストに失敗しました（{detail}）',
+    'ai.err.notConfigured':        'AI の設定が未構成です。設定パネルで構成してください',
+    'ai.err.ollamaModelMissing':   'ローカルモデルを利用できません。モデル {model} が見つかりません。ollama pull で取得済みか確認してください',
+    'ai.err.ollamaHttpError':      'ローカルモデルを利用できません。サービスが異常を返しました (HTTP {status})',
+    'ai.err.cloudNoApiKey':        'クラウドモデルを利用できません。設定で API Key を入力してください',
+    'ai.err.cloudInvalidKey':      'クラウドモデルを利用できません。API Key が無効か期限切れです。設定を確認してください',
+    'ai.err.cloudNoBalance':       'クラウドモデルの残高が不足しています。チャージ後に再試行してください',
+    'ai.err.cloudNoPermission':    'クラウドモデルを利用できません。API Key にこのモデルへのアクセス権がありません',
+    'ai.err.cloudRateLimited':     'クラウドモデルへのリクエストが多すぎます。しばらくして再試行してください',
+    'ai.err.cloudUnavailable':     'クラウドモデルのサービスが一時的に利用できません。しばらくして再試行してください',
+    'ai.err.cloudHttpError':       'クラウドモデルが異常を返しました (HTTP {status})',
+    'ai.err.internal':             'AI リクエストの内部エラー：{detail}',
+    // ターミナルのエラー（main.py の ssh_terminal_init）
+    'term.err.deviceNotConfigured': 'デバイス設定が見つかりません: {host}',
+    'term.err.deviceUserMissing':   'デバイスにユーザー名が設定されていません: {host}',
+    // 汎用ネットワークエラー（main.py の test_nas_connection）
+    'net.connectFailed':            '接続に失敗しました: {detail}',
+    // 設定の再読み込み（main.py の reload_config。現在の UI では未表示）
+    'cfg.reloaded':                 '設定を再読み込みしました',
+    'cfg.reloadedWithErrors':       '設定を再読み込みしました（一部エラー）'
+  };
+
+  if (Locales && Locales.register) { Locales.register('ja-JP', dict); }
+  return dict;
+});
