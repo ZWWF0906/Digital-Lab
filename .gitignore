@@ -8,7 +8,6 @@ __pycache__/
 *.log
 *.db
 *.sqlite
-backend.exe
+backend.exe*
 .vs/
 build/backend/
-backend.exe.old
