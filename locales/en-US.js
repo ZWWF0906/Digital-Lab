@@ -294,7 +294,45 @@
     'net.connectFailed':            'Connection failed: {detail}',
     // Config reload (main.py reload_config; not shown in the UI yet, kept for later)
     'cfg.reloaded':                 'Configuration reloaded',
-    'cfg.reloadedWithErrors':       'Configuration reloaded (with errors)'
+    'cfg.reloadedWithErrors':       'Configuration reloaded (with errors)',
+
+    // ── First-run onboarding (shown while onboarding_done is false) ──
+    // Step 2 form labels/placeholders are reused from set.dev.*
+    'onboard.title':          'Welcome to DigitalLab',
+    'onboard.sub':            'Finish the initial setup in three steps',
+    'onboard.step.language':  'Language',
+    'onboard.step.device':    'Device',
+    'onboard.step.check':     'Connection',
+    'onboard.lang.title':     'Choose your interface language',
+    'onboard.lang.hint':      'You can change this later in Settings.',
+    'onboard.dev.title':      'Add a NAS device',
+    'onboard.dev.hint':       'Enter the SSH details; the app starts connecting after you save.',
+    'onboard.dev.needFields': 'Name and host are required',
+    'onboard.dev.saving':     'Saving...',
+    'onboard.check.title':    'Check the connection',
+    'onboard.check.testing':  'Testing the connection...',
+    'onboard.check.waiting':  'Saved — waiting for the device to come online...',
+    'onboard.check.testPass': 'Connection test passed',
+    'onboard.check.online':   'The device is online',
+    'onboard.check.pass':     'Connected — the device is online',
+    'onboard.check.fail':     'Connection failed',
+    'onboard.check.timeout':  'Timed out; the device may still be starting up',
+    'onboard.check.retry':    'Retry',
+    'onboard.btn.next':       'Next',
+    'onboard.btn.back':       'Back',
+    'onboard.btn.finish':     'Finish',
+    'onboard.btn.later':      'Set up later',
+
+    // Settings panel: run onboarding again
+    'set.soft.onboarding':     'First-run onboarding',
+    'set.soft.rerunOnboarding': 'Run onboarding again',
+    'set.soft.onboardingHint': 'Replay the three-step onboarding (language, device, connection).',
+    // ── Threshold alert notifications (main.js toast text) ──
+    'alert.title':  'Alert',
+    'alert.cpu':    'CPU',
+    'alert.memory': 'Memory',
+    'alert.disk':   'Disk',
+    'alert.body':   '{metric} reached {value}% (threshold {threshold}%)'
   };
 
   if (Locales && Locales.register) { Locales.register('en-US', dict); }

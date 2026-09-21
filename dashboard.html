@@ -331,6 +331,113 @@
     #boot-splash:not(.is-armed) .bs-checks,
     #boot-splash:not(.is-armed) .bs-item { opacity: 0; visibility: hidden; }
   }
+
+  /* ── 首次启动引导覆盖层：样式全部限定在 #onboarding 内，层级高于 #boot-splash ──
+     不使用 styles.css，也不影响其它面板；未加 .is-open 时完全不参与布局（display:none）。 */
+  #onboarding {
+    position: fixed;
+    inset: 0;
+    z-index: 40;                 /* #boot-splash 是 30，引导必须盖住它 */
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: clamp(12px, 3vmin, 32px);
+    background: rgba(8, 14, 20, 0.82);
+    backdrop-filter: blur(3px);
+    color: #E0E6ED;
+    font-family: system-ui, -apple-system, 'Segoe UI', 'Microsoft YaHei UI', sans-serif;
+  }
+  #onboarding.is-open { display: flex; }
+  #onboarding *, #onboarding *::before, #onboarding *::after { box-sizing: border-box; }
+  #onboarding .ob-card {
+    width: min(560px, 96vw);
+    max-height: 92vh;
+    overflow: auto;
+    background: #0F1E28;
+    border: 1px solid rgba(46, 230, 179, 0.28);
+    border-radius: 16px;
+    padding: clamp(18px, 3vmin, 28px);
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+  }
+  #onboarding .ob-title { font-size: 1.25rem; font-weight: 600; color: #E0E6ED; }
+  #onboarding .ob-sub { margin-top: 6px; font-size: 0.82rem; color: rgba(224, 230, 237, 0.6); }
+  #onboarding .ob-steps { display: flex; gap: 8px; margin: 18px 0 16px; flex-wrap: wrap; }
+  #onboarding .ob-chip {
+    font-size: 0.74rem;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid rgba(45, 212, 191, 0.25);
+    color: rgba(224, 230, 237, 0.55);
+  }
+  #onboarding .ob-chip.is-active { border-color: #2EE6B3; color: #2EE6B3; }
+  #onboarding .ob-chip.is-done { border-color: rgba(46, 230, 179, 0.5); color: rgba(46, 230, 179, 0.75); }
+  #onboarding .ob-pane { display: none; }
+  #onboarding .ob-pane.is-active { display: block; }
+  #onboarding .ob-pane-title { font-size: 0.98rem; font-weight: 600; margin-bottom: 6px; }
+  #onboarding .ob-pane-hint { font-size: 0.78rem; color: rgba(224, 230, 237, 0.55); line-height: 1.6; margin-bottom: 14px; }
+  #onboarding .ob-langs { display: flex; flex-direction: column; gap: 8px; }
+  #onboarding .ob-lang {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(224, 230, 237, 0.16);
+    background: rgba(255, 255, 255, 0.02);
+    color: #E0E6ED;
+    font-size: 0.9rem;
+    cursor: pointer;
+    text-align: left;
+  }
+  #onboarding .ob-lang:hover { border-color: rgba(46, 230, 179, 0.45); }
+  #onboarding .ob-lang.is-active { border-color: #2EE6B3; background: rgba(46, 230, 179, 0.08); }
+  #onboarding .ob-lang .ob-lang-tick { color: #2EE6B3; }
+  #onboarding .ob-form { display: flex; flex-direction: column; gap: 10px; }
+  #onboarding .ob-row { display: flex; align-items: center; gap: 10px; }
+  #onboarding .ob-row > label { width: 96px; flex: none; font-size: 0.82rem; color: rgba(224, 230, 237, 0.7); }
+  #onboarding .ob-row > input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(224, 230, 237, 0.18);
+    background: rgba(255, 255, 255, 0.03);
+    color: #E0E6ED;
+    font-size: 0.85rem;
+    font-family: inherit;
+  }
+  #onboarding .ob-row > input:focus { outline: none; border-color: #2EE6B3; }
+  #onboarding .ob-msg { margin-top: 10px; font-size: 0.78rem; line-height: 1.6; min-height: 18px; color: rgba(224, 230, 237, 0.6); }
+  #onboarding .ob-msg.is-error { color: #f43f5e; }
+  #onboarding .ob-msg.is-ok { color: #2EE6B3; }
+  #onboarding .ob-status { font-size: 0.85rem; line-height: 1.7; }
+  #onboarding .ob-status .ob-status-line { display: flex; gap: 8px; align-items: baseline; }
+  #onboarding .ob-status .ob-status-dot { color: rgba(224, 230, 237, 0.45); }
+  #onboarding .ob-status .ob-status-dot.is-ok { color: #2EE6B3; }
+  #onboarding .ob-status .ob-status-dot.is-fail { color: #f43f5e; }
+  #onboarding .ob-detail { font-size: 0.75rem; color: rgba(224, 230, 237, 0.5); word-break: break-all; margin: 2px 0 8px 16px; }
+  #onboarding .ob-later { margin-top: 14px; }
+  #onboarding .ob-foot { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+  #onboarding .ob-spacer { flex: 1; }
+  #onboarding .ob-btn {
+    padding: 8px 16px;
+    border-radius: 9px;
+    font-size: 0.84rem;
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: inherit;
+  }
+  #onboarding .ob-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+  #onboarding .ob-primary { background: #2EE6B3; color: #06231b; font-weight: 600; }
+  #onboarding .ob-secondary { background: rgba(255, 255, 255, 0.04); color: #E0E6ED; border-color: rgba(224, 230, 237, 0.22); }
+  #onboarding .ob-ghost { background: transparent; color: rgba(224, 230, 237, 0.7); border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
+  #onboarding .ob-ghost:hover { color: #E0E6ED; }
+  /* 浅色主题下引导卡片仍保持深色（与终端面板同理），只调整遮罩透明度 */
+  :root[data-theme="light"] #onboarding { background: rgba(15, 20, 25, 0.55); }
+  @media (prefers-reduced-motion: reduce) {
+    #onboarding .ob-btn, #onboarding .ob-lang { transition: none; }
+  }
 </style>
 </head>
 <body>
@@ -385,6 +492,382 @@
       }
     })();
   </script>
+
+  <!-- ── 首次启动引导覆盖层 ──
+       显示条件：应用级 config.json 的 onboarding_done 不为 true（由外壳在 'splash-finished' 后判定）。
+       文案全部由脚本按当前语言填充（data-ob / data-ob-ph 标出 key），切换语言时整体重填，不会串语言。
+       第 2 步的设备字段与占位符复用 set.dev.* 词典 key，不重复定义。 -->
+  <div id="onboarding" role="dialog" aria-modal="true" aria-labelledby="ob-title">
+    <div class="ob-card">
+      <div class="ob-title" id="ob-title" data-ob="onboard.title"></div>
+      <div class="ob-sub" data-ob="onboard.sub"></div>
+      <div class="ob-steps" id="ob-steps"></div>
+
+      <div class="ob-pane" data-pane="1">
+        <div class="ob-pane-title" data-ob="onboard.lang.title"></div>
+        <div class="ob-pane-hint" data-ob="onboard.lang.hint"></div>
+        <div class="ob-langs" id="ob-langs"></div>
+      </div>
+
+      <div class="ob-pane" data-pane="2">
+        <div class="ob-pane-title" data-ob="onboard.dev.title"></div>
+        <div class="ob-pane-hint" data-ob="onboard.dev.hint"></div>
+        <div class="ob-form">
+          <div class="ob-row"><label data-ob="set.dev.name"></label><input type="text" id="ob-dev-name" data-ob-ph="set.dev.namePh" /></div>
+          <div class="ob-row"><label data-ob="set.dev.host"></label><input type="text" id="ob-dev-host" data-ob-ph="set.dev.hostPh" /></div>
+          <div class="ob-row"><label data-ob="set.dev.port"></label><input type="number" id="ob-dev-port" value="22" /></div>
+          <div class="ob-row"><label data-ob="set.dev.username"></label><input type="text" id="ob-dev-user" data-ob-ph="set.dev.userPh" /></div>
+          <div class="ob-row"><label data-ob="set.dev.password"></label><input type="password" id="ob-dev-pass" data-ob-ph="set.dev.passPh" /></div>
+        </div>
+        <div class="ob-msg" id="ob-dev-msg"></div>
+      </div>
+
+      <div class="ob-pane" data-pane="3">
+        <div class="ob-pane-title" data-ob="onboard.check.title"></div>
+        <div class="ob-status" id="ob-status"></div>
+        <div class="ob-msg" id="ob-check-msg"></div>
+        <button class="ob-btn ob-ghost ob-later" id="ob-later-3" data-ob="onboard.btn.later"></button>
+      </div>
+
+      <div class="ob-foot">
+        <button class="ob-btn ob-ghost" id="ob-later" data-ob="onboard.btn.later"></button>
+        <button class="ob-btn ob-ghost" id="ob-back" data-ob="onboard.btn.back"></button>
+        <span class="ob-spacer"></span>
+        <button class="ob-btn ob-secondary" id="ob-retry" data-ob="onboard.check.retry"></button>
+        <button class="ob-btn ob-primary" id="ob-next" data-ob="onboard.btn.next"></button>
+      </div>
+    </div>
+  </div>
+  <script>
+    // 首次启动引导：三步（选语言 / 配设备 / 查连接）。
+    // 只依赖 <head> 的 i18n 与 preload 暴露的 API，不碰 styles.css、不改任何面板。
+    (function () {
+      'use strict';
+      var root = document.getElementById('onboarding');
+      if (!root) return;
+      var api = window.digitalLab;
+
+      var T = function (key, params) {
+        return (window.DigitalLabI18n && window.DigitalLabI18n.t) ? window.DigitalLabI18n.t(key, params) : key;
+      };
+      // 后端错误对象/字符串转文案（与 settings.js / terminal.js 同一套双兼容规则）
+      function backendErrorText(obj) {
+        if (!obj) return '';
+        var err = (obj.error !== undefined) ? obj.error : null;
+        if (err && typeof err === 'object' && err.code) return T(err.code, err.params || {}) || String(err.code);
+        if (typeof err === 'string' && err) return err;
+        if (obj.code) return T(obj.code, obj.params || {}) || String(obj.code);
+        if (typeof obj.message === 'string' && obj.message) return obj.message;
+        return '';
+      }
+
+      var el = {
+        steps: root.querySelector('#ob-steps'),
+        langs: root.querySelector('#ob-langs'),
+        panes: root.querySelectorAll('.ob-pane'),
+        devName: root.querySelector('#ob-dev-name'),
+        devHost: root.querySelector('#ob-dev-host'),
+        devPort: root.querySelector('#ob-dev-port'),
+        devUser: root.querySelector('#ob-dev-user'),
+        devPass: root.querySelector('#ob-dev-pass'),
+        devMsg: root.querySelector('#ob-dev-msg'),
+        status: root.querySelector('#ob-status'),
+        checkMsg: root.querySelector('#ob-check-msg'),
+        later: root.querySelector('#ob-later'),
+        later3: root.querySelector('#ob-later-3'),
+        back: root.querySelector('#ob-back'),
+        retry: root.querySelector('#ob-retry'),
+        next: root.querySelector('#ob-next')
+      };
+
+      var STEP_KEYS = ['onboard.step.language', 'onboard.step.device', 'onboard.step.check'];
+      var step = 1;
+      var opened = false;       // 幂等：splash-finished 可能被派发两次
+      var finished = false;
+      var busy = false;
+      var device = null;        // 第 2 步保存下来的设备记录
+      var savedAt = 0;          // 保存时刻：只认这之后采集到的新状态，避免旧设备残留的 online=true 被当成通过
+      var testOk = false;       // 一次测试是否 ok
+      var onlineSeen = false;   // 状态帧里该设备是否 online（且是保存之后的新数据）
+      var unsubState = null;
+      var waitTimer = null;
+
+      // ── 文案：所有带 data-ob / data-ob-ph 的节点按当前语言重填 ──
+      function applyTexts() {
+        var i, n;
+        var nodes = root.querySelectorAll('[data-ob]');
+        for (i = 0; i < nodes.length; i++) {
+          n = nodes[i];
+          n.textContent = T(n.getAttribute('data-ob'));
+        }
+        var phs = root.querySelectorAll('[data-ob-ph]');
+        for (i = 0; i < phs.length; i++) {
+          n = phs[i];
+          n.setAttribute('placeholder', T(n.getAttribute('data-ob-ph')));
+        }
+        root.setAttribute('aria-label', T('onboard.title'));
+        renderSteps();
+        renderLangs();
+        renderFoot();
+        updateStatus();
+      }
+
+      function renderSteps() {
+        var html = '';
+        for (var i = 0; i < STEP_KEYS.length; i++) {
+          var cls = 'ob-chip' + (step === i + 1 ? ' is-active' : (step > i + 1 ? ' is-done' : ''));
+          html += '<span class="' + cls + '">' + (i + 1) + '. ' + T(STEP_KEYS[i]) + '</span>';
+        }
+        el.steps.innerHTML = html;
+      }
+
+      // ── 第 1 步：语言（清单来自 DigitalLabLocales.LANGUAGES，不写死）──
+      function renderLangs() {
+        var L = (window.DigitalLabLocales && window.DigitalLabLocales.LANGUAGES) || [];
+        var cur = (window.DigitalLabI18n && window.DigitalLabI18n.getLanguage) ? window.DigitalLabI18n.getLanguage() : '';
+        var html = '';
+        for (var i = 0; i < L.length; i++) {
+          var active = (L[i].code === cur);
+          html += '<button class="ob-lang' + (active ? ' is-active' : '') + '" data-code="' + L[i].code + '">' +
+                  '<span>' + (L[i].nativeName || L[i].name || L[i].code) + '</span>' +
+                  '<span class="ob-lang-tick">' + (active ? '\u2713' : '') + '</span></button>';
+        }
+        el.langs.innerHTML = html;
+        var btns = el.langs.querySelectorAll('.ob-lang');
+        for (var k = 0; k < btns.length; k++) {
+          btns[k].addEventListener('click', function () { switchLanguage(this.getAttribute('data-code')); });
+        }
+      }
+
+      // 复用设置面板那 5 步：i18n 切换 → localStorage → html lang → 主进程 → language-changed
+      function switchLanguage(code) {
+        var I = window.DigitalLabI18n;
+        if (!I || typeof I.setLanguage !== 'function') return;
+        if (!I.setLanguage(code)) return;
+        try { localStorage.setItem('digitallab-lang', code); } catch (e) {}
+        document.documentElement.setAttribute('lang', code);
+        try { if (api && typeof api.setLanguage === 'function') api.setLanguage(code); } catch (e) {}
+        window.dispatchEvent(new CustomEvent('language-changed', { detail: code }));
+      }
+
+      function renderFoot() {
+        el.later.style.display = (step === 1) ? '' : 'none';
+        el.back.style.display = (step === 1) ? 'none' : '';
+        el.retry.style.display = (step === 3) ? '' : 'none';
+        el.later3.style.display = (step === 3) ? '' : 'none';
+        el.next.textContent = T(step === 3 ? 'onboard.btn.finish' : 'onboard.btn.next');
+        el.next.disabled = busy || (step === 3 && !isPassed());
+        el.retry.disabled = busy;
+      }
+
+      function setPane() {
+        for (var i = 0; i < el.panes.length; i++) {
+          el.panes[i].classList.toggle('is-active', Number(el.panes[i].getAttribute('data-pane')) === step);
+        }
+      }
+
+      function setMsg(node, text, kind) {
+        node.textContent = text || '';
+        node.classList.remove('is-error', 'is-ok');
+        if (kind) node.classList.add(kind);
+      }
+
+      function isPassed() { return !!(testOk && onlineSeen); }
+
+      // ── 第 3 步状态行：未通过时分两行（连接测试 / 设备在线），通过后合成一句 ──
+      function statusLine(on, fail, text) {
+        return '<div class="ob-status-line"><span class="ob-status-dot' + (on ? (fail ? ' is-fail' : ' is-ok') : '') + '">\u25CF</span><span>' + text + '</span></div>';
+      }
+
+      function updateStatus() {
+        if (!el.status) return;
+        if (step !== 3 || !device) { el.status.innerHTML = ''; return; }
+        if (isPassed()) { el.status.innerHTML = statusLine(true, false, T('onboard.check.pass')); return; }
+        var html = statusLine(testOk, !testOk, testOk ? T('onboard.check.testPass') : T('onboard.check.fail'));
+        html += statusLine(onlineSeen, false, onlineSeen ? T('onboard.check.online') : T('onboard.check.waiting'));
+        el.status.innerHTML = html;
+      }
+
+      // ── 第 2 步：保存设备（只做新增；同名则覆盖，避免重复）──
+      function collectDevice() {
+        return {
+          name: (el.devName.value || '').trim(),
+          host: (el.devHost.value || '').trim(),
+          port: parseInt(el.devPort.value, 10) || 22,
+          username: (el.devUser.value || '').trim(),
+          password: el.devPass.value || ''
+        };
+      }
+
+      async function saveDevice() {
+        var rec = collectDevice();
+        if (!rec.name || !rec.host) { setMsg(el.devMsg, T('onboard.dev.needFields'), 'is-error'); return false; }
+        busy = true; setMsg(el.devMsg, T('onboard.dev.saving'), ''); renderFoot();
+        try {
+          var cfg = await api.getConfig();
+          if (!cfg || typeof cfg !== 'object') cfg = {};
+          if (!Array.isArray(cfg.nas_devices)) cfg.nas_devices = [];
+          var idx = -1;
+          for (var i = 0; i < cfg.nas_devices.length; i++) {
+            if (cfg.nas_devices[i] && cfg.nas_devices[i].name === rec.name) { idx = i; break; }
+          }
+          if (idx >= 0) cfg.nas_devices[idx] = rec; else cfg.nas_devices.push(rec);
+          var r = await api.saveConfig(cfg);
+          if (r && r.ok === false) {
+            setMsg(el.devMsg, T('common.saveFailed', { message: backendErrorText(r) || T('common.unknownError') }), 'is-error');
+            busy = false; renderFoot(); return false;
+          }
+          // 让后端重启 NAS 采集线程，新设备才会出现在状态帧里
+          try { await api.sendCommand({ cmd: 'reload_config' }); } catch (e) {}
+          device = rec;
+          savedAt = Date.now();   // 之后的状态帧才算"这台设备的新数据"
+          setMsg(el.devMsg, '', '');
+          busy = false; renderFoot();
+          return true;
+        } catch (e) {
+          setMsg(el.devMsg, T('common.saveFailed', { message: e.message }), 'is-error');
+          busy = false; renderFoot();
+          return false;
+        }
+      }
+
+      // ── 第 3 步：测试连接 + 等设备上线 ──
+      function subscribeState() {
+        if (unsubState || !api || typeof api.onStateUpdate !== 'function') return;
+        try {
+          unsubState = api.onStateUpdate(function (state) {
+            if (!device || !state || !state.nas) return;
+            var d = state.nas[device.name];
+            if (!d || d.online !== true) return;
+            // 只认"保存/测试之后"采集到的新数据：
+            // 同名设备在改动主机前可能还留着上一轮的 online=true 与 last_updated，
+            // 若直接采信，改成一个连不上的地址也会被判成通过。
+            if (d.last_updated) {
+              var lu = Date.parse(d.last_updated);
+              if (!isNaN(lu) && lu < savedAt - 3000) return;
+            }
+            if (!onlineSeen) {
+              onlineSeen = true;
+              renderFoot(); updateStatus();
+            }
+          });
+        } catch (e) {}
+      }
+
+      function startWait() {
+        if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+        waitTimer = setTimeout(function () {
+          waitTimer = null;
+          if (!onlineSeen && step === 3) {
+            setMsg(el.checkMsg, T('onboard.check.timeout'), '');
+            updateStatus();
+          }
+        }, 15000);
+      }
+
+      async function runTest() {
+        if (!device) return;
+        busy = true; testOk = false; onlineSeen = false;
+        setMsg(el.checkMsg, T('onboard.check.testing'), '');
+        renderFoot(); updateStatus();
+        subscribeState();
+        try {
+          var res = await api.sendCommand({ cmd: 'test_nas_connection', device: device });
+          testOk = !!(res && res.ok === true);
+          if (!testOk) {
+            var detail = backendErrorText(res);
+            setMsg(el.checkMsg, detail || T('set.dev.connFailed'), 'is-error');
+          } else {
+            setMsg(el.checkMsg, '', '');   // 通过后由状态行表达"等待上线"，避免重复
+          }
+        } catch (e) {
+          testOk = false;
+          setMsg(el.checkMsg, T('net.connectFailed', { detail: e.message }), 'is-error');
+        }
+        busy = false; renderFoot(); updateStatus();
+        if (!onlineSeen) startWait();
+      }
+
+      // ── 流程控制 ──
+      function goStep(n) {
+        step = Math.min(3, Math.max(1, n));
+        setPane(); renderSteps(); renderFoot(); updateStatus();
+        if (step === 3 && device) runTest();
+      }
+
+      async function next() {
+        if (busy) return;
+        if (step === 1) { goStep(2); return; }
+        if (step === 2) {
+          var okSave = await saveDevice();
+          if (okSave) goStep(3);
+          return;
+        }
+        finish();   // 第 3 步：完成（仅在通过时可用）
+      }
+
+      function cleanup() {
+        if (waitTimer) { clearTimeout(waitTimer); waitTimer = null; }
+        if (unsubState) { try { unsubState(); } catch (e) {} unsubState = null; }
+      }
+
+      function close() {
+        opened = false;
+        root.classList.remove('is-open');
+        cleanup();
+      }
+
+      // 完成 / 稍后配置：都写入 onboarding_done=true（"稍后配置"表示用户已看过引导、明确选择稍后手动配置，
+      // 否则每次启动都会再弹一次），随后关闭覆盖层。
+      function finish() {
+        if (finished) return;
+        finished = true;
+        try { if (api && typeof api.setOnboardingDone === 'function') api.setOnboardingDone(true); } catch (e) {}
+        close();
+      }
+
+      // 外壳在 'splash-finished' 后调用；幂等
+      function openIfNeeded() {
+        if (opened) return;
+        var done = false;
+        try { done = !!(api && typeof api.getOnboardingDoneSync === 'function' && api.getOnboardingDoneSync()); } catch (e) {}
+        if (done) return;
+        open();
+      }
+
+      function open() {
+        opened = true;
+        finished = false;
+        step = 1;
+        device = null; testOk = false; onlineSeen = false;
+        setMsg(el.devMsg, '', ''); setMsg(el.checkMsg, '', '');
+        applyTexts();
+        setPane();
+        root.classList.add('is-open');
+        try { el.devName.focus(); } catch (e) {}
+      }
+
+      el.next.addEventListener('click', next);
+      el.back.addEventListener('click', function () { goStep(step - 1); });
+      el.retry.addEventListener('click', function () { runTest(); });
+      el.later.addEventListener('click', finish);
+      el.later3.addEventListener('click', finish);
+      root.addEventListener('keydown', function (e) { if (e.key === 'Escape') finish(); });
+
+      // 语言切换（无论来自引导本身还是设置面板）→ 重填文案
+      window.addEventListener('language-changed', function () { if (opened) applyTexts(); });
+
+      // 供外壳与设置面板调用（设置面板的"重新运行引导"）
+      window.DigitalLabOnboarding = {
+        openIfNeeded: openIfNeeded,
+        open: open,
+        close: close,
+        isOpen: function () { return opened; }
+      };
+
+      applyTexts();   // 先把文案填好（此时仍隐藏）
+    })();
+  </script>
   <script>
     // 启动自检：真实状态驱动 + 固定节奏逐项点亮 + 超时兜底 + 淡出
     (function () {
@@ -401,6 +884,12 @@
       } catch (e) {}
       if (!splashEnabled) {
         if (root.parentNode) root.parentNode.removeChild(root);
+        // 开屏被关闭时没有淡出动画，这里必须派发同一个结束事件，
+        // 否则"关掉开屏动画"的用户永远等不到引导（勘察报告里点出的最易漏分支）。
+        // 注意：这个分支发生在解析期，外壳的监听还没装上，所以同时留一个标记，
+        // 由外壳在注册监听后补查一次（见模块脚本里的 __splashFinished 判断）。
+        window.__splashFinished = true;
+        try { window.dispatchEvent(new CustomEvent('splash-finished')); } catch (e) {}
         return;
       }
       var SCRIPT_T0 = performance.now();   // 脚本起跑（探针与 10s 超时兜底的基准）
@@ -474,7 +963,13 @@
         if (faded) return;
         faded = true;
         root.classList.add('is-out');
-        var done = function () { root.style.display = 'none'; };
+        var done = function () {
+          root.style.display = 'none';
+          // 开屏真正结束（淡出动画结束或兜底超时）才派发：引导页据此决定是否显示。
+          // 可能被调用两次（animationend + 超时兜底），监听方需要自己做幂等。
+          window.__splashFinished = true;
+          try { window.dispatchEvent(new CustomEvent('splash-finished')); } catch (e) {}
+        };
         root.addEventListener('animationend', function (ev) {
           if (ev.animationName === 'bs-splashOut') done();   // 只认淡出动画，忽略呼吸/其它动画的结束
         });
@@ -766,6 +1261,19 @@
     window.addEventListener('switch-panel', (e) => {
       switchPanel(e.detail);
     });
+
+    // 首次启动引导：开屏结束（含"开屏动画已关闭"的分支）后判定一次。
+    // 读取标志与显示覆盖层都在引导模块里，这里只负责触发，避免两处判定条件。
+    function maybeOpenOnboarding() {
+      try {
+        if (window.DigitalLabOnboarding && typeof window.DigitalLabOnboarding.openIfNeeded === 'function') {
+          window.DigitalLabOnboarding.openIfNeeded();
+        }
+      } catch (e) {}
+    }
+    window.addEventListener('splash-finished', maybeOpenOnboarding);
+    // 开屏被关闭时事件发生在解析期（早于本监听注册），用标记补一次判定
+    if (window.__splashFinished) maybeOpenOnboarding();
 
     // 语言切换：重建侧栏文案，并重刷当前面板（面板内容每次都是整块重建，重跑一次 init 即可）
     window.addEventListener('language-changed', () => {

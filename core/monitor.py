@@ -454,7 +454,11 @@ def _get_alert_state():
     m = system_state["monitor"]
     a = m.get("alert", {})
     if not a:
-        a = {"last_time": {}, "test_mode": False}
+        # state：每指标一条 {"over_since": 时间戳或 None, "latched": 布尔}
+        #   over_since 记录本轮"开始超标"的时刻（用于持续时间门槛）
+        #   latched    已告警过、等待回落到回差以下才解锁（用于抑制持续超标反复通知）
+        # seq：告警序号，每产出一条 +1；前端靠它去重
+        a = {"last_time": {}, "test_mode": False, "state": {}, "seq": 0}
         system_state["monitor"]["alert"] = a
     return a
 
@@ -648,10 +652,19 @@ def _get_max_disk_percent() -> float:
     return max(d["percent"] for d in disks)
 
 
+# 告警抑制参数：持续多少秒才算真超标（滤瞬时尖峰）；回落多少个百分点才解除闩锁（回差）
+ALERT_MIN_DURATION = 30
+ALERT_RECOVER_MARGIN = 5
+
+
 def check_alerts(cpu: float, memory: float, disk: float, thresholds: dict, cooldown: int) -> list:
     from core.system_state import system_state
     alert_state = _get_alert_state()
     test_mode = alert_state.get("test_mode", False)
+    if not isinstance(alert_state.get("state"), dict):
+        alert_state["state"] = {}   # 兼容旧进程里已存在的 alert 字典（没有 state/seq 键）
+    if not isinstance(alert_state.get("seq"), int):
+        alert_state["seq"] = 0
 
     alerts = []
     now = time.time()
@@ -663,30 +676,58 @@ def check_alerts(cpu: float, memory: float, disk: float, thresholds: dict, coold
     ]
 
     for name, value, limit, key in checks:
-        if test_mode or value >= limit:
-            last = alert_state["last_time"].get(key, 0)
-            if test_mode or (now - last >= cooldown):
-                level = "red" if value >= limit else "yellow"
-                tag = "[紧急]" if value >= limit else "[警告]"
-                alerts.append((name, value, limit, tag, level))
-                alert_state["last_time"][key] = now
-                system_state["monitor"]["alert"] = alert_state
+        overshoot = bool(test_mode or value >= limit)
+        recovered = value <= limit - ALERT_RECOVER_MARGIN
+        st = alert_state["state"].get(key)
+        if not isinstance(st, dict):
+            st = {"over_since": None, "latched": False}
+            alert_state["state"][key] = st
 
-                from core.logger import log_alert
-                log_alert(name, value, limit, test=test_mode)
+        if not overshoot:
+            # 未超标：清掉持续时间起点；回落到"阈值 - 回差"以下才解除闩锁
+            st["over_since"] = None
+            if recovered:
+                st["latched"] = False
+            continue
 
-                history = system_state["monitor"].get("alerts_history", [])
-                history.append({
-                    "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-                    "metric": name,
-                    "value": round(value, 1),
-                    "threshold": limit,
-                    "level": level,
-                })
-                system_state["monitor"]["alerts_history"] = history[-100:]
-            else:
-                from core.logger import log_info
-                log_info("{} 超标(冷却中)".format(name), current=value, threshold=limit)
+        # 超标：首次记下开始时刻
+        if st.get("over_since") is None:
+            st["over_since"] = now
+
+        # 已告警过且还没回落 → 抑制（持续超标不再重复通知）；test_mode 下不受抑制
+        if st.get("latched") and not test_mode:
+            from core.logger import log_info
+            log_info("{} 超标(已告警,抑制中)".format(name), current=value, threshold=limit)
+            continue
+
+        # 持续时间门槛：连续超标满 ALERT_MIN_DURATION 秒才产出；test_mode 下即时触发
+        if test_mode or (now - st["over_since"] >= ALERT_MIN_DURATION):
+            level = "red" if value >= limit else "yellow"
+            tag = "[紧急]" if value >= limit else "[警告]"
+            alert_state["seq"] = int(alert_state.get("seq", 0)) + 1
+            seq = alert_state["seq"]
+            st["latched"] = True
+            alerts.append((name, value, limit, tag, level))
+            alert_state["last_time"][key] = now
+            system_state["monitor"]["alert"] = alert_state
+
+            from core.logger import log_alert
+            log_alert(name, value, limit, test=test_mode)
+
+            history = system_state["monitor"].get("alerts_history", [])
+            history.append({
+                "time": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+                "metric": name,
+                "metric_key": key,
+                "value": round(value, 1),
+                "threshold": limit,
+                "level": level,
+                "seq": seq,
+            })
+            system_state["monitor"]["alerts_history"] = history[-100:]
+        else:
+            from core.logger import log_info
+            log_info("{} 超标(持续中)".format(name), current=value, threshold=limit)
 
     return alerts
 

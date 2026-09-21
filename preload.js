@@ -127,6 +127,20 @@ contextBridge.exposeInMainWorld('digitalLab', {
     return ipcRenderer.invoke('set-language', lang);
   },
 
+  // 首次启动引导标志（应用级 config.json 的 onboarding_done）：
+  // 同步读给"开屏结束即判定"用；写走 invoke（true=引导已完成，false=重新运行引导）
+  getOnboardingDoneSync() {
+    try {
+      return ipcRenderer.sendSync('get-onboarding-done-sync') === true;
+    } catch (e) {
+      return false;   // 读不到按"未完成"处理，保证首次启动能看到引导
+    }
+  },
+
+  setOnboardingDone(done) {
+    return ipcRenderer.invoke('set-onboarding-done', done);
+  },
+
   // 启动期同步读取主题（config.json 是权威源）：<head> 脚本要在首帧前定好 data-theme。
   // 读不到时返回 null，由调用方回退到 localStorage 缓存。
   getThemeSync() {

@@ -622,6 +622,11 @@ export function init(container, api) {
             </select>
           </div>
           <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.languageHint')}</div>
+          <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
+            <label>${T('set.soft.onboarding')}</label>
+            <button class="btn-secondary" id="btn-rerun-onboarding">${T('set.soft.rerunOnboarding')}</button>
+          </div>
+          <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.soft.onboardingHint')}</div>
         </div>
       `;
 
@@ -648,6 +653,21 @@ export function init(container, api) {
             showToast(T('common.saveFailed', { message: e.message }), true);
             splashToggle.checked = !newVal;
           }
+        });
+      }
+
+      // 重新运行引导：把 onboarding_done 置回 false，并立即打开引导覆盖层
+      const rerunBtn = el.querySelector('#btn-rerun-onboarding');
+      if (rerunBtn) {
+        rerunBtn.addEventListener('click', async () => {
+          try {
+            if (api && typeof api.setOnboardingDone === 'function') await api.setOnboardingDone(false);
+          } catch (e) {}
+          try {
+            if (window.DigitalLabOnboarding && typeof window.DigitalLabOnboarding.open === 'function') {
+              window.DigitalLabOnboarding.open();
+            }
+          } catch (e) {}
         });
       }
 

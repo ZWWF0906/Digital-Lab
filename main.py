@@ -544,6 +544,8 @@ def cmd_json_mode():
             },
             "hardware": _format_hardware(_latest_hardware),
             "nas": snap.get("nas", {}),
+            # 告警通知（阶段 1.4）：只带最近 5 条，随状态帧下发；前端按 seq 去重
+            "alerts": monitor.get("alerts_history", [])[-5:],
         }
         return payload
 

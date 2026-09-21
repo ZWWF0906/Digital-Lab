@@ -294,7 +294,45 @@
     'net.connectFailed':            '接続に失敗しました: {detail}',
     // 設定の再読み込み（main.py の reload_config。現在の UI では未表示）
     'cfg.reloaded':                 '設定を再読み込みしました',
-    'cfg.reloadedWithErrors':       '設定を再読み込みしました（一部エラー）'
+    'cfg.reloadedWithErrors':       '設定を再読み込みしました（一部エラー）',
+
+    // ── 初回起動ガイド（onboarding_done が false のとき表示）──
+    // ステップ 2 のフォーム項目とプレースホルダーは set.dev.* を再利用します
+    'onboard.title':          'DigitalLab へようこそ',
+    'onboard.sub':            '3 ステップで初期設定を完了します',
+    'onboard.step.language':  '言語',
+    'onboard.step.device':    'デバイス設定',
+    'onboard.step.check':     '接続確認',
+    'onboard.lang.title':     '表示言語を選択してください',
+    'onboard.lang.hint':      '後から設定でいつでも変更できます。',
+    'onboard.dev.title':      'NAS デバイスを追加',
+    'onboard.dev.hint':       'SSH 接続情報を入力してください。保存後に接続を開始します。',
+    'onboard.dev.needFields': '名前とホストは必須です',
+    'onboard.dev.saving':     '保存しています...',
+    'onboard.check.title':    '接続を確認します',
+    'onboard.check.testing':  '接続をテストしています...',
+    'onboard.check.waiting':  '保存しました。デバイスがオンラインになるのを待っています...',
+    'onboard.check.testPass': '接続テストに成功しました',
+    'onboard.check.online':   'デバイスはオンラインです',
+    'onboard.check.pass':     '接続に成功しました。デバイスはオンラインです',
+    'onboard.check.fail':     '接続に失敗しました',
+    'onboard.check.timeout':  'タイムアウトしました。デバイスがまだ起動中の可能性があります',
+    'onboard.check.retry':    '再試行',
+    'onboard.btn.next':       '次へ',
+    'onboard.btn.back':       '戻る',
+    'onboard.btn.finish':     '完了',
+    'onboard.btn.later':      '後で設定',
+
+    // 設定パネル：セットアップの再実行
+    'set.soft.onboarding':     '初回起動ガイド',
+    'set.soft.rerunOnboarding': 'セットアップを再実行',
+    'set.soft.onboardingHint': '3 ステップのガイドをもう一度表示します（言語・デバイス・接続確認）。',
+    // ── しきい値アラート通知（main.js のトースト通知の文言）──
+    'alert.title':  'アラート',
+    'alert.cpu':    'CPU',
+    'alert.memory': 'メモリ',
+    'alert.disk':   'ディスク',
+    'alert.body':   '{metric} が {value}% に達しました（しきい値 {threshold}%）'
   };
 
   if (Locales && Locales.register) { Locales.register('ja-JP', dict); }

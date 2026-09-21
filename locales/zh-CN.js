@@ -294,7 +294,45 @@
     'net.connectFailed':            '连接失败: {detail}',
     // 配置重载（main.py 的 reload_config；当前界面不显示，留给后续使用）
     'cfg.reloaded':                 '配置已重载',
-    'cfg.reloadedWithErrors':       '配置已重载（部分错误）'
+    'cfg.reloadedWithErrors':       '配置已重载（部分错误）',
+
+    // ── 首次启动引导（onboarding_done 为 false 时显示）──
+    // 第 2 步的设备表单字段与占位符复用 set.dev.*，不在这里重复定义
+    'onboard.title':          '欢迎使用 DigitalLab',
+    'onboard.sub':            '三步完成初始设置',
+    'onboard.step.language':  '选择语言',
+    'onboard.step.device':    '配置设备',
+    'onboard.step.check':     '检查连接',
+    'onboard.lang.title':     '选择界面语言',
+    'onboard.lang.hint':      '之后可以在设置中随时更改。',
+    'onboard.dev.title':      '添加一台 NAS 设备',
+    'onboard.dev.hint':       '填写 SSH 连接信息，保存后应用会开始连接。',
+    'onboard.dev.needFields': '请至少填写名称与主机',
+    'onboard.dev.saving':     '保存中...',
+    'onboard.check.title':    '检查连接',
+    'onboard.check.testing':  '正在测试连接...',
+    'onboard.check.waiting':  '已保存，正在等待设备上线...',
+    'onboard.check.testPass': '连接测试通过',
+    'onboard.check.online':   '设备已在线',
+    'onboard.check.pass':     '连接成功，设备已在线',
+    'onboard.check.fail':     '连接失败',
+    'onboard.check.timeout':  '等待超时，设备可能还在启动',
+    'onboard.check.retry':    '重试',
+    'onboard.btn.next':       '下一步',
+    'onboard.btn.back':       '上一步',
+    'onboard.btn.finish':     '完成',
+    'onboard.btn.later':      '稍后配置',
+
+    // 设置面板：重新运行引导
+    'set.soft.onboarding':     '首次启动引导',
+    'set.soft.rerunOnboarding': '重新运行引导',
+    'set.soft.onboardingHint': '重新播放三步引导（选择语言、配置设备、检查连接）。',
+    // ── 阈值告警系统通知（main.js 的气泡通知文案）──
+    'alert.title':  '告警',
+    'alert.cpu':    'CPU',
+    'alert.memory': '内存',
+    'alert.disk':   '磁盘',
+    'alert.body':   '{metric} 已达 {value}%（阈值 {threshold}%）'
   };
 
   if (Locales && Locales.register) { Locales.register('zh-CN', dict); }

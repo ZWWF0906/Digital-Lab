@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, Notification } = require('electron');
 // 多语言：语言清单、词典与 t() 机制，与渲染进程共用 locales/ 下的同一份文件
 const Locales = require('./locales/index.js');
 const i18n = require('./i18n.js');
@@ -75,6 +75,9 @@ let pythonProcess = null;
 let pythonRetryCount = 0;
 const MAX_RETRIES = 3;
 let latestState = { monitor: { cpu: 0, memory: 0, disk: 0, processes: [] }, hardware: null };
+// 阈值告警通知：已处理过的最大告警序号。Python 侧的 seq 在进程内递增、重启后归零，
+// 所以这里也在 startPython() 里归零，两边协同避免重启后漏弹或重复弹。
+let lastSeenSeq = 0;
 
 // Python stderr 缓冲：进程崩溃时写入日志辅助诊断
 let pythonStderrBuffer = [];
@@ -170,7 +173,36 @@ function createWindow() {
   mainWindow.on('closed', function() { mainWindow = null; writeLog('Window closed'); });
 }
 
+// ── 阈值告警：Windows 系统气泡通知 ──
+// 文案走主进程自己的 i18n 实例（applyConfiguredLanguage 启动时设定，set-language handler 实时同步）；
+// 点击通知把主窗口带到前台。整段包 try/catch，失败只告警不打断主流程。
+// 注意：Electron 的 Notification 只 new 出来不会显示，必须显式调用 show()。
+function showAlertNotification(alert) {
+  try {
+    if (!Notification.isSupported()) return;
+    const metricKey = (alert && alert.metric_key) || '';
+    const num = Number(alert && alert.value);
+    const title = i18n.t('alert.title');
+    const body = i18n.t('alert.body', {
+      metric: i18n.t('alert.' + metricKey),
+      value: isNaN(num) ? '--' : num.toFixed(1),
+      threshold: (alert && alert.threshold),
+    });
+    const n = new Notification({ title: title, body: body });
+    n.on('click', () => {
+      if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.show();
+        mainWindow.focus();
+      }
+    });
+    n.show();
+  } catch (e) {
+    console.warn('[alert] notification failed: ' + ((e && e.message) || e));
+  }
+}
+
 function startPython() {
+  lastSeenSeq = 0;   // 新进程的 seq 从 0 开始，游标同步归零
   var isPackaged = app.isPackaged;
   var pythonPath, args, cwd;
 
@@ -244,6 +276,16 @@ function startPython() {
 
       // 状态更新 → 缓存并推送
       latestState = data;
+      // 阈值告警：状态帧里带最近 5 条告警（含递增 seq），只处理没见过的；
+      // 这一支不 return，状态帧照常广播给渲染进程。
+      if (Array.isArray(data.alerts)) {
+        for (const a of data.alerts) {
+          if (typeof a.seq === 'number' && a.seq > lastSeenSeq) {
+            lastSeenSeq = a.seq;
+            showAlertNotification(a);
+          }
+        }
+      }
       // 首次收到有效数据 → 重置重试计数
       if (pythonRetryCount > 0 && data.hardware) {
         pythonRetryCount = 0;
@@ -577,6 +619,28 @@ ipcMain.handle('set-language', function(_event, lang) {
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
     i18n.setLanguage(lang);   // 主进程同步切换，后续对话框/托盘立刻用新语言
     return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+});
+
+// ── 首次启动引导标志（应用级 config.json 的 onboarding_done，缺省 false）──
+// 读：启动期同步读取，外壳要在开屏结束后立刻决定是否显示引导；
+// 写：引导完成/稍后配置时置 true，设置面板"重新运行引导"时置回 false。
+ipcMain.on('get-onboarding-done-sync', function(event) {
+  var done = false;
+  try { done = readAppConfig().onboarding_done === true; } catch (e) {}
+  event.returnValue = done;
+});
+
+ipcMain.handle('set-onboarding-done', function(_event, done) {
+  try {
+    var p = getHwAccelConfigPath();
+    var cfg = readAppConfig();
+    // 不传参数时按 true 处理（引导完成）；显式传 false 用于"重新运行引导"
+    cfg.onboarding_done = (done === undefined) ? true : !!done;
+    fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf-8');
+    return { ok: true, onboarding_done: cfg.onboarding_done };
   } catch (e) {
     return { ok: false, error: e.message };
   }
