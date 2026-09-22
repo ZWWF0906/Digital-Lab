@@ -1,6 +1,6 @@
 # DigitalLab 隐私政策 / Privacy Policy
 
-最后更新：2026-09-10 / Last updated: 2026-09-10
+最后更新：2026-09-22 / Last updated: 2026-09-22
 
 [简体中文](#简体中文) · [English](#english) · [日本語](#日本語)
 
@@ -12,7 +12,7 @@
 
 # DigitalLab 隐私政策
 
-最后更新：2026-09-10
+最后更新：2026-09-22
 
 ## 核心原则：本地优先
 
@@ -124,7 +124,7 @@ DigitalLab 没有一键重置功能。设置页面能清除的只有 AI 记忆�
 
 # DigitalLab Privacy Policy
 
-Last updated: 2026-09-10
+Last updated: 2026-09-22
 
 In case of any discrepancy or ambiguity between this English translation and the Simplified Chinese version, the Simplified Chinese version (PRIVACY.md) shall prevail.
 
@@ -242,7 +242,7 @@ For privacy-related questions, please contact:
 
 # DigitalLab プライバシーポリシー
 
-最終更新：2026-09-10
+最終更新：2026-09-22
 
 ## 基本方針：ローカル優先
 
