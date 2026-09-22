@@ -2,7 +2,13 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.2.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
+[简体中文](README.md) · [English](README.en-US.md) · [日本語](README.ja-JP.md)
+
+</div>
+
+<div align="center">
+
+[![Version](https://img.shields.io/badge/version-1.4.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
 [![Local-First](https://img.shields.io/badge/local--first-important)](https://github.com/ZWWF0906/Digital-Lab)
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20API-9cf)](https://github.com/ZWWF0906/Digital-Lab)
@@ -144,8 +150,12 @@ DigitalLab/
 ├── styles.css              # 全局样式（Emerald 主题体系：深色为默认 / 浅色可选）
 ├── package.json            # Node 项目配置
 ├── requirements.txt        # Python 依赖
+├── README.md               # 项目说明（简体中文）
+├── README.en-US.md         # 项目说明（英文）
+├── README.ja-JP.md         # 项目说明（日语）
 ├── CHANGELOG.md            # 更新日志（英文）
 ├── CHANGELOG.zh-CN.md      # 更新日志（中文）
+├── CHANGELOG.ja-JP.md      # 更新日志（日语）
 ├── config.json             # 公开配置
 ├── config.schema.json      # 配置校验规则
 ├── core/                   # Python 后端模块
@@ -155,6 +165,7 @@ DigitalLab/
 │   ├── hardware.py         # 硬件信息采集
 │   ├── hardware_classifier.py  # 硬件型号分类
 │   ├── ai_client.py        # AI 客户端（Ollama / OpenAI）
+│   ├── ai_memory.py        # AI 本地记忆（jsonl 存储）
 │   ├── nas_monitor.py      # NAS 远程监控（SSH）
 │   ├── logger.py           # 日志系统
 │   ├── system_state.py     # 全局状态管理
@@ -165,21 +176,13 @@ DigitalLab/
 │   ├── reporter.py         # 图表生成
 │   ├── launcher.py         # 快捷启动器
 │   └── daemon.py           # 守护进程管理
-├── panels/                 # 前端面板
+└── panels/                 # 前端面板
 │   ├── index.js            # 面板注册表
 │   ├── dashboard.js        # 仪表盘
 │   ├── device-center.js    # 设备中心
-│   ├── hardware.js         # 硬件渲染组件
-│   ├── network.js          # 网络渲染组件
-│   ├── processes.js        # 进程列表组件
 │   ├── ai-assistant.js     # AI 助手
 │   ├── terminal.js         # SSH 终端
 │   └── settings.js         # 设置面板
-└── specs/                  # 设计文档
-    ├── device-center-implementation.md
-    ├── device-center-review.md
-    ├── device-center-tickets.md
-    └── device-center-v1.md
 ```
 
 ---

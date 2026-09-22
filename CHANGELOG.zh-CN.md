@@ -131,6 +131,8 @@
 
 - 内置 Python 后端
 
+- Flask Web Dashboard（可选）
+
 ### 已知限制
 
 - SSH 终端不支持自动重连
