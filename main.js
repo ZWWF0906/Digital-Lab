@@ -703,6 +703,13 @@ if (!process.windowsStore) {
   app.setAppUserModelId('com.digitallab.desktop');
 }
 
+// ── 去掉窗口菜单栏 ──
+// 默认应用菜单会渲染出顶部的 File/Edit/View/Window 菜单条，这里置空去掉。
+// 必须在 app.whenReady() 之前调用，晚于窗口创建就来不及了。
+// 说明：托盘右键菜单是 createTray() 里独立的 Menu.buildFromTemplate 对象，不受影响；
+// 文本框内的 Ctrl+C/V/X/A/Z 由 Chromium 的编辑命令处理，也不依赖应用菜单。
+Menu.setApplicationMenu(null);
+
 // 第二个实例启动时，聚焦已有窗口
 app.on('second-instance', function() {
   if (mainWindow) {

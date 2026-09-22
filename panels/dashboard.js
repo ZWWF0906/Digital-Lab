@@ -251,6 +251,17 @@ export function init(container, api) {
   // 默认展开硬件信息
   toggleSection('ch-hardware', 'cb-hardware');
 
+  // NAS 空状态里的"去添加设备"：委托绑定一次即可——空状态块随 1Hz 状态帧重建，
+  // 逐帧挂监听会不断累积。跳转复用外壳已监听的 switch-panel 事件（与 AI 面板的设置按钮同一条路径）。
+  const nasGridEl = document.getElementById('nas-grid');
+  if (nasGridEl) {
+    nasGridEl.addEventListener('click', (e) => {
+      if (e.target && e.target.id === 'nas-add-device') {
+        window.dispatchEvent(new CustomEvent('switch-panel', { detail: 'settings' }));
+      }
+    });
+  }
+
   const unsubscribe = api.onStateUpdate((state) => {
     const monitor = state.monitor || {};
     const hardware = state.hardware || {};
@@ -319,11 +330,20 @@ export function init(container, api) {
     const nasGrid = document.getElementById('nas-grid');
     if (nasGrid) {
       const nasEntries = Object.entries(nas);
+      // 空状态块：一句说明 + "去添加设备"入口（按钮复用 .btn-secondary，不新增 CSS）
+      const nasActionBlock = (text) => `
+        <div class="mc-empty">${text}
+          <div style="margin-top:12px"><button class="btn-secondary" id="nas-add-device">${t('dash.nas.addDevice')}</button></div>
+        </div>`;
       if (nasEntries.length === 0) {
-        nasGrid.innerHTML = `<div class="mc-empty">${t('dash.nas.empty')}</div>`;
+        // state.nas 里一个键都没有 = 从未配置过 NAS：中性说明，不用命令式口吻
+        nasGrid.innerHTML = nasActionBlock(t('dash.nas.emptyLocal'));
         nasGrid.removeAttribute('data-animated');
       } else {
-        nasGrid.innerHTML = nasEntries.map(([name, dev]) => {
+        // 有键但全部 offline = 配置过、只是当前都不在线：卡片照旧渲染，上方补一行离线说明
+        const allOffline = nasEntries.every(([, dev]) => dev && dev.online === false);
+        const offlineNote = allOffline ? nasActionBlock(t('dash.nas.offline')) : '';
+        nasGrid.innerHTML = offlineNote + nasEntries.map(([name, dev]) => {
           const online = dev.online !== false;
           const cpu = dev.cpu != null ? dev.cpu : 0;
           const mem = dev.memory?.percent ?? 0;
@@ -375,7 +395,12 @@ export function init(container, api) {
             setTimeout(() => { btn.textContent = t('dash.nas.retry'); btn.disabled = false; }, 3000);
           });
         });
-        nasGrid.setAttribute('data-animated', '1');
+        // NAS 卡片同 device-center：data-animated 标记等入场动画播完再打（900ms 覆盖 0.5s 动画
+        // 加最长 360ms 逐张延迟），否则标记会把刚开始的动画取消；就位后 1Hz 刷新不再播动画。
+        // 列表为空的分支仍会清掉标记，列表重新出现时恢复入场动画。
+        if (!nasGrid.hasAttribute('data-animated')) {
+          setTimeout(() => nasGrid.setAttribute('data-animated', '1'), 900);
+        }
       }
     }
 

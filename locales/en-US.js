@@ -86,6 +86,9 @@
     'dash.proc.memory':      'Memory %',
     'dash.proc.empty':       'No data',
     'dash.nas.empty':        'No NAS device configured, add one in Settings',
+    'dash.nas.emptyLocal':   'Using local monitoring only. You can add a NAS in Settings when needed.',
+    'dash.nas.offline':      'The configured NAS devices are currently offline',
+    'dash.nas.addDevice':    'Add a device',
     'dash.nas.retry':        'Retry',
     'dash.nas.retrying':     'Retrying...',
 
@@ -318,10 +321,16 @@
     'onboard.check.fail':     'Connection failed',
     'onboard.check.timeout':  'Timed out; the device may still be starting up',
     'onboard.check.retry':    'Retry',
+    'onboard.check.skipHint': 'You can skip this step and test again later in Settings',
     'onboard.btn.next':       'Next',
     'onboard.btn.back':       'Back',
     'onboard.btn.finish':     'Finish',
     'onboard.btn.later':      'Set up later',
+    'onboard.btn.skip':       'Skip this step',
+    'onboard.btn.noNas':      'I don\'t have a NAS — use local monitoring',
+    'onboard.done.title':     'Setup complete',
+    'onboard.done.sub':       'Welcome to DigitalLab. You can adjust everything later in Settings.',
+    'onboard.done.start':     'Get started',
 
     // Settings panel: run onboarding again
     'set.soft.onboarding':     'First-run onboarding',

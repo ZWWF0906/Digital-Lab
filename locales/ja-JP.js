@@ -86,6 +86,9 @@
     'dash.proc.memory':      'メモリ %',
     'dash.proc.empty':       'データがありません',
     'dash.nas.empty':        'NAS デバイスが未設定です。設定から追加してください',
+    'dash.nas.emptyLocal':   '現在はローカル監視のみを使用しています。必要に応じて設定から NAS を追加できます。',
+    'dash.nas.offline':      '設定済みの NAS デバイスは現在すべてオフラインです',
+    'dash.nas.addDevice':    'デバイスを追加',
     'dash.nas.retry':        '再試行',
     'dash.nas.retrying':     '再試行しています...',
 
@@ -318,10 +321,16 @@
     'onboard.check.fail':     '接続に失敗しました',
     'onboard.check.timeout':  'タイムアウトしました。デバイスがまだ起動中の可能性があります',
     'onboard.check.retry':    '再試行',
+    'onboard.check.skipHint': 'この手順をスキップし、後で設定から再テストできます',
     'onboard.btn.next':       '次へ',
     'onboard.btn.back':       '戻る',
     'onboard.btn.finish':     '完了',
     'onboard.btn.later':      '後で設定',
+    'onboard.btn.skip':       'この手順をスキップ',
+    'onboard.btn.noNas':      'NAS はありません — ローカル監視を使用',
+    'onboard.done.title':     'セットアップ完了',
+    'onboard.done.sub':       'DigitalLab へようこそ。設定からいつでも変更できます。',
+    'onboard.done.start':     'はじめる',
 
     // 設定パネル：セットアップの再実行
     'set.soft.onboarding':     '初回起動ガイド',

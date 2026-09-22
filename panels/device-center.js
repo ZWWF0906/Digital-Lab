@@ -9,6 +9,16 @@ const t = (key, params) => (
     : key
 );
 
+// 文本/属性转义：进程名与命令行来自远端 NAS，直接拼进 HTML 会破坏结构
+// （dashboard.js 的本机进程表也做了同样的转义）
+function escHtml(str) {
+  return String(str == null ? '' : str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
 function statusColor(value, thresholds) {
   if (!thresholds || !thresholds.length) return 'var(--accent)';
   if (value >= thresholds[1]) return 'var(--accent-pink)';
@@ -106,7 +116,7 @@ function detailHTML(device) {
   } else {
     processTableHTML += `
       <div class="process-panel" style="margin-bottom:16px">
-        <table>
+        <table class="dc-proc-table">
           <thead><tr><th>PID</th><th>${t('dev.col.name')}</th><th>CPU %</th><th>${t('dev.col.memory')}</th><th>${t('dev.col.command')}</th></tr></thead>
           <tbody id="dc-process-tbody"></tbody>
         </table>
@@ -210,7 +220,7 @@ function updateDetail(device) {
         <td class="proc-name">${p.name || ''}</td>
         <td class="proc-num">${(p.cpu || 0).toFixed(1)}</td>
         <td class="proc-num">${(p.memory || 0).toFixed(1)}</td>
-        <td class="proc-name" style="max-width:260px">${p.command || ''}</td>
+        <td class="proc-name" title="${escHtml(p.command || '')}">${escHtml(p.command || '')}</td>
       </tr>`).join('');
   }
 
@@ -286,9 +296,15 @@ export function init(container, api) {
 
   function renderDevices(state) {
     const devices = mapDevices(state);
-    // 设备卡片：直接更新 innerHTML（首次渲染后有 data-animated 标记，跳过入场动画）
+    // 设备卡片：直接更新 innerHTML。
+    // data-animated 标记要等入场动画播完再打：0.5s 动画 + 最长 360ms 逐张延迟 ≈ 860ms，取 900ms。
+    // 实测依据：一层 rAF 的回调在该帧样式计算之前执行，标记在动画判定前就位；两层 rAF 也只晚约 25ms，
+    // 采样到 animation-name 先变成 cardEnter、25ms 后被打回 none（动画被取消，连 animationstart 都没派发）。
+    // 标记就位后，1Hz 数据刷新重建 DOM 时不再播动画。
     deviceGrid.innerHTML = devices.map(deviceCardHTML).join('');
-    deviceGrid.setAttribute('data-animated', '1');
+    if (!deviceGrid.hasAttribute('data-animated')) {
+      setTimeout(() => deviceGrid.setAttribute('data-animated', '1'), 900);
+    }
 
     // 如果当前有选中设备
     if (selectedDeviceId) {

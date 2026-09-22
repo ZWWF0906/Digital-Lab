@@ -1,5 +1,21 @@
 # Changelog
 
+## v1.4.0 - 2026-09-21
+
+### Added
+
+- Multilingual interface: Simplified Chinese, English and Japanese, switchable at any time in Settings
+
+- First-run onboarding: a three-step guide that selects the interface language, adds a NAS device and checks the connection
+
+- Threshold alerts as system notifications: when CPU, memory or disk usage stays above the configured limit, a desktop notification is shown, and the same alert is not repeated until the reading drops back below the limit
+
+- The AI assistant now answers in the selected interface language
+
+### Fixed
+
+- AI failures are now explained clearly and in the selected interface language: an unreachable service, a missing model or rejected credentials each say what happened and what to do next
+
 ## v1.3.0 - 2026-09-18
 
 ### Added

@@ -433,10 +433,45 @@
   #onboarding .ob-secondary { background: rgba(255, 255, 255, 0.04); color: #E0E6ED; border-color: rgba(224, 230, 237, 0.22); }
   #onboarding .ob-ghost { background: transparent; color: rgba(224, 230, 237, 0.7); border-color: transparent; text-decoration: underline; text-underline-offset: 3px; }
   #onboarding .ob-ghost:hover { color: #E0E6ED; }
+  /* 主按钮悬停：沿用引导里既有的"提亮"语言（边框 + 柔和辉光），只动颜色与阴影，不改尺寸、不影响布局 */
+  #onboarding .ob-primary:hover {
+    border-color: rgba(46, 230, 179, 0.85);
+    box-shadow: 0 0 0 1px rgba(46, 230, 179, 0.35), 0 6px 18px rgba(46, 230, 179, 0.22);
+  }
+
+  /* ── 引导动画 ──
+     keyframes 就地定义（ob- 前缀），缓动值对齐 styles.css 的同名变量（带字面兜底，不依赖它加载成功）。
+     覆盖层与卡片只动 opacity / transform：backdrop-filter 已有静态值，过渡它代价高。
+     步骤切换靠 .ob-pane 的 display 切换自然重放动画，不需要 JS 参与。 */
+  #onboarding.is-open { animation: obOverlayIn 0.18s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)); }
+  #onboarding.is-open .ob-card { animation: obCardIn 0.34s var(--ease-back, cubic-bezier(0.34, 1.56, 0.64, 1)) backwards; }
+  #onboarding .ob-pane.is-active { animation: obPaneIn 0.26s var(--ease-expo, cubic-bezier(0.16, 1, 0.3, 1)); }
+  #onboarding .ob-chip {
+    transition: border-color 0.2s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)),
+                color 0.2s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+  }
+  #onboarding .ob-btn, #onboarding .ob-lang {
+    transition: background 0.18s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)),
+                border-color 0.18s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)),
+                color 0.18s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)),
+                box-shadow 0.18s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1)),
+                transform 0.12s var(--ease-smooth, cubic-bezier(0.4, 0, 0.2, 1));
+  }
+  #onboarding .ob-btn:active:not(:disabled), #onboarding .ob-lang:active { transform: translateY(1px); }
+  #onboarding .ob-skip-hint { margin-top: 14px; font-size: 0.75rem; line-height: 1.6; color: rgba(224, 230, 237, 0.5); }
+  @keyframes obOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes obCardIn { from { opacity: 0; transform: translateY(10px) scale(0.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
+  @keyframes obPaneIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
   /* 浅色主题下引导卡片仍保持深色（与终端面板同理），只调整遮罩透明度 */
   :root[data-theme="light"] #onboarding { background: rgba(15, 20, 25, 0.55); }
   @media (prefers-reduced-motion: reduce) {
-    #onboarding .ob-btn, #onboarding .ob-lang { transition: none; }
+    /* 选择器必须与上面基础规则同级（含 .is-open），否则特异性不足、压不住动画 */
+    #onboarding.is-open,
+    #onboarding.is-open .ob-card,
+    #onboarding .ob-pane.is-active { animation: none; }
+    #onboarding .ob-btn, #onboarding .ob-lang, #onboarding .ob-chip { transition: none; }
+    #onboarding .ob-btn:active:not(:disabled), #onboarding .ob-lang:active { transform: none; }
   }
 </style>
 </head>
@@ -520,13 +555,23 @@
           <div class="ob-row"><label data-ob="set.dev.password"></label><input type="password" id="ob-dev-pass" data-ob-ph="set.dev.passPh" /></div>
         </div>
         <div class="ob-msg" id="ob-dev-msg"></div>
+        <button class="ob-btn ob-ghost ob-later" id="ob-no-nas" data-ob="onboard.btn.noNas"></button>
       </div>
 
       <div class="ob-pane" data-pane="3">
         <div class="ob-pane-title" data-ob="onboard.check.title"></div>
         <div class="ob-status" id="ob-status"></div>
         <div class="ob-msg" id="ob-check-msg"></div>
-        <button class="ob-btn ob-ghost ob-later" id="ob-later-3" data-ob="onboard.btn.later"></button>
+        <div class="ob-skip-hint" data-ob="onboard.check.skipHint"></div>
+        <button class="ob-btn ob-ghost ob-later" id="ob-later-3" data-ob="onboard.btn.skip"></button>
+      </div>
+
+      <!-- 第 4 页：收尾页。不计入步骤指示条（步骤条只渲染 STEP_KEYS 的三项，到这里会全部显示为已完成），
+           第 1/2/3 步的任何出口都先切到这一页，用户点"开始使用"才真正关闭引导。 -->
+      <div class="ob-pane" data-pane="4">
+        <div class="ob-pane-title" data-ob="onboard.done.title" style="font-size:1.3rem;margin-bottom:8px"></div>
+        <div class="ob-pane-hint" data-ob="onboard.done.sub"></div>
+        <button class="ob-btn ob-primary" id="ob-start" data-ob="onboard.done.start" style="margin-top:16px"></button>
       </div>
 
       <div class="ob-foot">
@@ -575,6 +620,9 @@
         checkMsg: root.querySelector('#ob-check-msg'),
         later: root.querySelector('#ob-later'),
         later3: root.querySelector('#ob-later-3'),
+        noNas: root.querySelector('#ob-no-nas'),
+        start: root.querySelector('#ob-start'),
+        sub: root.querySelector('.ob-sub'),
         back: root.querySelector('#ob-back'),
         retry: root.querySelector('#ob-retry'),
         next: root.querySelector('#ob-next')
@@ -651,10 +699,12 @@
       }
 
       function renderFoot() {
+        // 第 4 页（收尾页）由该页自己的"开始使用"按钮负责，底部整排按钮全部隐藏
         el.later.style.display = (step === 1) ? '' : 'none';
-        el.back.style.display = (step === 1) ? 'none' : '';
+        el.back.style.display = (step > 1 && step < 4) ? '' : 'none';
         el.retry.style.display = (step === 3) ? '' : 'none';
         el.later3.style.display = (step === 3) ? '' : 'none';
+        el.next.style.display = (step === 4) ? 'none' : '';
         el.next.textContent = T(step === 3 ? 'onboard.btn.finish' : 'onboard.btn.next');
         el.next.disabled = busy || (step === 3 && !isPassed());
         el.retry.disabled = busy;
@@ -664,6 +714,8 @@
         for (var i = 0; i < el.panes.length; i++) {
           el.panes[i].classList.toggle('is-active', Number(el.panes[i].getAttribute('data-pane')) === step);
         }
+        // 收尾页隐藏卡片头部那句"三步完成初始设置"（主标题保留）；回到其它步骤恢复显示
+        if (el.sub) el.sub.style.display = (step === 4) ? 'none' : '';
       }
 
       function setMsg(node, text, kind) {
@@ -817,9 +869,18 @@
         cleanup();
       }
 
-      // 完成 / 稍后配置：都写入 onboarding_done=true（"稍后配置"表示用户已看过引导、明确选择稍后手动配置，
-      // 否则每次启动都会再弹一次），随后关闭覆盖层。
+      // 所有出口（完成 / 稍后配置 / 我没有 NAS / 跳过此步 / Esc）都先切到收尾页，不直接关闭：
+      // 用户点"开始使用"才算真正结束，比自动消失更有掌控感，也不会显得引导被草草跳过。
       function finish() {
+        if (finished || step === 4) return;
+        step = 4;
+        setPane();
+        renderSteps();
+        renderFoot();
+      }
+
+      // 收尾页的"开始使用"：写入 onboarding_done=true（表示用户已看过引导，否则每次启动都会再弹一次）并关闭覆盖层
+      function dismiss() {
         if (finished) return;
         finished = true;
         try { if (api && typeof api.setOnboardingDone === 'function') api.setOnboardingDone(true); } catch (e) {}
@@ -852,7 +913,14 @@
       el.retry.addEventListener('click', function () { runTest(); });
       el.later.addEventListener('click', finish);
       el.later3.addEventListener('click', finish);
-      root.addEventListener('keydown', function (e) { if (e.key === 'Escape') finish(); });
+      // 第 2 步出口：没有 NAS 的用户可直接结束引导，之后仍走本机监控
+      el.noNas.addEventListener('click', finish);
+      // 收尾页：唯一真正关闭引导的入口
+      el.start.addEventListener('click', dismiss);
+      root.addEventListener('keydown', function (e) {
+        if (e.key !== 'Escape') return;
+        if (step === 4) dismiss(); else finish();   // 收尾页按 Esc 等同点"开始使用"
+      });
 
       // 语言切换（无论来自引导本身还是设置面板）→ 重填文案
       window.addEventListener('language-changed', function () { if (opened) applyTexts(); });

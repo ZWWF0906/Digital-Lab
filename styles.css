@@ -749,6 +749,22 @@ tr:hover td { background: rgba(0, 229, 160, 0.04); }
   text-align: right;
 }
 
+/* NAS 进程表列宽（设备中心 #dc-detail）：改为固定表布局 + 百分比列宽。
+   原实现只给单元格设 max-width（.proc-name 的 200px、命令列内联的 260px），而 table-layout: auto 下
+   单元格 max-width 并不可靠，列宽由各列内容宽度“竞价”决定：内容短的 PID/CPU/内存 被拉宽，
+   内容最长的命令列反而被挤压并提前省略。固定布局后列宽只由下面的百分比决定，
+   省略号与 title 提示才能稳定生效。 */
+.dc-proc-table {
+  table-layout: fixed;
+}
+.dc-proc-table th:nth-child(1), .dc-proc-table td:nth-child(1) { width: 9%; }   /* PID */
+.dc-proc-table th:nth-child(2), .dc-proc-table td:nth-child(2) { width: 18%; }  /* 名称 */
+.dc-proc-table th:nth-child(3), .dc-proc-table td:nth-child(3) { width: 10%; }  /* CPU % */
+.dc-proc-table th:nth-child(4), .dc-proc-table td:nth-child(4) { width: 10%; }  /* 内存 */
+.dc-proc-table th:nth-child(5), .dc-proc-table td:nth-child(5) { width: 53%; }  /* 命令 */
+/* 固定布局下由列宽决定截断位置，单元格自身的 max-width 会二次收窄内容，故取消 */
+.dc-proc-table .proc-name { max-width: none; }
+
 /* ── AI Panel ── */
 .ai-placeholder {
   display: flex;

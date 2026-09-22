@@ -86,6 +86,9 @@
     'dash.proc.memory':      '内存 %',
     'dash.proc.empty':       '暂无数据',
     'dash.nas.empty':        '未配置 NAS 设备，请在设置中添加',
+    'dash.nas.emptyLocal':   '当前仅使用本机监控，需要时可在设置中添加',
+    'dash.nas.offline':      '已配置的 NAS 设备当前都不在线',
+    'dash.nas.addDevice':    '去添加设备',
     'dash.nas.retry':        '重试',
     'dash.nas.retrying':     '重试中...',
 
@@ -318,10 +321,16 @@
     'onboard.check.fail':     '连接失败',
     'onboard.check.timeout':  '等待超时，设备可能还在启动',
     'onboard.check.retry':    '重试',
+    'onboard.check.skipHint': '可跳过此步，稍后在设置中重新测试',
     'onboard.btn.next':       '下一步',
     'onboard.btn.back':       '上一步',
     'onboard.btn.finish':     '完成',
     'onboard.btn.later':      '稍后配置',
+    'onboard.btn.skip':       '跳过此步',
+    'onboard.btn.noNas':      '我没有 NAS，暂时使用本机监控',
+    'onboard.done.title':     '设置完成',
+    'onboard.done.sub':       '欢迎使用 DigitalLab，可随时在设置中调整',
+    'onboard.done.start':     '开始使用',
 
     // 设置面板：重新运行引导
     'set.soft.onboarding':     '首次启动引导',
