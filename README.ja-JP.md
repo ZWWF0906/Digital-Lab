@@ -17,8 +17,8 @@
 </div>
 
 <div align="center">
-  <a href="https://apps.microsoft.com/detail/9n0rtlx1bcp5?referrer=appbadge&mode=full" target="_self">
-    <img src="https://get.microsoft.com/images/zh-cn%20light.svg" width="200"/>
+  <a href="https://apps.microsoft.com/detail/9n0rtlx1bcp5?referrer=appbadge&mode=full" target="_blank" rel="noopener noreferrer">
+	<img src="https://get.microsoft.com/images/ja%20light.svg" width="200"/>
   </a>
 </div>
 

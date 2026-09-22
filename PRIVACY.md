@@ -92,17 +92,18 @@ DigitalLab 在用户主动配置后可能连接以下第三方服务：
 
 ### 通过应用内删除
 
-在 DigitalLab 设置页面清除配置即可重置应用数据。
+DigitalLab 没有一键重置功能。设置页面能清除的只有 AI 记忆：在 AI 记忆分组里逐条删除，或点清空记忆一次性删除本机保存的全部记忆条目（若在设置中改过记忆目录，请一并删除该目录）。其余设置（AI 提供方、监控阈值、设备列表、主题、语言等）只能逐项修改，或按下面的方式手动删除数据目录。
 
 ### 手动删除
 
-删除以下目录即可清除所有 DigitalLab 数据：
+应用数据分布在以下位置，删除对应目录即可清除：
 
-```
-%APPDATA%\DigitalLab\
-```
+- `%APPDATA%\DigitalLab\`：配置、NAS 凭据与认证 Token、监控日志与快照数据库、AI 记忆
+- `%APPDATA%\digital-lab\`：界面偏好（主题、语言、开屏动画开关、引导完成状态）
 
-卸载应用不会自动删除用户数据目录，用户需手动删除。
+此外，程序目录下的 `memory\`、`snapshots\`、`reports\` 与 `launchers.json`（按日汇总、性能快照、报告、快捷启动器配置）由应用在运行中写入：开发模式下即源码目录，安装后位于安装目录内。
+
+卸载应用不会自动删除上面两个 `%APPDATA%` 目录，需要手动删除；程序目录内的这些文件则会随安装目录一起被卸载程序移除。
 
 ## 政策变更
 
@@ -205,17 +206,18 @@ All of the above connections are triggered only after the user actively configur
 
 ### Deleting Through the Application
 
-Clearing the configuration on the DigitalLab settings page resets the application data.
+DigitalLab has no one-click reset. The only data the settings page can clear is AI memory: delete entries one by one in the AI memory group, or click Clear memory to remove every memory entry stored on this machine at once (if you changed the memory directory in Settings, delete that directory as well). All other settings (AI provider, monitoring thresholds, device list, theme, language, and so on) can only be changed item by item, or removed by deleting the data locations described below.
 
 ### Manual Deletion
 
-Delete the following directory to clear all DigitalLab data:
+Application data is stored in the following locations; delete the corresponding directory to clear it:
 
-```
-%APPDATA%\DigitalLab\
-```
+- `%APPDATA%\DigitalLab\`: configuration, NAS credentials and authentication token, monitoring logs and the snapshot database, AI memory
+- `%APPDATA%\digital-lab\`: interface preferences (theme, language, splash animation toggle, onboarding completion state)
 
-Uninstalling the application does not automatically delete the user data directory; the user must delete it manually.
+In addition, the application writes `memory\`, `snapshots\`, `reports\` and `launchers.json` inside the program directory (daily aggregates, performance snapshots, reports and launcher configuration) while it runs: in development mode this is the source folder, and after installation it is inside the installation directory.
+
+Uninstalling the application does not automatically delete the two `%APPDATA%` directories listed above; they must be deleted manually. The files inside the program directory are removed together with the installation directory by the uninstaller.
 
 ## Policy Changes
 
@@ -320,17 +322,18 @@ DigitalLab は、ユーザーが自ら設定した場合に限り、以下の第
 
 ### アプリ内からの削除
 
-DigitalLab の設定画面で設定を消去すると、アプリのデータがリセットされます。
+DigitalLab にはワンクリックのリセット機能はありません。設定画面から消去できるのは AI メモリのみです。AI メモリのグループで 1 件ずつ削除するか、メモリを消去をクリックして本機に保存されたすべてのメモリ項目をまとめて削除できます（設定でメモリの保存先を変更した場合は、そのディレクトリも削除してください）。その他の設定（AI プロバイダー、監視しきい値、デバイス一覧、テーマ、言語など）は項目ごとに変更するか、以下に示すデータの保存場所を削除して消去してください。
 
 ### 手動での削除
 
-以下のディレクトリを削除すると、DigitalLab のすべてのデータを消去できます。
+アプリのデータは以下の場所に保存されています。該当するディレクトリを削除すると消去できます。
 
-```
-%APPDATA%\DigitalLab\
-```
+- `%APPDATA%\DigitalLab\`：設定、NAS の認証情報と認証トークン、監視ログとスナップショットのデータベース、AI メモリ
+- `%APPDATA%\digital-lab\`：インターフェースの設定（テーマ、言語、起動スプラッシュのオン/オフ、初回ガイドの完了状態）
 
-アプリをアンインストールしてもユーザーデータディレクトリは自動削除されません。手動で削除してください。
+さらに、プログラムディレクトリ内の `memory\`、`snapshots\`、`reports\` と `launchers.json`（日次集計、パフォーマンススナップショット、レポート、ランチャー設定）はアプリの実行中に書き込まれます。開発モードではソースディレクトリ、インストール後はインストールディレクトリ内になります。
+
+アプリをアンインストールしても上記 2 つの `%APPDATA%` ディレクトリは自動削除されません。手動で削除してください。プログラムディレクトリ内のファイルは、アンインストーラによってインストールディレクトリとともに削除されます。
 
 ## ポリシーの変更
 
