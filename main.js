@@ -55,17 +55,211 @@ if (!hwAccelEnabled) {
   app.commandLine.appendSwitch('in-process-gpu');
 }
 
-// ── 全局异常捕获，输出到日志文件 ──
+// ── 日志子系统（1.5.1 重写）──
+// 设计目标：永不阻塞主线程、永不因 stdio 断开而递归、磁盘占用有上限。
+//   1) 异步写：fs.createWriteStream 追加；写入只入内存队列，失败丢弃不抛异常；
+//   2) 熔断：stdout/stderr 或日志流出错时置 stdioMuted，此后不再向 console 写任何内容
+//      （console 写断开的管道会抛 EPIPE，被 uncaughtException 捕获后又 console.* —— 这正是
+//       1.5.0 线上 411MB 日志与白屏卡死的根因，必须在此切断）；
+//   3) 轮转：单文件上限 5MB，保留 digital-lab.log.1/.2/.3；
+//   4) 启动检查：历史文件超过上限时只保留尾部 256KB，避免遗留的巨型日志继续膨胀；
+//   5) 同类 I/O 异常（EPIPE/ECONNRESET 等）只记一条摘要，绝不逐条写盘。
+const LOG_MAX_BYTES = 5 * 1024 * 1024;
+const LOG_KEEP_FILES = 3;
+const LOG_DELETE_FACTOR = 10;   // 超过上限 10 倍（50MB）直接删除，不归档
+const LOG_QUEUE_MAX = 500;
+const LOG_TAIL_KEEP_BYTES = 256 * 1024;
+const IO_ERROR_RE = /EPIPE|ECONNRESET|ECONNREFUSED|broken pipe|EIO/i;
+
 var logFile = path.join(app.getPath('userData'), 'digital-lab.log');
-function writeLog(msg) {
-  try {
-    fs.appendFileSync(logFile, '[' + new Date().toISOString() + '] ' + msg + '\n');
-  } catch(e) {}
+var logStream = null;
+var logQueue = [];
+var logBytes = 0;
+var logDropped = 0;
+var stdioMuted = false;
+var loggedIoSummary = Object.create(null);
+
+function muteStdio(reason) {
+  if (stdioMuted) return;
+  stdioMuted = true;
+  writeLog('stdio muted: ' + String(reason).slice(0, 200));
 }
 
-process.on('uncaughtException', function(err) {
-  writeLog('UNCAUGHT: ' + err.message + '\n' + err.stack);
-  console.error('UNCAUGHT:', err);
+// stdout/stderr 断开时先由流自己的 error 事件接住，不再冒泡成 uncaughtException
+try {
+  if (process.stdout && typeof process.stdout.on === 'function') {
+    process.stdout.on('error', function (e) { muteStdio('stdout ' + ((e && e.message) || e)); });
+  }
+  if (process.stderr && typeof process.stderr.on === 'function') {
+    process.stderr.on('error', function (e) { muteStdio('stderr ' + ((e && e.message) || e)); });
+  }
+} catch (e) {}
+
+// 唯一允许走控制台的入口：熔断后直接返回，绝不因管道断开再次抛异常
+function safeLogError() {
+  if (stdioMuted) return;
+  try {
+    console.error.apply(console, arguments);
+  } catch (e) {
+    muteStdio('console ' + ((e && e.message) || e));
+  }
+}
+
+function rotateLogs() {
+  try {
+    for (var i = LOG_KEEP_FILES - 1; i >= 1; i--) {
+      var from = logFile + '.' + i;
+      var to = logFile + '.' + (i + 1);
+      if (fs.existsSync(from)) {
+        try { fs.rmSync(to, { force: true }); } catch (e) {}
+        fs.renameSync(from, to);
+      }
+    }
+    if (fs.existsSync(logFile)) {
+      try { fs.rmSync(logFile + '.1', { force: true }); } catch (e) {}
+      fs.renameSync(logFile, logFile + '.1');
+    }
+  } catch (e) {}
+}
+
+function purgeGiantRotations() {
+  // 连带清理历史遗留的巨型归档（例如旧策略留下的 411MB .1）
+  try {
+    for (var i = 1; i <= LOG_KEEP_FILES; i++) {
+      var p = logFile + '.' + i;
+      try {
+        if (fs.existsSync(p) && fs.statSync(p).size > LOG_MAX_BYTES * LOG_DELETE_FACTOR) {
+          fs.rmSync(p, { force: true });
+        }
+      } catch (e) {}
+    }
+  } catch (e) {}
+}
+
+function prepareLogFile() {
+  try {
+    if (!fs.existsSync(logFile)) { logBytes = 0; return; }
+    var st = fs.statSync(logFile);
+    logBytes = st.size;
+    if (st.size <= LOG_MAX_BYTES) return;
+    if (st.size > LOG_MAX_BYTES * LOG_DELETE_FACTOR) {
+      // 超大（> 50MB）：直接删除，不归档。这类文件只会来自异常风暴，
+      // 留档既占盘又没有诊断价值（P0 修复后不应再产生）。
+      try { fs.rmSync(logFile, { force: true }); } catch (e) {}
+      purgeGiantRotations();
+      fs.writeFileSync(logFile, '[' + new Date().toISOString() + '] log deleted: previous file ' +
+        st.size + ' bytes exceeded ' + (LOG_MAX_BYTES * LOG_DELETE_FACTOR) + ' bytes (no archive kept)\n');
+      logBytes = fs.statSync(logFile).size;
+      return;
+    }
+    // 5MB ~ 50MB：正常轮转，保留 .1/.2/.3
+    rotateLogs();
+    fs.writeFileSync(logFile, '[' + new Date().toISOString() + '] log rotated: previous file ' +
+      st.size + ' bytes archived as .1\n');
+    logBytes = fs.statSync(logFile).size;
+  } catch (e) {
+    logBytes = 0;
+  }
+}
+
+var rotating = false;
+
+// Windows 上无法重命名仍被打开的日志文件：必须先等旧流 close，再轮转、再开新流。
+// 轮转窗口期内到达的日志先留在队列里，新流 'open' 后自动 flush，避免静默丢日志。
+function rotateAndReopen() {
+  if (rotating) return;
+  rotating = true;
+  var old = logStream;
+  logStream = null;
+  logBytes = 0;
+  var finished = false;
+  function finish() {
+    if (finished) return;
+    finished = true;
+    rotateLogs();
+    openLogStream();
+    rotating = false;
+  }
+  if (!old) { finish(); return; }
+  try {
+    old.once('close', finish);
+    old.end();
+    setTimeout(finish, 800);   // 兜底：事件丢失也要恢复写入
+  } catch (e) {
+    finish();
+  }
+}
+
+function flushLogQueue() {
+  if (!logStream || !logQueue.length) return;
+  var chunk = logQueue.join('');
+  logQueue = [];
+  try {
+    logStream.write(chunk);
+    logBytes += Buffer.byteLength(chunk);
+  } catch (e) {
+    muteStdio('log write ' + ((e && e.message) || e));
+    return;
+  }
+  if (logBytes > LOG_MAX_BYTES && !rotating) {
+    rotateAndReopen();
+  }
+}
+
+function openLogStream() {
+  try {
+    logStream = fs.createWriteStream(logFile, { flags: 'a' });
+    logStream.on('error', function (e) {
+      muteStdio('log stream ' + ((e && e.message) || e));
+      logStream = null;
+      logQueue = [];
+    });
+    logStream.on('open', flushLogQueue);
+    logStream.on('drain', flushLogQueue);
+  } catch (e) {
+    logStream = null;
+  }
+}
+
+// 对外保持原签名：调用方（createWindow / startPython / 各处）无需改动
+function writeLog(msg) {
+  try {
+    if (logQueue.length >= LOG_QUEUE_MAX) { logDropped++; return; }
+    if (!logStream && !rotating) return;   // 流不可用且不在轮转：直接丢弃，不阻塞
+    logQueue.push('[' + new Date().toISOString() + '] ' + msg + '\n');
+    flushLogQueue();
+  } catch (e) {}
+}
+
+function writeIoSummary(kind, message) {
+  if (loggedIoSummary[kind]) return;
+  loggedIoSummary[kind] = true;
+  writeLog('IO error summary [' + kind + ']: ' + String(message).slice(0, 200) +
+    ' (同类型后续出现不再记录，累计丢弃 ' + logDropped + ' 条)');
+}
+
+prepareLogFile();
+openLogStream();
+
+// ── 全局异常捕获：只写日志队列，不在处理器内 console.* ──
+process.on('uncaughtException', function (err) {
+  var message = (err && err.message) || String(err);
+  if (IO_ERROR_RE.test(message)) {
+    muteStdio('uncaught ' + message);
+    writeIoSummary(message.replace(/\s+/g, ' ').slice(0, 60), message);
+    return;
+  }
+  writeLog('UNCAUGHT: ' + message + '\n' + ((err && err.stack) || ''));
+});
+
+process.on('unhandledRejection', function (reason) {
+  var message = (reason && reason.message) || String(reason);
+  if (IO_ERROR_RE.test(message)) {
+    muteStdio('rejection ' + message);
+    writeIoSummary('rejection ' + message.replace(/\s+/g, ' ').slice(0, 60), message);
+    return;
+  }
+  writeLog('UNHANDLED REJECTION: ' + message);
 });
 
 let mainWindow = null;
@@ -263,6 +457,17 @@ function startPython() {
       // 兼容旧 AI 响应
       if (data.type === 'ai_response' && mainWindow && !mainWindow.isDestroyed()) {
         mainWindow.webContents.send('ai-message', data.text);
+        return;
+      }
+
+      // 连接类命令的异步结果（1.5.1）：ssh_terminal_init(async) / test_nas_connection(async)
+      // 立即返回 pending 后，真正的结果从这里回传渲染进程。
+      if (data.type === 'terminal_connect_result' && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('terminal-connect-result', data.data || {});
+        return;
+      }
+      if (data.type === 'nas_test_result' && mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('nas-test-result', data.data || {});
         return;
       }
 
@@ -486,6 +691,16 @@ ipcMain.handle('get-config', async () => {
     return await sendToPython({ cmd: 'get_config' });
   } catch (e) {
     return { error: e.message };
+  }
+});
+
+// 应用版本号（1.5.0）：关于页动态显示，避免前端硬编码版本号再次过期。
+// 打包态读应用内 package.json 的 version，开发态读仓库 package.json，均为权威来源。
+ipcMain.handle('get-app-version', () => {
+  try {
+    return app.getVersion();
+  } catch (e) {
+    return null;
   }
 });
 

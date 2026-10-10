@@ -119,6 +119,7 @@
     'term.connecting':       '正在连接 {name}...',
     'term.error.unknown':    '连接失败，未知错误',
     'term.error.ssh':        'SSH 连接失败: {message}',
+    'term.error.timeout':    '连接超时，未收到结果，请重试',
 
     // AI 助手面板（panels/ai-assistant.js）—— 提示弹窗文案已抽到 common.tip.* 共用
     'ai.provider.ollama':   'Ollama 本地',
@@ -189,6 +190,17 @@
     'set.ai.chooseDir':        '选择目录',
     'set.ai.viewMemory':       '查看记忆',
     'set.ai.clearMemory':      '清空记忆',
+    'set.ai.memoryDedupe':        '清理重复',
+    'set.ai.memoryDedupeConfirm': '确定合并重复的记忆条目？同一内容只保留最早一条，此操作不可撤销。',
+    'set.ai.memoryDedupeDone':    '已合并重复记忆，删除 {count} 条',
+    'set.ai.historyTitle':        '对话历史',
+    'set.ai.historyEnable':       '保存对话历史',
+    'set.ai.historyEnableHint':   '对话保存在本机文件中，重启后可恢复；关闭后不再写入新记录',
+    'set.ai.historyLimit':        '保留条数上限',
+    'set.ai.historyClear':        '清空历史',
+    'set.ai.historyClearConfirm': '确定清空全部对话历史？此操作不可撤销。',
+    'set.hist.cleared':           '对话历史已清空',
+    'set.hist.clearFailed':       '清空对话历史失败',
     'set.ai.save':             '保存 AI 配置',
     // 记忆存储目录对话框
     'set.memDir.title':   '选择记忆存储目录',
@@ -293,6 +305,7 @@
     // 终端错误（main.py 的 ssh_terminal_init）
     'term.err.deviceNotConfigured': '未找到设备配置: {host}',
     'term.err.deviceUserMissing':   '设备未配置用户名: {host}',
+    'term.err.sessionGone':         '会话已结束，正在重新连接',
     // 通用网络错误（main.py 的 test_nas_connection）
     'net.connectFailed':            '连接失败: {detail}',
     // 配置重载（main.py 的 reload_config；当前界面不显示，留给后续使用）

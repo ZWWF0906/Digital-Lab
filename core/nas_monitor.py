@@ -224,6 +224,21 @@ def _collect_nas(device: dict, stop_event: threading.Event):
 
     log_info(f"NAS [{name}] 采集线程已启动", host=host, interval=interval)
 
+    # 采集失败降噪（1.5.1）：同一指标连续失败只记录首次，恢复时补一条 INFO。
+    # 原先每轮每指标都写 WARN，设备离线时 daemon.log 会被刷屏（实测每轮 9 行）。
+    _fail_state = {"cpu": False, "memory": False, "disk": False}
+
+    def _note_fail(metric, label, error):
+        if _fail_state.get(metric):
+            return
+        _fail_state[metric] = True
+        log_warn(f"NAS [{name}] {label}采集失败", error=str(error))
+
+    def _note_ok(metric, label):
+        if _fail_state.get(metric):
+            _fail_state[metric] = False
+            log_info(f"NAS [{name}] {label}采集恢复正常")
+
     while not stop_event.is_set():
         client = None
         try:
@@ -265,8 +280,9 @@ def _collect_nas(device: dict, stop_event: threading.Event):
                 processes = _parse_processes(top_output)
                 if processes:
                     data["processes"] = processes
+                _note_ok("cpu", "CPU/进程")
             except Exception as e:
-                log_warn(f"NAS [{name}] CPU/进程采集失败", error=str(e))
+                _note_fail("cpu", "CPU/进程", e)
 
             # 采集内存
             try:
@@ -275,8 +291,9 @@ def _collect_nas(device: dict, stop_event: threading.Event):
                 mem = _parse_memory(mem_output)
                 if mem:
                     data["memory"] = mem
+                _note_ok("memory", "内存")
             except Exception as e:
-                log_warn(f"NAS [{name}] 内存采集失败", error=str(e))
+                _note_fail("memory", "内存", e)
 
             # 采集磁盘
             try:
@@ -285,8 +302,9 @@ def _collect_nas(device: dict, stop_event: threading.Event):
                 disk = _parse_disk(disk_output)
                 if disk:
                     data["disk"] = disk
+                _note_ok("disk", "磁盘")
             except Exception as e:
-                log_warn(f"NAS [{name}] 磁盘采集失败", error=str(e))
+                _note_fail("disk", "磁盘", e)
 
             # 采集温度
             try:
@@ -467,6 +485,9 @@ def _collect_mock_nas(stop_event: threading.Event):
             },
             "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "last_error": None,
+            # 1.5.0：标记 mock 设备。它没有 nas_devices 配置条目，SSH 终端连它必然失败，
+            # 前端据此把它排除出可连接的终端标签列表（仪表盘/设备中心仍照常展示）。
+            "is_mock": True,
         }
         system_state.update("nas", name, data)
 

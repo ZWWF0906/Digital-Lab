@@ -119,6 +119,7 @@
     'term.connecting':       'Connecting to {name}...',
     'term.error.unknown':    'Connection failed, unknown error',
     'term.error.ssh':        'SSH connection failed: {message}',
+    'term.error.timeout':    'Connection timed out without a result, please retry',
 
     // AI assistant panel (panels/ai-assistant.js) — tip modal text now shared via common.tip.*
     'ai.provider.ollama':   'Ollama Local',
@@ -189,6 +190,17 @@
     'set.ai.chooseDir':        'Choose Directory',
     'set.ai.viewMemory':       'View Memory',
     'set.ai.clearMemory':      'Clear Memory',
+    'set.ai.memoryDedupe':        'Clean Duplicates',
+    'set.ai.memoryDedupeConfirm': 'Merge duplicate memory entries? Only the earliest of each is kept; this cannot be undone.',
+    'set.ai.memoryDedupeDone':    'Duplicates merged, {count} removed',
+    'set.ai.historyTitle':        'Chat History',
+    'set.ai.historyEnable':       'Save chat history',
+    'set.ai.historyEnableHint':   'Conversations are stored in a local file and restored after restart; when off, no new records are written',
+    'set.ai.historyLimit':        'Maximum records',
+    'set.ai.historyClear':        'Clear History',
+    'set.ai.historyClearConfirm': 'Clear all chat history? This cannot be undone.',
+    'set.hist.cleared':           'Chat history cleared',
+    'set.hist.clearFailed':       'Failed to clear chat history',
     'set.ai.save':             'Save AI Config',
     // Memory directory dialog
     'set.memDir.title':   'Choose Memory Storage Directory',
@@ -293,6 +305,7 @@
     // Terminal errors (main.py ssh_terminal_init)
     'term.err.deviceNotConfigured': 'Device is not configured: {host}',
     'term.err.deviceUserMissing':   'No username configured for device: {host}',
+    'term.err.sessionGone':         'Session ended, reconnecting',
     // Generic network error (main.py test_nas_connection)
     'net.connectFailed':            'Connection failed: {detail}',
     // Config reload (main.py reload_config; not shown in the UI yet, kept for later)

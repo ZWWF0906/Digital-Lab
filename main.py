@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import argparse
+import collections
+import concurrent.futures
 import io
 import sys
 import os
@@ -471,11 +473,65 @@ def cmd_snapshot(args=None):
         _safe_print("  数据点: {}".format(perf["cpu"].get("data_points", 0)))
 
 
+def _kill_orphan_backends():
+    """终止父进程已消失的同名 backend 进程（1.5.1 清理项）。
+
+    PyInstaller onefile 的父子进程在被 taskkill /T 漏掉时会残留：每个孤儿都持有
+    自己的会话缓冲与采集线程，长期堆积既占内存又重复轮询。这里只处理"父进程已不存在"
+    的 backend，绝不碰当前进程自身与其祖先链。
+    """
+    try:
+        import os as _os
+        import psutil
+    except Exception:
+        return 0
+    me = _os.getpid()
+    killed = 0
+    try:
+        for proc in psutil.process_iter(["pid", "name", "ppid"]):
+            try:
+                pid = proc.info.get("pid")
+                name = (proc.info.get("name") or "").lower()
+                if not pid or pid == me:
+                    continue
+                if "backend" not in name:
+                    continue
+                ppid = proc.info.get("ppid") or 0
+                if ppid and ppid != me and psutil.pid_exists(ppid):
+                    continue          # 父进程健在：属于正常运行的实例
+                victims = proc.children(recursive=True) + [proc]
+                for v in victims:
+                    try:
+                        v.terminate()
+                    except Exception:
+                        pass
+                gone, alive = psutil.wait_procs(victims, timeout=3)
+                for v in alive:
+                    try:
+                        v.kill()
+                    except Exception:
+                        pass
+                killed += len(victims)
+            except Exception:
+                continue
+    except Exception:
+        return killed
+    return killed
+
+
 def cmd_json_mode():
     """JSON 行协议模式：通过 stdin/stdout 与 Electron 主进程通信。"""
     import json
     import threading
     import os as _os
+
+    # 清理上一次异常退出留下的孤儿 backend（在启动采集线程之前做）
+    try:
+        _killed = _kill_orphan_backends()
+        if _killed:
+            print("orphan backend cleaned: %d" % _killed, file=sys.stderr, flush=True)
+    except Exception:
+        pass
 
     # 初始化
     from core.config import get_config
@@ -595,9 +651,66 @@ def cmd_json_mode():
     # ── 终端会话管理 ──
     _terminal_sessions = {}
     _terminal_lock = threading.Lock()
+    # 每个会话保留最近 256KB 输出：前端重附着（切面板回来、面板重建、语言切换）时回放，
+    # 保证"保活"不依赖前端 DOM 是否还在。
+    _TERMINAL_BUFFER_LIMIT = 256 * 1024
+    # ── 阻塞型命令的独立线程池（1.5.1）──
+    # SSH 建链最长要等 10~30 秒、连通性测试最长 15 秒；放在 stdin 分发线程里同步执行会
+    # 把后续所有命令（get_config / chat_history_* / terminal_* …）一起卡住。
+    # 这里改为线程池执行 + 立即返回 pending，结果通过异步事件回传（同 requestId）。
+    _io_pool = concurrent.futures.ThreadPoolExecutor(max_workers=2, thread_name_prefix="dl-io")
+    _io_pending = 0
+    _io_pending_lock = threading.Lock()
+    _IO_PENDING_MAX = 8     # 挂起任务上限，超出直接拒绝，避免无限堆积
+
+    def _io_submit(kind, request_id, fn, event_type):
+        """把阻塞型任务交给线程池；立即返回 pending，完成时推一条 event_type 事件。"""
+        import json as _json
+        nonlocal _io_pending
+        with _io_pending_lock:
+            if _io_pending >= _IO_PENDING_MAX:
+                return {"ok": False, "pending": False,
+                        "error": {"code": "io.err.busy", "params": {"kind": kind}}}
+            _io_pending += 1
+
+        def _worker():
+            nonlocal _io_pending
+            try:
+                result = fn()
+            except Exception as _e:
+                result = {"ok": False, "error": {"code": "io.err.internal", "params": {"detail": str(_e)}}}
+            finally:
+                with _io_pending_lock:
+                    _io_pending -= 1
+            try:
+                payload = {"type": event_type, "requestId": request_id, "data": result}
+                _safe_print(_json.dumps(payload, ensure_ascii=False), flush=True)
+            except Exception:
+                pass
+
+        try:
+            _io_pool.submit(_worker)
+        except Exception as _e:
+            with _io_pending_lock:
+                _io_pending -= 1
+            return {"ok": False, "pending": False,
+                    "error": {"code": "io.err.submitFailed", "params": {"detail": str(_e)}}}
+        return {"ok": True, "pending": True, "kind": kind}
 
     def _send_terminal_output(session_id, data):
-        """向 stdout 推送终端输出"""
+        """向 stdout 推送终端输出，同时写入该会话的环形缓冲。"""
+        with _terminal_lock:
+            sess = _terminal_sessions.get(session_id)
+            if sess is not None:
+                buf = sess.get("buffer")
+                if buf is None:
+                    buf = collections.deque()
+                    sess["buffer"] = buf
+                buf.append(data)
+                size = sess.get("buffer_size", 0) + len(data)
+                while size > _TERMINAL_BUFFER_LIMIT and buf:
+                    size -= len(buf.popleft())
+                sess["buffer_size"] = size
         msg = json.dumps({"session_id": session_id, "data": data}, ensure_ascii=False)
         _safe_print(msg, flush=True)
 
@@ -639,8 +752,54 @@ def cmd_json_mode():
             except Exception:
                 pass
 
-    def _handle_ssh_terminal_init(host, port, cols, rows):
-        """host 参数实际是设备名称（name），按名称匹配配置后取 IP 连接。
+    def _terminal_session_alive(sess) -> bool:
+        """会话是否仍可交互：channel 存在且未关闭。"""
+        if not isinstance(sess, dict):
+            return False
+        channel = sess.get("channel")
+        if channel is None:
+            return False
+        try:
+            return not channel.closed
+        except Exception:
+            return False
+
+    def _handle_terminal_list():
+        """列出后端存活会话，供前端在重附着前确认会话是否还在。"""
+        with _terminal_lock:
+            items = list(_terminal_sessions.items())
+        result = []
+        for sid, sess in items:
+            result.append({
+                "session_id": sid,
+                "host": sess.get("host", ""),
+                "type": sess.get("type", "ssh"),
+                "alive": _terminal_session_alive(sess),
+                "buffer_bytes": int(sess.get("buffer_size", 0) or 0),
+            })
+        result.sort(key=lambda it: it.get("session_id", ""))
+        return {"sessions": result, "count": len(result)}
+
+    def _handle_terminal_attach(session_id):
+        """重附着：确认会话仍在，并返回环形缓冲内容供前端回放。"""
+        with _terminal_lock:
+            sess = _terminal_sessions.get(session_id)
+            if sess is not None:
+                buffer_text = "".join(sess.get("buffer") or [])
+                alive = _terminal_session_alive(sess)
+                host = sess.get("host", "")
+            else:
+                buffer_text = ""
+                alive = False
+                host = ""
+        if sess is None:
+            return {"ok": False, "alive": False, "session_id": session_id,
+                    "error": {"code": "term.err.sessionGone", "params": {}}}
+        return {"ok": True, "alive": alive, "session_id": session_id, "host": host,
+                "buffer": buffer_text}
+
+    def _ssh_terminal_connect(host, port, cols, rows):
+        """同步建链（真正会阻塞的部分）。host 参数实际是设备名称（name），按名称匹配配置后取 IP 连接。
 
         标准 paramiko 会话建立（参考 webssh / paramiko-shell 成熟写法）：
         - PTY 尺寸采用前端建立会话时提供的真实 cols/rows，不硬编码
@@ -697,6 +856,8 @@ def cmd_json_mode():
                     "host": host,
                     "client": client,
                     "channel": channel,
+                    "buffer": collections.deque(),
+                    "buffer_size": 0,
                 }
 
             def _stdout_reader():
@@ -726,6 +887,27 @@ def cmd_json_mode():
             return {"session_id": sid}
         except Exception as e:
             return {"error": str(e)}
+
+    def _handle_ssh_terminal_init(host, port, cols, rows, request_id=None, async_mode=False):
+        """SSH 建链入口。
+
+        async_mode=False（旧前端）：保持原行为，同步返回 {"session_id"} 或 {"error"}。
+        async_mode=True（1.5.1 前端）：立即返回 {"ok": True, "pending": True}，
+        建链结果通过 terminal_connect_result 事件回传，携带同一个 requestId，
+        stdin 分发线程因此不再被最长达 30 秒的网络等待占住。
+        """
+        if not async_mode:
+            return _ssh_terminal_connect(host, port, cols, rows)
+
+        def _job():
+            result = _ssh_terminal_connect(host, port, cols, rows)
+            if isinstance(result, dict) and result.get("session_id"):
+                return {"ok": True, "host": host, "session_id": result["session_id"], "error": None}
+            err = result.get("error") if isinstance(result, dict) else None
+            return {"ok": False, "host": host, "session_id": None,
+                    "error": err or {"code": "term.error.unknown", "params": {}}}
+
+        return _io_submit("ssh_terminal_init", request_id, _job, "terminal_connect_result")
 
     # ── 构建 AI 系统上下文：将实时系统状态格式化为文本，注入 AI 对话 ──
 
@@ -764,34 +946,40 @@ def cmd_json_mode():
     # 绝不允许同时出现两种语言的规则（整体替换，不是叠加）。
     # lang 由前端 ai_chat 请求携带；未知值或缺省（旧前端/旧 preload）一律回退中文。
     _AI_LANG_FALLBACK = "zh-CN"
+    # 静态段（前缀缓存友好）：同一 lang 与同一记忆开关下逐字节稳定，永远排在动态系统状态之前
     _AI_HEADER = {
         "zh-CN": ("你是 DigitalLab 的 AI 助手，必须始终使用简体中文回答用户问题。\n"
-                  "你可以访问以下实时系统状态："),
+                  "本次请求末尾会附上实时系统状态，回答时可以直接引用。"),
         "en-US": ("You are the DigitalLab AI assistant. You must always respond in English.\n"
-                  "You can access the following real-time system status:"),
+                  "The real-time system status for this request is appended at the end; use it directly when answering."),
         "ja-JP": ("あなたは DigitalLab の AI アシスタントです。必ず日本語で回答してください。\n"
-                  "以下のリアルタイムなシステム状態を参照できます："),
+                  "このリクエストの末尾にリアルタイムなシステム状態を添付します。回答時にそのまま参照してください。"),
     }
+    # 动态段（数据不可用时替换系统状态正文）：只含本次请求的动态事实，不含角色与规则
     _AI_HEADER_NO_DATA = {
-        "zh-CN": ("你是 DigitalLab 的 AI 助手，必须始终使用简体中文回答用户问题。\n"
-                  "当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
+        "zh-CN": ("当前系统状态数据不可用。如果用户询问电脑、设备、NAS、性能等相关信息，"
                   "请明确告诉用户暂时无法获取系统数据，不要编造数据。"),
-        "en-US": ("You are the DigitalLab AI assistant. You must always respond in English.\n"
-                  "Real-time system status data is currently unavailable. If the user asks about the computer, "
+        "en-US": ("Real-time system status data is currently unavailable. If the user asks about the computer, "
                   "devices, NAS, performance or similar, say clearly that the data cannot be fetched right now "
                   "and do not make anything up."),
-        "ja-JP": ("あなたは DigitalLab の AI アシスタントです。必ず日本語で回答してください。\n"
-                  "現在、システム状態のデータを取得できません。パソコン、デバイス、NAS、性能などについて"
+        "ja-JP": ("現在、システム状態のデータを取得できません。パソコン、デバイス、NAS、性能などについて"
                   "質問された場合は、データを取得できないことをはっきり伝え、推測で答えないでください。"),
     }
     _AI_TRAILER = {
-        "zh-CN": ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用以上数据回答。\n"
+        "zh-CN": ("\n当用户询问电脑、设备、NAS、性能等相关问题时，直接引用末尾附上的实时系统状态回答。\n"
                   "如果系统状态数据不可用，明确告诉用户暂时无法获取，不要编造数据。"),
         "en-US": ("\nWhen the user asks about the computer, devices, NAS, performance or similar, answer by "
-                  "quoting the data above.\nIf the system status data is unavailable, say so clearly and do not "
-                  "make anything up."),
-        "ja-JP": ("\nパソコン、デバイス、NAS、性能などについて質問された場合は、上記のデータを引用して回答してください。\n"
+                  "quoting the real-time system status appended at the end.\n"
+                  "If the system status data is unavailable, say so clearly and do not make anything up."),
+        "ja-JP": ("\nパソコン、デバイス、NAS、性能などについて質問された場合は、末尾に添付されたリアルタイムな"
+                  "システム状態を引用して回答してください。\n"
                   "システム状態のデータを取得できない場合は、その旨をはっきり伝え、推測で答えないでください。"),
+    }
+    # 动态段小标题：动态系统状态整体后置，保证静态段逐字节稳定（前缀缓存）
+    _AI_STATUS_LEAD = {
+        "zh-CN": "以下是本次请求的实时系统状态：",
+        "en-US": "Real-time system status for this request:",
+        "ja-JP": "このリクエストのリアルタイムなシステム状態：",
     }
     # 输出格式约束：原前端 system 消息会被本侧剔除，格式要求统一由 Python 侧下发
     _AI_FORMAT_RULES = {
@@ -854,14 +1042,31 @@ def cmd_json_mode():
         """按 lang 二选一；未知语言（含缺省）回退中文。"""
         return table.get(lang) or table[_AI_LANG_FALLBACK]
 
-    def _system_context(lang: str = "zh-CN") -> str:
+    def _memory_enabled() -> bool:
+        """记忆开关：读取失败按关闭处理（与原行为一致）。"""
+        try:
+            from core import ai_memory as _aim
+            return bool(_aim.settings().get("enabled"))
+        except Exception:
+            return False
+
+    def _system_static(lang: str = "zh-CN") -> str:
+        """静态段：角色、使用规则、格式约束（记忆开启时含记忆指令）。
+
+        同一 lang 与同一记忆开关下逐字节稳定，是 DeepSeek 前缀缓存的主要命中区间，
+        因此本函数内不得出现任何随时间变化的内容。
+        """
+        text = _ai_text(_AI_HEADER, lang) + _ai_text(_AI_TRAILER, lang)
+        text += "\n" + _ai_text(_AI_FORMAT_RULES, lang)
+        if _memory_enabled():
+            text += "\n" + _ai_text(_AI_MEMORY_INSTRUCTION, lang)
+        return text
+
+    def _system_dynamic(lang: str = "zh-CN") -> str:
+        """动态段：本次请求的实时系统状态，整体后置，避免污染静态前缀。"""
         from core.system_state import system_state
 
-        # 三张文本表都按 lang 二选一（整体替换）：同一次请求里只会有一套语言的规则
         labels = _ai_text(_AI_LABELS, lang)
-        header_text = _ai_text(_AI_HEADER, lang)
-        no_data_text = _ai_text(_AI_HEADER_NO_DATA, lang)
-        trailer_text = _ai_text(_AI_TRAILER, lang)
 
         snap = {}
         try:
@@ -919,22 +1124,16 @@ def cmd_json_mode():
             if nas_bits:
                 lines.append(labels["nas"] + labels["nas_sep"].join(nas_bits))
 
-        header = header_text
-        # 记忆开关：仅开启时追加记忆指令（关闭时不追加）；指令语言与 system 提示保持一致
-        try:
-            from core import ai_memory as _aim
-            _memory_on = bool(_aim.settings().get("enabled"))
-        except Exception:
-            _memory_on = False
-        suffix = "\n" + _ai_text(_AI_FORMAT_RULES, lang)
-        if _memory_on:
-            suffix += "\n" + _ai_text(_AI_MEMORY_INSTRUCTION, lang)
         if not lines:
-            return no_data_text + suffix
+            return _ai_text(_AI_HEADER_NO_DATA, lang)
         body = "\n".join(lines)
         if len(body) > 1000:
             body = body[:1000]
-        return header + "\n" + body + trailer_text + suffix
+        return _ai_text(_AI_STATUS_LEAD, lang) + "\n" + body
+
+    def _system_context(lang: str = "zh-CN") -> str:
+        """兼容入口：静态段在前、动态段在后（供仍需要单串提示词的调用方）。"""
+        return _system_static(lang) + "\n" + _system_dynamic(lang)
 
     # ── AI 流式对话 ──
     def _handle_ai_chat(messages, provider, request_id, lang="zh-CN"):
@@ -957,7 +1156,7 @@ def cmd_json_mode():
                 }, ensure_ascii=False)
                 _safe_print(msg, flush=True)
             try:
-                system_ctx = _system_context(lang)
+                static_ctx = _system_static(lang)
                 base_msgs = messages if isinstance(messages, list) else []
                 # 历史消息清洗：只保留合法角色；字符串内容做同样的安全清理，避免脏字符回灌模型
                 clean_msgs = []
@@ -976,14 +1175,18 @@ def cmd_json_mode():
                 # 仅保留最近若干条历史，防止长对话上下文膨胀或脏数据回灌
                 if len(clean_msgs) > _AI_MAX_HISTORY:
                     clean_msgs = clean_msgs[-_AI_MAX_HISTORY:]
+                # 前缀缓存布局（顺序即缓存收益）：静态段（逐字节稳定）→ 记忆段（半静态，
+                # 确定性排序）→ 动态系统状态（每次请求都会变）→ 对话历史。
                 prefix_msgs = []
-                if system_ctx:
-                    prefix_msgs.append({"role": "system", "content": system_ctx})
+                if static_ctx:
+                    prefix_msgs.append({"role": "system", "content": static_ctx})
                 # 记忆开关开启时注入最近若干条长期记忆（独立 system 消息，不占用系统状态预算）
                 try:
                     from core import ai_memory as _aim
                     if _aim.settings().get("enabled"):
                         _recent_mem = _aim.load_recent(_AI_MEMORY_LIMIT)
+                        # 确定性排序：先 ts 再 id；同一份记忆每次注入的顺序完全一致
+                        _recent_mem = sorted(_recent_mem, key=lambda it: (it.get("ts", ""), it.get("id", "")))
                         _mem_lines = []
                         for _item in _recent_mem:
                             _c = _clean_text(_item.get("content", ""), 200)
@@ -996,6 +1199,10 @@ def cmd_json_mode():
                             })
                 except Exception:
                     pass
+                # 动态系统状态整体后置：静态段与记忆段因此保持逐字节稳定
+                dynamic_ctx = _system_dynamic(lang)
+                if dynamic_ctx:
+                    prefix_msgs.append({"role": "system", "content": dynamic_ctx})
                 chat_msgs = prefix_msgs + clean_msgs
                 result = chat_stream(chat_msgs, provider, on_token=_push_token, lang=lang)
                 # 结构化错误：chat_stream 失败时返回 {"code": ..., "params": {...}}，此时正文为空
@@ -1125,7 +1332,8 @@ def cmd_json_mode():
         except Exception as e:
             return {"error": str(e)}
 
-    def _test_nas_connection(device):
+    def _nas_connection_test(device):
+        """同步连通性测试（真正会阻塞的部分）。"""
         import paramiko
         try:
             client = paramiko.SSHClient()
@@ -1143,6 +1351,13 @@ def cmd_json_mode():
             return {"ok": True}
         except Exception as e:
             return {"ok": False, "error": {"code": "net.connectFailed", "params": {"detail": str(e)}}}
+
+    def _test_nas_connection(device, request_id=None, async_mode=False):
+        """连通性测试入口：async_mode=True 时立即返回 pending，结果走 nas_test_result 事件。"""
+        if not async_mode:
+            return _nas_connection_test(device)
+        return _io_submit("test_nas_connection", request_id,
+                          lambda: _nas_connection_test(device), "nas_test_result")
 
     def _get_nas_devices():
         import json, os
@@ -1219,6 +1434,46 @@ def cmd_json_mode():
             elif ctype == "clear_ai_memory":
                 from core import ai_memory as _aim
                 resp = {"ok": _aim.clear()}
+            elif ctype == "dedupe_ai_memory":
+                # 合并重复记忆（同一去重键保留最早一条），返回 {ok,total,kept,removed,message}
+                from core import ai_memory as _aim
+                resp = _aim.dedupe()
+            elif ctype == "chat_history_get":
+                from core import chat_store as _chat
+                _st = _chat.settings()
+                _limit = cmd.get("limit")
+                _items = _chat.load(_limit if _limit else _st.get("limit"), cmd.get("session_id"))
+                resp = {
+                    "enabled": bool(_st.get("enabled")),
+                    "dir": _st.get("dir", ""),
+                    "limit": _st.get("limit", 0),
+                    "count": len(_items),
+                    "items": [
+                        {
+                            "index": _it.get("index", _i),
+                            "id": _it.get("id", ""),
+                            "ts": _it.get("ts", ""),
+                            "role": _it.get("role", ""),
+                            "content": _it.get("content", ""),
+                            "session_id": _it.get("session_id", ""),
+                        }
+                        for _i, _it in enumerate(_items)
+                    ],
+                }
+            elif ctype == "chat_history_append":
+                from core import chat_store as _chat
+                _entry = _chat.append(cmd.get("role"), cmd.get("content", ""),
+                                      cmd.get("session_id"), cmd.get("ts"))
+                resp = {"ok": bool(_entry), "entry": _entry or None,
+                        "count": _chat.count(cmd.get("session_id"))}
+            elif ctype == "chat_history_clear":
+                from core import chat_store as _chat
+                resp = {"ok": _chat.clear(cmd.get("session_id")),
+                        "count": _chat.count(cmd.get("session_id"))}
+            elif ctype == "chat_history_delete":
+                from core import chat_store as _chat
+                _key = cmd.get("id") if cmd.get("id") else cmd.get("index")
+                resp = {"ok": _chat.delete(_key), "count": _chat.count(cmd.get("session_id"))}
             elif ctype == "ping":
                 resp = {"pong": True}
             elif ctype == "get_config":
@@ -1226,7 +1481,7 @@ def cmd_json_mode():
             elif ctype == "save_config":
                 resp = _save_config_data(cmd.get("config", {}))
             elif ctype == "test_nas_connection":
-                resp = _test_nas_connection(cmd.get("device", {}))
+                resp = _test_nas_connection(cmd.get("device", {}), request_id, bool(cmd.get("async")))
             elif ctype == "reload_config":
                 # 重载配置：逐步独立 try-except，单步失败不阻塞后续
                 reload_errors = []
@@ -1271,10 +1526,15 @@ def cmd_json_mode():
             elif ctype == "terminal_close":
                 _handle_terminal_close(cmd.get("session_id"))
                 resp = {"ok": True}
+            elif ctype == "terminal_list":
+                resp = _handle_terminal_list()
+            elif ctype == "terminal_attach":
+                resp = _handle_terminal_attach(cmd.get("session_id"))
             elif ctype == "ssh_terminal_init":
                 resp = _handle_ssh_terminal_init(
                     cmd.get("host", ""), cmd.get("port", 22),
                     cmd.get("cols", 80), cmd.get("rows", 24),
+                    request_id, bool(cmd.get("async")),
                 )
             else:
                 resp = {"error": "unknown command"}
@@ -1337,12 +1597,19 @@ def cmd_json_mode():
     stdin_thread = threading.Thread(target=_stdin_reader, daemon=True)
     stdin_thread.start()
 
-    # 主循环：每秒推送状态
+    # 主循环：每秒推送状态（1.5.1：帧内容与上一帧完全相同则跳过，另每 5 秒保底一帧做心跳）
     running = True
+    _last_frame = None
+    _last_frame_ts = 0.0
+    _HEARTBEAT_SECONDS = 5.0
     while running:
         try:
-            payload = _format_state()
-            _safe_print(json.dumps(payload, ensure_ascii=False), flush=True)
+            frame = json.dumps(_format_state(), ensure_ascii=False)
+            now = time.time()
+            if frame != _last_frame or (now - _last_frame_ts) >= _HEARTBEAT_SECONDS:
+                _safe_print(frame, flush=True)
+                _last_frame = frame
+                _last_frame_ts = now
             time.sleep(1)
         except (BrokenPipeError, IOError):
             running = False

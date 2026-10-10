@@ -62,6 +62,11 @@ export async function init(container, api) {
   let unsubToken = null;
   let unsubDone = null;
   let memSnapshot = null;   // 发送前的记忆条目快照（用于“已记住”提示兜底）
+  // 对话历史（1.5.0）：落盘在 %APPDATA%\DigitalLab\memory\chat_history.jsonl，由后端 chat_store 管理。
+  // 前端只负责"读出来渲染 / 写进去"，顺序与去重规则都在后端，避免两边各有一套排序。
+  const CHAT_SESSION = 'default';
+  let historyEnabled = true;
+  let historyLimit = 200;
 
   // ── 渲染 ──
   container.innerHTML = `
@@ -272,6 +277,7 @@ export async function init(container, api) {
 
     inputEl.value = '';
     addMessage('user', text);
+    persistMessage('user', text);   // 落盘用户消息（不等待，失败静默）
     isStreaming = true;
     sendBtn.disabled = true;
     inputEl.disabled = true;
@@ -394,6 +400,8 @@ export async function init(container, api) {
       streamingMsg.contentBubble.textContent = (text && text.trim()) ? text : T('ai.emptyReply');
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') lastMsg.content = text;
+      // 落盘助手回复：用后端剥离记忆标记之后的文本，保证历史里不留 [记忆] 标记
+      persistMessage('assistant', text);
     }
     // 记忆写入提示：主进程未转发 memory 字段时由记忆列表差异兜底
     resolveMemoryHints(data);
@@ -412,10 +420,46 @@ export async function init(container, api) {
   };
   window.addEventListener('ai-config-updated', onConfigUpdated);
 
+  // ── 对话历史：读取并渲染（1.5.0）──
+  async function loadHistory() {
+    try {
+      const cfg = await api.getConfig();
+      const h = (cfg && cfg.ai && cfg.ai.history) || {};
+      if (h.enabled === false) { historyEnabled = false; return; }
+      if (h.limit) historyLimit = h.limit;
+    } catch (e) { /* 读不到配置按默认开启处理 */ }
+    try {
+      const res = await api.sendCommand({ cmd: 'chat_history_get', limit: historyLimit, session_id: CHAT_SESSION });
+      if (!res || res.enabled === false) { historyEnabled = false; return; }
+      if (!Array.isArray(res.items) || !res.items.length) return;
+      // 用户在历史返回前已经开口：保留当前会话，不覆盖
+      if (messages.length > 0) return;
+      messages = res.items.map(it => ({ role: it.role, content: it.content }));
+      messagesEl.innerHTML = '';
+      renderMessages();
+    } catch (e) { /* 历史读取失败不影响本次对话 */ }
+  }
+
+  // ── 对话历史：追加一条（失败静默，不打断对话）──
+  async function persistMessage(role, content) {
+    if (!historyEnabled || !content) return;
+    try {
+      await api.sendCommand({
+        cmd: 'chat_history_append',
+        role: role,
+        content: content,
+        session_id: CHAT_SESSION,
+      });
+    } catch (e) { /* 落盘失败不影响本次对话 */ }
+  }
+
   // ── 初始状态 ──
   api.getHardware().then(hw => {
     if (hw) updateContext({ ...latestState, hardware: hw });
   });
+
+  // 恢复上次的对话：不阻塞面板首帧（DOM 已渲染，历史在后台补齐；有历史时替换静态问候语）
+  loadHistory();
 
   // ── 清理 ──
   return () => {

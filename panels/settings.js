@@ -319,6 +319,7 @@ export function init(container, api) {
     const ollama = ai.ollama || {};
     const openai = ai.openai || {};
     const memory = ai.memory || {};
+    const history = ai.history || {};
     const el = panelEls.ai;
     el.innerHTML = `
       <div class="settings-group">
@@ -362,8 +363,29 @@ export function init(container, api) {
         <div class="settings-actions" style="margin-top:8px">
           <button class="btn-secondary" id="btn-ai-memory-list">${T('set.ai.viewMemory')}</button>
           <button class="btn-secondary" id="btn-ai-memory-clear">${T('set.ai.clearMemory')}</button>
+          <button class="btn-secondary" id="btn-ai-memory-dedupe">${T('set.ai.memoryDedupe')}</button>
         </div>
         <div id="ai-memory-list" style="margin-top:10px"></div>
+      </div>
+      <div class="settings-group">
+        <div class="settings-group-title">${T('set.ai.historyTitle')}</div>
+        <div class="settings-row" style="justify-content:space-between">
+          <div>
+            <div style="font-size:0.85rem;color:var(--text-primary);margin-bottom:2px">${T('set.ai.historyEnable')}</div>
+            <div style="font-size:0.7rem;color:var(--text-tertiary)">${T('set.ai.historyEnableHint')}</div>
+          </div>
+          <label class="toggle-switch">
+            <input type="checkbox" id="ai-history-toggle" ${history.enabled === false ? '' : 'checked'}>
+            <span class="toggle-slider"></span>
+          </label>
+        </div>
+        <div class="settings-row">
+          <label>${T('set.ai.historyLimit')}</label>
+          <input type="number" id="ai-history-limit" value="${escapeAttr(String(history.limit || 200))}" min="20" max="5000" />
+        </div>
+        <div class="settings-actions" style="margin-top:8px">
+          <button class="btn-secondary" id="btn-ai-history-clear">${T('set.ai.historyClear')}</button>
+        </div>
       </div>
       <div class="settings-actions">
         <button class="btn-primary" id="btn-save-ai">${T('set.ai.save')}</button>
@@ -392,6 +414,10 @@ export function init(container, api) {
       if (!config.ai.memory) config.ai.memory = {};
       config.ai.memory.enabled = !!(el.querySelector('#ai-memory-toggle')?.checked);
       config.ai.memory.dir = (el.querySelector('#ai-memory-dir')?.value || '').trim();
+      // AI 对话历史：开关与保留上限随 AI 配置一起写回（默认开启与后端 chat_store 保持一致）
+      if (!config.ai.history) config.ai.history = {};
+      config.ai.history.enabled = !!(el.querySelector('#ai-history-toggle')?.checked);
+      config.ai.history.limit = parseInt(el.querySelector('#ai-history-limit')?.value, 10) || 200;
       await saveConfig();
       window.dispatchEvent(new CustomEvent('ai-config-updated', { detail: { provider: config.ai.provider } }));
     });
@@ -410,6 +436,32 @@ export function init(container, api) {
         showToast(T('set.mem.clearFailedDetail', { message: e.message }), true);
       }
       refreshMemoryList();
+    });
+
+    // 记忆去重：合并同一内容的不同写法（同一去重键只保留最早一条，不可逆，先确认）
+    el.querySelector('#btn-ai-memory-dedupe')?.addEventListener('click', async () => {
+      if (!window.confirm(T('set.ai.memoryDedupeConfirm'))) return;
+      try {
+        const res = await api.sendCommand({ cmd: 'dedupe_ai_memory' });
+        const removed = (res && typeof res.removed === 'number') ? res.removed : 0;
+        const ok = !!(res && res.ok);
+        showToast(ok ? T('set.ai.memoryDedupeDone', { count: removed }) : T('set.mem.clearFailed'), !ok);
+      } catch (e) {
+        showToast(T('set.mem.clearFailedDetail', { message: e.message }), true);
+      }
+      refreshMemoryList();
+    });
+
+    // 对话历史：清空（不可逆，先确认）
+    el.querySelector('#btn-ai-history-clear')?.addEventListener('click', async () => {
+      if (!window.confirm(T('set.ai.historyClearConfirm'))) return;
+      try {
+        const res = await api.sendCommand({ cmd: 'chat_history_clear' });
+        const ok = !!(res && res.ok);
+        showToast(ok ? T('set.hist.cleared') : T('set.hist.clearFailed'), !ok);
+      } catch (e) {
+        showToast(T('set.mem.clearFailedDetail', { message: e.message }), true);
+      }
     });
   }
 
@@ -714,11 +766,11 @@ export function init(container, api) {
   }
 
   // ── 关于 ──
-  function renderAboutTab() {
+  async function renderAboutTab() {
     const el = panelEls.about;
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
-        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab 1.4.0</div>
+        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab <span id="about-version">1.5.0</span></div>
         <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">${T('set.about.slogan')}</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
           <div>${T('set.about.features')}</div>
@@ -732,6 +784,17 @@ export function init(container, api) {
       </div>
     `;
     el.querySelector('#btn-feedback').addEventListener('click', showFeedbackModal);
+
+    // 版本号动态读取（1.5.0）：先用静态文本兜底，IPC 返回后覆盖；调用失败则保留兜底值，绝不空白
+    const verEl = el.querySelector('#about-version');
+    if (verEl) {
+      try {
+        if (api && typeof api.getAppVersion === 'function') {
+          const v = await api.getAppVersion();
+          if (v && typeof v === 'string' && v.trim()) verEl.textContent = v.trim();
+        }
+      } catch (e) { /* 保留兜底文本 */ }
+    }
   }
 
   // ── 问题反馈对话框 ──

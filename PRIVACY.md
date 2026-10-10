@@ -1,6 +1,6 @@
 # DigitalLab 隐私政策 / Privacy Policy
 
-最后更新：2026-09-22 / Last updated: 2026-09-22
+最后更新：2026-10-09 / Last updated: 2026-10-09
 
 [简体中文](#简体中文) · [English](#english) · [日本語](#日本語)
 
@@ -12,7 +12,7 @@
 
 # DigitalLab 隐私政策
 
-最后更新：2026-09-22
+最后更新：2026-10-09
 
 ## 核心原则：本地优先
 
@@ -25,7 +25,7 @@ DigitalLab 在本机采集以下信息，仅用于仪表盘展示和本地分析
 1. **本机硬件信息**：CPU 型号与频率、内存容量与类型、GPU 型号与显存、磁盘型号与容量、显示器规格、网络适配器信息、系统型号与制造商
 2. **系统性能数据**：CPU 使用率、内存占用率、磁盘使用率、网络速度、进程列表（PID、名称、CPU 和内存占用）
 3. **NAS 设备数据**：用户主动配置的 NAS 设备的 CPU、内存、磁盘、Docker 容器状态（通过 SSH 连接采集，数据存储在本机）
-4. **AI 对话记录**：用户与 AI 助手的对话内容（仅在用户主动使用 AI 功能时产生，存储在本机内存中，关闭应用后清除）
+4. **AI 对话记录**：用户与 AI 助手的对话内容（仅在用户主动使用 AI 功能时产生）。默认保存在本机文件 `%APPDATA%\DigitalLab\memory\chat_history.jsonl` 中，重启应用后会恢复；可在设置面板的"对话历史"中设置保留条数上限或一键清空。关闭"保存对话历史"开关后不再写入新记录，已有记录仍保留在该文件中，需手动清空或删除该文件。该数据不离开本机，不上传至任何服务器；卸载应用不会自动删除该文件。
    - **AI 记忆（可选）**：仅在用户于设置面板开启记忆后，用户在对话中明确表达、值得长期记住的偏好（如称呼、设备名、使用习惯）会持久化保存在 `%APPDATA%\DigitalLab\memory\ai_memory.jsonl`。该数据不离开本机，不上传至任何服务器，可在设置面板随时逐条删除或全部清空。关闭记忆时不持久化任何对话内容，已保存的记忆也不会被读取或注入对话。开启记忆并使用云端模型时，这些记忆会随对话内容一并发送至该云服务商。
 
 ## 数据存储位置
@@ -124,7 +124,7 @@ DigitalLab 没有一键重置功能。设置页面能清除的只有 AI 记忆�
 
 # DigitalLab Privacy Policy
 
-Last updated: 2026-09-22
+Last updated: 2026-10-09
 
 In case of any discrepancy or ambiguity between this English translation and the Simplified Chinese version, the Simplified Chinese version (PRIVACY.md) shall prevail.
 
@@ -139,7 +139,7 @@ DigitalLab collects the following information on the local machine, solely for d
 1. **Local hardware information**: CPU model and frequency, memory capacity and type, GPU model and VRAM, disk model and capacity, monitor specifications, network adapter information, system model and manufacturer
 2. **System performance data**: CPU usage, memory usage, disk usage, network speed, process list (PID, name, CPU and memory usage)
 3. **NAS device data**: CPU, memory, disk, and Docker container status of NAS devices that the user has actively configured (collected through SSH connections; data is stored on the local machine)
-4. **AI conversation records**: Conversation content between the user and the AI assistant (generated only when the user actively uses the AI feature; stored in local memory and cleared when the application is closed)
+4. **AI conversation records**: Conversation content between the user and the AI assistant (generated only when the user actively uses the AI feature). By default it is stored in the local file `%APPDATA%\DigitalLab\memory\chat_history.jsonl` and restored after the application restarts; the Chat History section in the settings panel lets you set a retention limit or clear it entirely. When the Save chat history switch is off, no new records are written, while existing records remain in that file until you clear them or delete the file. This data does not leave the local machine and is not uploaded to any server; uninstalling the application does not automatically delete this file.
    - **AI memory (optional)**: Only after the user enables memory in the settings panel, preferences that the user has explicitly expressed in conversation and that are worth remembering long-term (such as how they are addressed, device names, and usage habits) are persisted in `%APPDATA%\DigitalLab\memory\ai_memory.jsonl`. This data does not leave the local machine and is not uploaded to any server, and it can be deleted item by item or cleared entirely at any time in the settings panel. When memory is disabled, no conversation content is persisted, and stored memories are neither read nor injected into conversations. When memory is enabled and a cloud model is used, these memories are sent to that cloud service provider together with the conversation content.
 
 ## Data Storage Locations
@@ -242,7 +242,7 @@ For privacy-related questions, please contact:
 
 # DigitalLab プライバシーポリシー
 
-最終更新：2026-09-22
+最終更新：2026-10-09
 
 ## 基本方針：ローカル優先
 
@@ -255,7 +255,7 @@ DigitalLab は以下の情報を端末上で収集し、ダッシュボードで
 1. **端末のハードウェア情報**：CPU のモデルと周波数、メモリの容量と種類、GPU のモデルと VRAM、ディスクのモデルと容量、ディスプレイの仕様、ネットワークアダプターの情報、システムのモデルと製造元
 2. **システムのパフォーマンスデータ**：CPU 使用率、メモリ使用率、ディスク使用率、ネットワーク速度、プロセス一覧（PID、名前、CPU とメモリの使用量）
 3. **NAS デバイスのデータ**：ユーザーが自ら設定した NAS デバイスの CPU、メモリ、ディスク、Docker コンテナの状態（SSH 接続で収集し、データは端末上に保存されます）
-4. **AI の対話記録**：ユーザーと AI アシスタントの対話内容（ユーザーが AI 機能を自ら使用した場合にのみ生成され、端末上のメモリに保存され、アプリを終了すると消去されます）
+4. **AI の対話記録**：ユーザーと AI アシスタントの対話内容（ユーザーが AI 機能を自ら使用した場合にのみ生成されます）。既定では本機のファイル `%APPDATA%\DigitalLab\memory\chat_history.jsonl` に保存され、アプリを再起動すると復元されます。設定パネルの「会話履歴」で保存件数の上限を設定したり、まとめて消去したりできます。「会話履歴を保存」をオフにすると新しい記録は書き込まれませんが、既存の記録はそのファイルに残るため、手動で消去するかファイルを削除してください。このデータは端末外へ出ることはなく、どのサーバーにも送信されません。アプリをアンインストールしてもこのファイルは自動削除されません。
    - **AI メモリ（オプション）**：ユーザーが設定パネルで AI メモリを有効にした場合に限り、対話の中でユーザーが明示的に述べ、長期的に記憶する価値があると判断された好み（呼称、デバイス名、使用習慣など）が `%APPDATA%\DigitalLab\memory\ai_memory.jsonl` に永続保存されます。このデータが端末外へ出ることはなく、どのサーバーにも送信されません。設定パネルからいつでも 1 件ずつ削除するか、すべて消去できます。AI メモリを無効にしている間は対話内容を一切永続化せず、保存済みのメモリも読み出しや対話への注入を行いません。AI メモリを有効にしてクラウドモデルを使用する場合、これらのメモリは対話内容とともに当該クラウドサービス提供者へ送信されます。
 
 ## データの保存場所

@@ -1239,6 +1239,29 @@
     }
     let currentPanelId = null;
     let currentCleanup = null;
+    // 1.5.0 面板保活：终端面板切换时不销毁容器（detach 到隐藏容器，切回 attach），
+    // 其余面板维持原有的"切换即销毁重建"语义。
+    const KEEP_ALIVE_PANELS = { terminal: true };
+    const panelCache = new Map();   // id -> { id, container, hooks }
+    let currentEntry = null;
+    let panelHold = null;
+    function getPanelHold() {
+      if (!panelHold) {
+        panelHold = document.createElement('div');
+        panelHold.id = 'panel-hold';
+        panelHold.style.display = 'none';
+        document.body.appendChild(panelHold);
+      }
+      return panelHold;
+    }
+    function runHooksCleanup(entry) {
+      if (!entry) return;
+      const hooks = entry.hooks;
+      try {
+        if (typeof hooks === 'function') hooks();
+        else if (hooks && typeof hooks.cleanup === 'function') hooks.cleanup();
+      } catch (e) {}
+    }
 
     // Build sidebar navigation（面板名走 i18n，语言切换时整块重建）
     const nav = document.getElementById('sidebar-nav');
@@ -1290,10 +1313,20 @@
     async function switchPanel(id) {
       if (id === currentPanelId) return;
 
-      // Cleanup previous panel
-      if (currentCleanup) {
-        try { currentCleanup(); } catch (e) {}
-        currentCleanup = null;
+      // 卸载上一个面板：保活面板只 detach 并移入隐藏容器；其余面板按原语义销毁
+      if (currentEntry) {
+        const entry = currentEntry;
+        currentEntry = null;
+        if (KEEP_ALIVE_PANELS[entry.id] && entry.hooks && typeof entry.hooks.detach === 'function') {
+          try { entry.hooks.detach(); } catch (e) {}
+          getPanelHold().appendChild(entry.container);
+        } else {
+          runHooksCleanup(entry);
+          panelCache.delete(entry.id);
+          if (entry.container && entry.container.parentNode) {
+            entry.container.parentNode.removeChild(entry.container);
+          }
+        }
       }
 
       // Update nav highlight
@@ -1306,6 +1339,18 @@
       const panel = getPanelById(id);
       if (!panel) return;
 
+      // 保活面板若已有容器：挂回主区并 attach，不重新 init（因此不会重连）
+      const cached = panelCache.get(id);
+      if (cached && KEEP_ALIVE_PANELS[id]) {
+        main.appendChild(cached.container);
+        currentEntry = cached;
+        currentPanelId = id;
+        if (cached.hooks && typeof cached.hooks.attach === 'function') {
+          try { cached.hooks.attach(); } catch (e) {}
+        }
+        return;
+      }
+
       // Clear and create container
       main.innerHTML = '';
       const container = document.createElement('div');
@@ -1314,7 +1359,10 @@
       main.appendChild(container);
 
       try {
-        currentCleanup = await panel.init(container, api);
+        const hooks = await panel.init(container, api);
+        currentCleanup = hooks;
+        currentEntry = { id: id, container: container, hooks: hooks };
+        panelCache.set(id, currentEntry);
         currentPanelId = id;
       } catch (e) {
         console.error(`Failed to init panel ${id}:`, e);
@@ -1344,10 +1392,26 @@
     if (window.__splashFinished) maybeOpenOnboarding();
 
     // 语言切换：重建侧栏文案，并重刷当前面板（面板内容每次都是整块重建，重跑一次 init 即可）
+    // 保活面板例外：它有 onLanguageChanged 钩子，自行刷新文案，容器与会话都不重建（不重连）
     window.addEventListener('language-changed', () => {
       buildNav();
       const id = currentPanelId;
+      if (!id) return;
+      const entry = currentEntry;
+      if (KEEP_ALIVE_PANELS[id] && entry && entry.hooks && typeof entry.hooks.onLanguageChanged === 'function') {
+        try { entry.hooks.onLanguageChanged(); } catch (e) {}
+        return;
+      }
       setTimeout(() => {
+        if (currentEntry) {
+          const stale = currentEntry;
+          currentEntry = null;
+          runHooksCleanup(stale);
+          panelCache.delete(stale.id);
+          if (stale.container && stale.container.parentNode) {
+            stale.container.parentNode.removeChild(stale.container);
+          }
+        }
         currentPanelId = null;   // 绕开 switchPanel 的同名守卫，强制重新 init
         switchPanel(id);
       }, 0);

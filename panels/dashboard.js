@@ -262,6 +262,11 @@ export function init(container, api) {
     });
   }
 
+  // 1.5.1 渲染降频：NAS 卡片、硬件区、进程表按数据指纹跳过无变化的整块 DOM 重建。
+  // 指标卡仍每秒更新（数值本身在变），但这三块的重建才是 1Hz 下的主要 CPU 开销。
+  let lastNasSig = '';
+  let lastHwSig = '';
+  let lastProcsSig = '';
   const unsubscribe = api.onStateUpdate((state) => {
     const monitor = state.monitor || {};
     const hardware = state.hardware || {};
@@ -328,7 +333,9 @@ export function init(container, api) {
 
     // Update NAS cards
     const nasGrid = document.getElementById('nas-grid');
-    if (nasGrid) {
+    const nasSig = JSON.stringify(nas);
+    if (nasGrid && nasSig !== lastNasSig) {
+      lastNasSig = nasSig;
       const nasEntries = Object.entries(nas);
       // 空状态块：一句说明 + "去添加设备"入口（按钮复用 .btn-secondary，不新增 CSS）
       const nasActionBlock = (text) => `
@@ -404,13 +411,21 @@ export function init(container, api) {
       }
     }
 
-    // Update hardware section
-    if (state.hardware) renderHardwareLocal(state.hardware);
-    if (state.nas) renderHardwareNas(state.nas);
+    // Update hardware section（数据未变则跳过重建）
+    const hwSig = JSON.stringify([state.hardware, state.nas]);
+    if (hwSig !== lastHwSig) {
+      lastHwSig = hwSig;
+      if (state.hardware) renderHardwareLocal(state.hardware);
+      if (state.nas) renderHardwareNas(state.nas);
+    }
 
-    // Update process table
+    // Update process table（进程列表未变则跳过整表重建）
     const procs = monitor.processes || [];
-    renderProcesses(procs);
+    const procsSig = JSON.stringify(procs);
+    if (procsSig !== lastProcsSig) {
+      lastProcsSig = procsSig;
+      renderProcesses(procs);
+    }
   });
 
   return () => unsubscribe();

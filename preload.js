@@ -65,6 +65,21 @@ contextBridge.exposeInMainWorld('digitalLab', {
     return () => ipcRenderer.removeListener('terminal-data', handler);
   },
 
+  // 终端建链的异步结果（1.5.1）：async 模式下 ssh_terminal_init 立即返回 pending，
+  // 真正的 session_id 或结构化错误通过这个通道回传，命令通道不再被网络等待占住。
+  onTerminalConnectResult(callback) {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('terminal-connect-result', handler);
+    return () => ipcRenderer.removeListener('terminal-connect-result', handler);
+  },
+
+  // NAS 连通性测试的异步结果（1.5.1）
+  onNasTestResult(callback) {
+    const handler = (_event, data) => callback(data);
+    ipcRenderer.on('nas-test-result', handler);
+    return () => ipcRenderer.removeListener('nas-test-result', handler);
+  },
+
   sendCommand(cmd) {
     return ipcRenderer.invoke('send-command', cmd);
   },
@@ -75,6 +90,11 @@ contextBridge.exposeInMainWorld('digitalLab', {
 
   getConfig() {
     return ipcRenderer.invoke('get-config');
+  },
+
+  // 应用版本号（1.5.0）：设置面板关于页动态读取，避免界面里硬编码版本号
+  getAppVersion() {
+    return ipcRenderer.invoke('get-app-version');
   },
 
   saveConfig(config) {

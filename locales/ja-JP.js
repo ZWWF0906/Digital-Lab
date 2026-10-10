@@ -119,6 +119,7 @@
     'term.connecting':       '{name} に接続しています...',
     'term.error.unknown':    '接続に失敗しました。不明なエラーです',
     'term.error.ssh':        'SSH 接続に失敗しました: {message}',
+    'term.error.timeout':    '接続がタイムアウトし、結果を受信できませんでした。再試行してください',
 
     // AI アシスタントパネル（panels/ai-assistant.js）
     'ai.provider.ollama':   'Ollama ローカル',
@@ -189,6 +190,17 @@
     'set.ai.chooseDir':        'ディレクトリを選択',
     'set.ai.viewMemory':       'メモリを表示',
     'set.ai.clearMemory':      'メモリを消去',
+    'set.ai.memoryDedupe':        '重複を整理',
+    'set.ai.memoryDedupeConfirm': '重複したメモリ項目を統合しますか？同じ内容は最も古い 1 件のみ残り、この操作は取り消せません。',
+    'set.ai.memoryDedupeDone':    '重複を統合しました（削除 {count} 件）',
+    'set.ai.historyTitle':        '会話履歴',
+    'set.ai.historyEnable':       '会話履歴を保存',
+    'set.ai.historyEnableHint':   '会話は本機のファイルに保存され、再起動後に復元されます。オフにすると新しい記録は書き込まれません',
+    'set.ai.historyLimit':        '保存件数の上限',
+    'set.ai.historyClear':        '履歴を消去',
+    'set.ai.historyClearConfirm': '会話履歴をすべて消去しますか？この操作は取り消せません。',
+    'set.hist.cleared':           '会話履歴を消去しました',
+    'set.hist.clearFailed':       '会話履歴の消去に失敗しました',
     'set.ai.save':             'AI 設定を保存',
     // メモリ保存ディレクトリのダイアログ
     'set.memDir.title':   'メモリの保存ディレクトリを選択',
@@ -293,6 +305,7 @@
     // ターミナルのエラー（main.py の ssh_terminal_init）
     'term.err.deviceNotConfigured': 'デバイス設定が見つかりません: {host}',
     'term.err.deviceUserMissing':   'デバイスにユーザー名が設定されていません: {host}',
+    'term.err.sessionGone':         'セッションが終了しました。再接続します',
     // 汎用ネットワークエラー（main.py の test_nas_connection）
     'net.connectFailed':            '接続に失敗しました: {detail}',
     // 設定の再読み込み（main.py の reload_config。現在の UI では未表示）

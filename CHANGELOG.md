@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.5.0 - 2026-10-09
+
+### Added
+
+- Terminal connections now persist: switching panels no longer reconnects, and hiding the window no longer drops the session
+
+- AI chat history: conversations are saved in a local file, restored after a restart, and can be cleared in Settings
+
+- AI memory entries now carry id, tag and source fields, preparing the ground for retrieval
+
+### Fixed
+
+- Log storm fixed: the EPIPE feedback loop is cut; the log rotates at 5MB and is deleted outright beyond 50MB
+
+- The command channel is no longer blocked by network waits: SSH connects and connection tests now run asynchronously
+
+- State broadcasts are deduplicated and panels skip rebuilds when nothing changed; failed NAS collections no longer spam the log
+
+- Mock devices no longer appear in the terminal tab list
+
 ## v1.4.0 - 2026-09-21
 
 ### Added
