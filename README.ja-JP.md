@@ -168,6 +168,7 @@ DigitalLab/
 ├── config.schema.json
 ├── README.md / README.en-US.md / README.ja-JP.md
 ├── CHANGELOG.md / CHANGELOG.zh-CN.md / CHANGELOG.ja-JP.md
+├── PRIVACY.md
 └── LICENSE
 ```
 
