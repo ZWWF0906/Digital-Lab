@@ -71,7 +71,7 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 - **所有数据进入 system_state，所有 UI 只消费 system_state** — 单一数据源，前端与后端解耦
 - **本地优先，模块化，可扩展** — 核心功能无需网络，面板按需加载
 - **Electron 核心通信不依赖 HTTP** — 采用 JSON Lines IPC 协议，零网络开销；同时提供可选 Web Dashboard 服务
-- **Privacy First** — 设备数据默认保存在本地，敏感配置存储于用户目录
+- **Privacy First** — 设备数据默认保存在本地，敏感配置存储于用户目录；AI/NAS 凭据以当前 Windows 用户的 DPAPI 密文保存，远程 AI 端点要求 HTTPS（本地 Ollama 的 loopback HTTP 除外）
 
 ---
 
@@ -87,7 +87,7 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 - [ ] Agent 自动化能力
 - [ ] 插件系统
 - [ ] 更多 NAS 平台支持
-- [ ] Personal Digital Memory
+- [x] Personal Digital Memory — v1.6.0
 - [ ] 数据分析与时间线系统
 
 ---
@@ -96,10 +96,10 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 
 ### 普通用户
 
-1. 从 [Releases](https://github.com/ZWWF0906/Digital-Lab/releases) 下载最新 `DigitalLab Setup.exe`
-2. 运行安装程序
-3. 启动后，在设置面板中添加 NAS 设备信息
-4. **无需安装 Python 或 Node.js**，所有依赖已内置
+1. **DigitalLab 1.6.0**：这是最后一个提供 GitHub 独立安装包的版本；从 [Releases](https://github.com/ZWWF0906/Digital-Lab/releases) 下载 `DigitalLab Setup.exe`。
+2. **1.6.1 及以后**：正式版本仅通过 [Microsoft Store](https://apps.microsoft.com/detail/9n0rtlx1bcp5) 安装和更新，GitHub 不再提供独立安装包。
+3. 安装程序需要管理员权限，并安装到 per-machine 目录；启动后在设置面板中添加 NAS 设备信息。
+4. **无需安装 Python 或 Node.js**，所有运行时依赖已内置。
 
 ### 系统要求
 
@@ -108,7 +108,7 @@ CPU / 内存 / 磁盘 / 网络速度实时监控，迷你趋势线与健康状�
 | 操作系统 | Windows 10 或更高版本 |
 | 处理器 | x64 架构，双核 1.5 GHz |
 | 内存 | 4 GB |
-| 显卡 | 支持 DirectX 9（建议关闭硬件加速以获得更好兼容性）建议至少有1GB或2GB显存以启用本地AI大模型 |
+| 显卡 | Windows 10 兼容的显卡/显示驱动；硬件加速可在设置中关闭。DigitalLab 本身不要求特定显存；如使用本地 Ollama 模型，显存/内存需求取决于所运行的模型。 |
 | 存储 | 2 GB 可用空间 |
 
 ---
@@ -146,45 +146,29 @@ npm run build
 
 ```text
 DigitalLab/
-├── main.js                 # Electron 主进程
-├── preload.js              # IPC 桥接
-├── dashboard.html          # 主界面
-├── styles.css              # 全局样式（Emerald 主题体系：深色为默认 / 浅色可选）
-├── package.json            # Node 项目配置
-├── requirements.txt        # Python 依赖
-├── README.md               # 项目说明（简体中文）
-├── README.en-US.md         # 项目说明（英文）
-├── README.ja-JP.md         # 项目说明（日语）
-├── CHANGELOG.md            # 更新日志（英文）
-├── CHANGELOG.zh-CN.md      # 更新日志（中文）
-├── CHANGELOG.ja-JP.md      # 更新日志（日语）
-├── config.json             # 公开配置
-├── config.schema.json      # 配置校验规则
-├── core/                   # Python 后端模块
-│   ├── config.py           # 配置加载与双层存储
-│   ├── collector.py        # 双线程系统监控采集
-│   ├── monitor.py          # 性能监控守护进程
-│   ├── hardware.py         # 硬件信息采集
-│   ├── hardware_classifier.py  # 硬件型号分类
-│   ├── ai_client.py        # AI 客户端（Ollama / OpenAI）
-│   ├── ai_memory.py        # AI 本地记忆（jsonl 存储）
-│   ├── nas_monitor.py      # NAS 远程监控（SSH）
-│   ├── logger.py           # 日志系统
-│   ├── system_state.py     # 全局状态管理
-│   ├── event_bus.py        # 事件总线
-│   ├── memory.py           # 对话记忆管理
-│   ├── snapshot.py         # 性能快照存储
-│   ├── renderer.py         # CLI 渲染器
-│   ├── reporter.py         # 图表生成
-│   ├── launcher.py         # 快捷启动器
-│   └── daemon.py           # 守护进程管理
-└── panels/                 # 前端面板
-│   ├── index.js            # 面板注册表
-│   ├── dashboard.js        # 仪表盘
-│   ├── device-center.js    # 设备中心
-│   ├── ai-assistant.js     # AI 助手
-│   ├── terminal.js         # SSH 终端
-│   └── settings.js         # 设置面板
+├── main.js / preload.js              # Electron 主进程与 IPC 桥接
+├── preload-terminal.js / renderer-terminal.js
+├── renderer.js / dashboard.html / terminal.html
+├── styles.css / i18n.js / locales/   # 样式、国际化和三语资源
+├── onboarding.js / splash.js / theme-init.js / lang-init.js / boot-text.js
+├── core/                             # Python 后端
+│   ├── config.py / secret_store.py   # 双文件配置与 DPAPI 凭据保护
+│   ├── net_policy.py / path_policy.py / ssh_trust.py
+│   ├── agent_tools.py                # 只读 Agent 工具基础设施（当前不暴露给模型）
+│   ├── ai_client.py / ai_memory.py / chat_store.py
+│   ├── nas_monitor.py / monitor.py / collector.py
+│   └── ...                           # 硬件、状态、日志、快照等模块
+├── panels/                           # 前端面板
+│   ├── index.js / safe-dom.js
+│   └── dashboard.js / device-center.js / ai-assistant.js / terminal.js / settings.js
+├── build/                            # 图标、字体等打包资源
+├── scripts/                          # build-windows.ps1 / build-backend.ps1
+├── package.json / package-lock.json
+├── backend.spec / requirements.txt
+├── config.schema.json
+├── README.md / README.en-US.md / README.ja-JP.md
+├── CHANGELOG.md / CHANGELOG.zh-CN.md / CHANGELOG.ja-JP.md
+└── LICENSE
 ```
 
 ---
@@ -195,10 +179,10 @@ DigitalLab 采用双层配置存储，将公开设置与敏感数据分离：
 
 | 配置文件 | 位置 | 内容 |
 |----------|------|------|
-| `config.json` | 随软件分发 | 公开配置：端口、阈值、日志级别、开关 |
-| `user_config.json` | `%APPDATA%\DigitalLab\` | 敏感数据：API Key、Token、NAS 凭据 |
+| `config.json` | `%APPDATA%\DigitalLab\` | 运行时公共配置：端口、阈值、日志级别、开关；首次运行后生成 |
+| `user_config.json` | `%APPDATA%\DigitalLab\` | 敏感字段：`ai`、`nas_devices`、`auth_token`；值由 Windows DPAPI 保护为 `dpapi:v1:` 密文，不是明文 |
 
-首次运行时，若 `config.json` 中存在敏感字段且 `user_config.json` 不存在，系统会自动迁移敏感数据到用户目录。
+启动时会把旧版 `config.json`/`user_config.json` 中的明文凭据迁移为 DPAPI 密文；迁移失败时应用阻止使用未保护凭据，不会静默回退到明文。
 
 ---
 

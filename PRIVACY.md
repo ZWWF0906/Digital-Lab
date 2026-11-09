@@ -1,6 +1,6 @@
 # DigitalLab 隐私政策 / Privacy Policy
 
-最后更新：2026-11-04 / Last updated: 2026-11-04
+最后更新：2026-11-10 / Last updated: 2026-11-10
 
 [简体中文](#简体中文) · [English](#english) · [日本語](#日本語)
 
@@ -12,7 +12,7 @@
 
 # DigitalLab 隐私政策
 
-最后更新：2026-11-04
+最后更新：2026-11-10
 
 ## 核心原则：本地优先，远程传输只发生在你主动使用云端 AI 或配置 NAS 时
 
@@ -24,7 +24,7 @@ DigitalLab 以本地运行为主：硬件与性能数据在本机采集、在本
 2. 云端 AI 模型（OpenAI 兼容 API，例如 DeepSeek）：仅在你使用 AI 助手功能时，本次请求的内容会发送到你配置的服务端点，由该服务商处理并受其隐私政策约束。
 3. NAS 设备：仅在你配置了 NAS 后，应用通过 SSH 连接你局域网内的设备，数据在局域网内传输。
 
-除上述情形外，应用不会主动向远程服务器发送数据。本文档只描述当前版本实际实现的行为；应用未实现日志脱敏，未对凭据做加密存储，也未强制 HTTPS（详见"敏感信息保护"）。
+除上述情形外，应用不会主动向远程服务器发送数据。凭据使用 Windows DPAPI 保护；远程 AI 端点要求 HTTPS（本地 Ollama 的 loopback HTTP 除外）；日志不包含 AI 对话内容（部分 AI 错误摘要会脱敏，日志系统本身不做通用字段脱敏，详见"敏感信息保护"与"日志"）。
 
 ## 收集的信息
 
@@ -47,37 +47,32 @@ DigitalLab 在本机采集以下信息，用于仪表盘展示、本地分析与
 
 ## 数据存储位置
 
-数据存储在用户可写目录，主要位置如下：
+数据存储在用户可写目录；除下列明确说明外，运行数据不写入安装目录：
 
 ```
 %APPDATA%\DigitalLab\
-├── config.json               # 公共配置
-├── user_config.json           # 敏感配置（AI 配置与 API Key、NAS 设备与凭据、认证 Token 字段）
+├── config.json               # 运行时公共配置（首次运行后生成）
+├── user_config.json          # 敏感字段；DPAPI 密文（dpapi:v1:）
 ├── logs/
-│   ├── cache/
-│   │   └── hardware.json      # 硬件信息缓存
+│   ├── cache/hardware.json   # 硬件信息缓存
 │   └── monitor/
-│       ├── monitor.db         # 性能快照数据库（SQLite）
-│       ├── daemon.log         # 监控日志
-│       └── daemon.pid         # 监控守护进程 PID
+│       ├── monitor.db        # 性能快照数据库（SQLite）
+│       ├── daemon.log        # 监控日志
+│       └── daemon.pid        # 监控守护进程 PID
 ├── memory/
-│   ├── chat_history.jsonl     # AI 对话历史（默认开启，可设上限或清空）
-│   └── ai_memory.jsonl        # AI 长期记忆（默认关闭，开启后生成）
-└── tools/ experiments/ notes/ archive/ interface/   # 预留目录（当前版本未实际写入业务数据）
+│   ├── chat_history.jsonl    # AI 对话历史（默认开启）
+│   └── ai_memory.jsonl       # AI 长期记忆（默认关闭）
+├── snapshots/                # 性能快照
+├── reports/                  # 报告
+├── ssh/                      # SSH 信任/known_hosts
+└── tools/ experiments/ notes/ archive/ interface/   # 预留目录
 
 %APPDATA%\digital-lab\
-└── config.json                # 界面偏好（主题、语言、开屏动画开关、引导完成状态）
+├── config.json               # 界面偏好（主题、语言、开屏动画、引导）
+└── digital-lab.log           # Electron 界面日志
 ```
 
-程序目录内也会写入运行数据（开发模式下是源码目录，安装后是安装目录内）：
-
-- `memory\daily.jsonl`：按日性能汇总
-- `snapshots\`：性能快照
-- `reports\`：报告
-- `launchers.json`：快捷启动器配置
-
-说明：对话历史与 AI 记忆的保存目录可在设置中修改（对应 `ai.history.dir` 与 `ai.memory.dir`），修改后以上述你选择的目录为准。上表中的 `memory\` 是 AI 数据目录，与程序目录下用于按日汇总的 `memory\` 不是同一目录。
-
+程序目录仅保留 `launchers.json`（快捷启动器配置）等少量本地文件；每日汇总、快照和报告不再写入安装目录。聊天历史与 AI 记忆目录可在设置中修改（`ai.history.dir` / `ai.memory.dir`），修改后以所选目录为准。
 ## 日志
 
 DigitalLab 在本机记录运行日志，用于故障排查和性能分析：
@@ -86,8 +81,7 @@ DigitalLab 在本机记录运行日志，用于故障排查和性能分析：
 - `%APPDATA%\digital-lab\digital-lab.log`：界面进程日志，记录窗口生命周期、异常与 I/O 错误摘要。
 - `%APPDATA%\DigitalLab\logs\cache\hardware.json`：硬件信息缓存，避免每次启动重复采集。
 
-日志仅写入本机用户可写目录，不包含 AI 对话内容与请求上下文，不上传至任何服务器，也不用于用户行为分析。日志未做脱敏处理。删除 `%APPDATA%\DigitalLab\logs\` 目录与 `%APPDATA%\digital-lab\digital-lab.log` 即可清除。
-
+日志仅写入本机用户可写目录，不包含 AI 对话内容与请求上下文，不上传至任何服务器，也不用于用户行为分析。日志系统本身不做通用字段脱敏；AI 请求错误摘要会对 authorization/token/password 等模式做脱敏。监控日志可能包含 NAS 设备名称/主机地址，请按敏感文件保管。删除 `%APPDATA%\DigitalLab\logs\` 目录与 `%APPDATA%\digital-lab\digital-lab.log` 即可清除。
 ## 不主动收集的信息
 
 DigitalLab 不主动采集以下信息：
@@ -103,14 +97,13 @@ DigitalLab 不主动采集以下信息：
 
 ## 敏感信息保护
 
-以下信息视为敏感数据，存储在 `%APPDATA%\DigitalLab\user_config.json`，与公共配置 `config.json` 分离，也不包含在安装包中：
+以下信息视为敏感数据，保存在 `%APPDATA%\DigitalLab\user_config.json`，与公共配置 `config.json` 分离，也不包含在安装包中：
 
-- **AI 服务 API Key**：用于向你所配置的 AI 端点进行身份认证，以 HTTP 请求头（`Authorization: Bearer`）形式随请求发送；不会写入提示词、系统消息或对话正文。传输是否加密取决于你配置的 `base_url`，应用未强制 HTTPS，请使用 https 端点并自行确认其安全性。
-- **NAS 设备 SSH 凭据（用户名、密码）**：仅用于通过 SSH 连接你配置的 NAS，用于采集监控数据与建立终端会话；不随 AI 请求发送，也不进入 AI 请求上下文（上下文只含 NAS 名称、在线状态与负载指标）。
-- **认证 Token**：`user_config.json` 中可能出现该字段（早期版本写入），当前版本未发现实际使用；如存在可手动删除该字段。
+- **AI 服务 API Key**：用于向你配置的 AI 端点认证，以 HTTP 请求头形式随请求发送；不会写入提示词、系统消息或对话正文。远程 AI 端点要求 HTTPS；本地 Ollama 的 loopback HTTP 和用户明确授权的私网 HTTP 例外，公网 IP 的 HTTP 不允许。
+- **NAS 设备 SSH 凭据（用户名、密码）**：仅用于通过 SSH 连接你配置的 NAS，用于采集监控数据与建立终端会话；不随 AI 请求发送，也不进入 AI 请求上下文。
+- **认证 Token**：`user_config.json` 中可能出现该字段（早期版本写入）；当前版本未发现实际使用，如存在可手动删除。
 
-补充说明：这些凭据会通过本机 IPC 传给应用自身的渲染进程，以便设置界面显示与编辑（输入框以密码类型掩码显示）；这是本机进程间传递，不是远程传输。凭据以明文形式保存在 `user_config.json` 中（未加密），请按敏感文件保管、不要分享。
-
+上述字段的值使用 Windows DPAPI 当前用户范围保护为 `dpapi:v1:` 密文，不再以明文写入。旧版本的明文值会在启动时迁移；迁移失败时应用拒绝使用未保护凭据，不会静默回退到明文。设置界面只返回“已配置/掩码”状态，不向渲染进程返回凭据明文。`user_config.json` 仍应按敏感文件保管，不要分享。
 ## 第三方服务说明
 
 DigitalLab 在你主动配置后可能连接以下第三方服务：
@@ -133,9 +126,9 @@ DigitalLab 在你主动配置后可能连接以下第三方服务：
 
 - `%APPDATA%\DigitalLab\`：公共与敏感配置、监控日志与快照数据库、AI 对话历史、AI 记忆
 - `%APPDATA%\digital-lab\`：界面偏好（主题、语言、开屏动画开关、引导完成状态）与界面日志
-- 程序目录内的 `memory\`、`snapshots\`、`reports\` 与 `launchers.json`：按日汇总、性能快照、报告、快捷启动器配置
+- 程序目录内的 `launchers.json`：快捷启动器配置；其余运行数据均在上述两个用户目录
 
-卸载应用不会自动删除上面两个 `%APPDATA%` 目录，需要手动删除；程序目录内的这些文件会随安装目录一起被卸载程序移除。
+卸载应用不会自动删除上述两个 `%APPDATA%` 目录，需要手动删除；程序目录内的 `launchers.json` 会随安装目录一起被卸载程序移除。
 
 ## 政策变更
 
@@ -156,7 +149,7 @@ DigitalLab 在你主动配置后可能连接以下第三方服务：
 
 # DigitalLab Privacy Policy
 
-Last updated: 2026-11-04
+Last updated: 2026-11-10
 
 In case of any discrepancy or ambiguity between this English translation and the Simplified Chinese version, the Simplified Chinese version (PRIVACY.md) shall prevail.
 
@@ -170,7 +163,7 @@ There are three situations in which data leaves the machine:
 2. Cloud AI model (OpenAI-compatible API, for example DeepSeek): only when you use the AI assistant, the content of this request is sent to the endpoint you configured, processed by that provider and subject to its privacy policy.
 3. NAS devices: only after you configure a NAS, the application connects over SSH to devices in your local network; data is transmitted within the local network.
 
-Outside these situations, the application does not proactively send data to remote servers. This document describes only behavior actually implemented in the current version; the application does not implement log redaction, does not encrypt credentials at rest, and does not enforce HTTPS (see "Sensitive Information Protection").
+Outside these situations, the application does not proactively send data to remote servers. Credentials are protected with Windows DPAPI; remote AI endpoints require HTTPS (local Ollama loopback HTTP is the exception); logs contain no AI conversation content (some AI error summaries are redacted, but the logging system itself does not apply general-purpose field redaction; see "Sensitive Information Protection" and "Logging").
 
 ## Information Collected
 
@@ -193,37 +186,32 @@ DigitalLab collects the following information on the local machine, used for das
 
 ## Data Storage Locations
 
-Data is stored in user-writable directories, mainly:
+Data is stored in user-writable directories; except where explicitly noted below, runtime data is not written into the installation directory:
 
 ```
 %APPDATA%\DigitalLab\
-├── config.json               # Public configuration
-├── user_config.json           # Sensitive configuration (AI settings and API Key, NAS devices and credentials, authentication token field)
+├── config.json               # Runtime public configuration (created after first run)
+├── user_config.json          # Sensitive fields; DPAPI ciphertext (dpapi:v1:)
 ├── logs/
-│   ├── cache/
-│   │   └── hardware.json      # Hardware information cache
+│   ├── cache/hardware.json   # Hardware cache
 │   └── monitor/
-│       ├── monitor.db         # Performance snapshot database (SQLite)
-│       ├── daemon.log         # Monitoring log
-│       └── daemon.pid         # Monitoring daemon PID
+│       ├── monitor.db        # Performance snapshot database (SQLite)
+│       ├── daemon.log        # Monitoring log
+│       └── daemon.pid        # Monitoring daemon PID
 ├── memory/
-│   ├── chat_history.jsonl     # AI conversation history (on by default; limit or clear)
-│   └── ai_memory.jsonl        # AI long-term memory (off by default; created after enabling)
-└── tools/ experiments/ notes/ archive/ interface/   # Reserved directories (no business data written in the current version)
+│   ├── chat_history.jsonl    # AI conversation history (on by default)
+│   └── ai_memory.jsonl       # AI long-term memory (off by default)
+├── snapshots/                # Performance snapshots
+├── reports/                  # Reports
+├── ssh/                      # SSH trust / known_hosts
+└── tools/ experiments/ notes/ archive/ interface/   # Reserved directories
 
 %APPDATA%\digital-lab\
-└── config.json                # Interface preferences (theme, language, splash animation toggle, onboarding completion state)
+├── config.json               # Interface preferences (theme, language, splash, onboarding)
+└── digital-lab.log           # Electron interface log
 ```
 
-The program directory also receives runtime data (the source directory in development, the installation directory after installation):
-
-- `memory\daily.jsonl`: daily performance aggregates
-- `snapshots\`: performance snapshots
-- `reports\`: reports
-- `launchers.json`: quick-launcher configuration
-
-Note: the storage directories of chat history and AI memory can be changed in Settings (`ai.history.dir` and `ai.memory.dir`); after that, the directory you chose applies. The `memory\` in the table above is the AI data directory and is not the same as the `memory\` used for daily aggregates inside the program directory.
-
+Only a small number of local files such as `launchers.json` (quick-launcher configuration) remain in the program directory; daily aggregates, snapshots and reports are no longer written there. The chat-history and AI-memory directories can be changed in Settings (`ai.history.dir` / `ai.memory.dir`).
 ## Logging
 
 DigitalLab writes runtime logs on the local machine for troubleshooting and performance analysis:
@@ -232,8 +220,7 @@ DigitalLab writes runtime logs on the local machine for troubleshooting and perf
 - `%APPDATA%\digital-lab\digital-lab.log`: interface process log recording window lifecycle, exceptions and I/O error summaries.
 - `%APPDATA%\DigitalLab\logs\cache\hardware.json`: hardware cache, to avoid re-collecting on every start.
 
-Logs are written only to user-writable directories on the local machine, contain no AI conversation content or request context, are not uploaded to any server, and are not used for user behavior analysis. Logs are not redacted. Delete the `%APPDATA%\DigitalLab\logs\` directory and `%APPDATA%\digital-lab\digital-lab.log` to clear them.
-
+Logs are written only to user-writable directories on the local machine, contain no AI conversation content or request context, are not uploaded to any server, and are not used for user behavior analysis. The logging system itself does not apply general-purpose field redaction; AI request error summaries redact authorization/token/password-style patterns. Monitoring logs may contain NAS device names and host addresses; treat them as sensitive. Delete the `%APPDATA%\DigitalLab\logs\` directory and `%APPDATA%\digital-lab\digital-lab.log` to clear them.
 ## Information Not Proactively Collected
 
 DigitalLab does not proactively collect:
@@ -249,14 +236,13 @@ Information you enter yourself is different: personal information you mention in
 
 ## Sensitive Information Protection
 
-The following information is treated as sensitive and stored in `%APPDATA%\DigitalLab\user_config.json`, separate from the public `config.json`, and is not included in the installer:
+The following information is treated as sensitive, stored in `%APPDATA%\DigitalLab\user_config.json`, separate from the public `config.json`, and is not included in the installer:
 
-- **AI service API Key**: used to authenticate to the AI endpoint you configured and sent as an HTTP request header (`Authorization: Bearer`); it is never written into prompts, system messages or conversation text. Whether the transport is encrypted depends on the `base_url` you configured; the application does not enforce HTTPS, so use an https endpoint and verify its security yourself.
-- **NAS device SSH credentials (username, password)**: used only to connect over SSH to the NAS you configured, for collecting monitoring data and establishing terminal sessions; they are not sent with AI requests and do not enter the AI request context (the context contains only NAS names, online state and load metrics).
+- **AI service API Key**: used to authenticate to the AI endpoint you configured and sent as an HTTP request header; it is never written into prompts, system messages or conversation text. Remote AI endpoints require HTTPS; local Ollama loopback HTTP and explicitly authorized private-network HTTP are exceptions, while public-IP HTTP is not allowed.
+- **NAS device SSH credentials (username, password)**: used only to connect over SSH to the NAS you configured, for collecting monitoring data and establishing terminal sessions; they are not sent with AI requests and do not enter the AI request context.
 - **Authentication Token**: the field may exist in `user_config.json` (written by early versions); no actual use was found in the current version. If present, you may delete it.
 
-Additional note: these credentials are passed through local IPC to the application's own renderer process so the settings UI can display and edit them (inputs are masked as password fields); this is local inter-process transfer, not remote transfer. Credentials are stored in plain text in `user_config.json` (not encrypted); treat the file as sensitive and do not share it.
-
+These fields are protected with Windows DPAPI for the current user as `dpapi:v1:` ciphertext instead of plaintext. Legacy plaintext values are migrated at startup; if migration fails, the app refuses to use unprotected credentials and does not silently fall back to plaintext. The Settings UI receives only configured/masked status, not the credential plaintext. Treat `user_config.json` as a sensitive file and do not share it.
 ## Third-Party Services
 
 DigitalLab may connect to the following third-party services after you actively configure them:
@@ -279,9 +265,9 @@ All of the above connections are triggered only after you configure or actively 
 
 - `%APPDATA%\DigitalLab\`: public and sensitive configuration, monitoring logs and snapshot database, AI conversation history, AI memory
 - `%APPDATA%\digital-lab\`: interface preferences (theme, language, splash animation toggle, onboarding completion state) and interface logs
-- `memory\`, `snapshots\`, `reports\` and `launchers.json` inside the program directory: daily aggregates, performance snapshots, reports and launcher configuration
+- `launchers.json` inside the program directory: quick-launcher configuration; all other runtime data is in the two user directories above
 
-Uninstalling the application does not automatically delete the two `%APPDATA%` directories listed above; they must be deleted manually. The files inside the program directory are removed together with the installation directory by the uninstaller.
+Uninstalling the application does not automatically delete the two `%APPDATA%` directories listed above; they must be deleted manually. `launchers.json` inside the program directory is removed together with the installation directory by the uninstaller.
 
 ## Policy Changes
 
@@ -306,7 +292,7 @@ For privacy-related questions, please contact:
 
 # DigitalLab プライバシーポリシー
 
-最終更新：2026-11-04
+最終更新：2026-11-10
 
 ## 基本方針：ローカル優先、クラウド AI の利用時と NAS 設定時のみ外部へ送信
 
@@ -318,7 +304,7 @@ DigitalLab は基本的にローカル環境で動作します。ハードウェ
 2. クラウド AI モデル（OpenAI 互換 API、例：DeepSeek）：ユーザーが AI アシスタント機能を使用した場合に限り、今回のリクエスト内容が設定したエンドポイントへ送信され、当該サービス提供者が処理し、そのプライバシーポリシーに従います。
 3. NAS デバイス：ユーザーが NAS を設定した場合に限り、アプリは SSH でローカルネットワーク内のデバイスへ接続し、データはローカルネットワーク内で転送されます。
 
-上記以外の状況では、アプリが能動的に遠隔サーバーへデータを送信することはありません。本文書は現行バージョンで実際に実装されている動作のみを記載します。ログのマスキング、認証情報の暗号化保存、HTTPS の強制はいずれも実装されていません（「機密情報の保護」参照）。
+上記以外の状況では、アプリが能動的に遠隔サーバーへデータを送信することはありません。認証情報は Windows DPAPI で保護され、リモート AI エンドポイントは HTTPS を要求します（ローカル Ollama の loopback HTTP を除く）。ログには AI 対話内容を含みません（一部の AI エラー概要はマスキングされますが、ログシステム自体は汎用的なフィールドマスキングを行いません。「機密情報の保護」と「ログ」を参照）。
 
 ## 収集する情報
 
@@ -341,37 +327,32 @@ DigitalLab は以下の情報を端末上で収集し、ダッシュボード表
 
 ## データの保存場所
 
-データはユーザーが書き込み可能なディレクトリに保存されます。主な場所は次のとおりです。
+データはユーザーが書き込み可能なディレクトリに保存されます。以下に明記する場合を除き、実行データはインストール先ディレクトリには書き込まれません。
 
 ```
 %APPDATA%\DigitalLab\
-├── config.json               # 公開設定
-├── user_config.json           # 機密設定（AI 設定と API Key、NAS デバイスと認証情報、認証トークンのフィールド）
+├── config.json               # 実行時の公開設定（初回実行後に生成）
+├── user_config.json          # 機密フィールド；DPAPI 暗号文（dpapi:v1:）
 ├── logs/
-│   ├── cache/
-│   │   └── hardware.json      # ハードウェア情報のキャッシュ
+│   ├── cache/hardware.json   # ハードウェアキャッシュ
 │   └── monitor/
-│       ├── monitor.db         # パフォーマンススナップショットのデータベース（SQLite）
-│       ├── daemon.log         # 監視ログ
-│       └── daemon.pid         # 監視デーモンの PID
+│       ├── monitor.db        # パフォーマンススナップショット DB（SQLite）
+│       ├── daemon.log        # 監視ログ
+│       └── daemon.pid        # 監視デーモンの PID
 ├── memory/
-│   ├── chat_history.jsonl     # AI の対話履歴（既定で有効、上限設定・消去が可能）
-│   └── ai_memory.jsonl        # AI の長期メモリ（既定で無効、有効化後に生成）
-└── tools/ experiments/ notes/ archive/ interface/   # 予約ディレクトリ（現行版では業務データを書き込みません）
+│   ├── chat_history.jsonl    # AI 会話履歴（既定で有効）
+│   └── ai_memory.jsonl       # AI 長期メモリ（既定で無効）
+├── snapshots/                # パフォーマンススナップショット
+├── reports/                  # レポート
+├── ssh/                      # SSH 信頼 / known_hosts
+└── tools/ experiments/ notes/ archive/ interface/   # 予約ディレクトリ
 
 %APPDATA%\digital-lab\
-└── config.json                # インターフェース設定（テーマ、言語、起動スプラッシュのオン/オフ、初回ガイドの完了状態）
+├── config.json               # 画面設定（テーマ、言語、スプラッシュ、初回ガイド）
+└── digital-lab.log           # Electron 画面ログ
 ```
 
-プログラムディレクトリにも実行データが書き込まれます（開発時はソースディレクトリ、インストール後はインストール先ディレクトリ）。
-
-- `memory\daily.jsonl`：日次パフォーマンス集計
-- `snapshots\`：パフォーマンススナップショット
-- `reports\`：レポート
-- `launchers.json`：クイックランチャー設定
-
-注：会話履歴と AI メモリの保存先は設定で変更できます（`ai.history.dir` と `ai.memory.dir`）。変更後は選択したディレクトリが適用されます。上表の `memory\` は AI データ用ディレクトリであり、プログラムディレクトリ内の日次集計用 `memory\` とは別物です。
-
+プログラムディレクトリには `launchers.json`（クイックランチャー設定）など少数のローカルファイルのみを残し、日次集計・スナップショット・レポートは書き込みません。会話履歴と AI メモリの保存先は設定（`ai.history.dir` / `ai.memory.dir`）で変更できます。
 ## ログ
 
 DigitalLab はトラブルシューティングとパフォーマンス分析のため、端末上に実行ログを記録します。
@@ -380,8 +361,7 @@ DigitalLab はトラブルシューティングとパフォーマンス分析の
 - `%APPDATA%\digital-lab\digital-lab.log`：インターフェースプロセスのログ。ウィンドウのライフサイクル、例外、I/O エラーの要約を記録します。
 - `%APPDATA%\DigitalLab\logs\cache\hardware.json`：起動のたびに再収集しないためのハードウェアキャッシュ。
 
-ログは端末上のユーザー書き込み可能ディレクトリにのみ書き込まれ、AI の対話内容やリクエストコンテキストを含まず、どのサーバーにも送信されず、ユーザー行動の分析にも使用されません。ログはマスキングされていません。`%APPDATA%\DigitalLab\logs\` ディレクトリと `%APPDATA%\digital-lab\digital-lab.log` を削除すると消去できます。
-
+ログは端末上のユーザー書き込み可能ディレクトリにのみ書き込まれ、AI の対話内容やリクエストコンテキストを含まず、どのサーバーにも送信されず、ユーザー行動の分析にも使用されません。ログシステム自体は汎用的なフィールドマスキングを行いませんが、AI リクエストのエラー概要は authorization/token/password などのパターンをマスキングします。監視ログには NAS デバイス名やホストアドレスが含まれる場合があるため、機密ファイルとして扱ってください。`%APPDATA%\DigitalLab\logs\` ディレクトリと `%APPDATA%\digital-lab\digital-lab.log` を削除すると消去できます。
 ## 能動的に収集しない情報
 
 DigitalLab は以下を能動的に収集しません。
@@ -399,12 +379,11 @@ DigitalLab は以下を能動的に収集しません。
 
 以下の情報は機密データとして扱い、公開設定 `config.json` とは分離して `%APPDATA%\DigitalLab\user_config.json` に保存し、インストーラーにも含めません。
 
-- **AI サービスの API Key**：設定した AI エンドポイントへの認証に使用し、HTTP リクエストヘッダー（`Authorization: Bearer`）として送信されます。プロンプト、システムメッセージ、対話本文には書き込まれません。通信が暗号化されるかは設定した `base_url` に依存し、アプリは HTTPS を強制しません。https のエンドポイントを使用し、安全性はご自身で確認してください。
-- **NAS デバイスの SSH 認証情報（ユーザー名、パスワード）**：設定した NAS への SSH 接続（監視データの収集、ターミナルセッションの確立）にのみ使用し、AI リクエストには送信されず、AI リクエストのコンテキストにも含まれません（コンテキストに含まれるのは NAS の名前、オンライン状態、負荷指標のみ）。
+- **AI サービスの API Key**：設定した AI エンドポイントへの認証に使用し、HTTP リクエストヘッダーとして送信されます。プロンプト、システムメッセージ、対話本文には書き込まれません。リモート AI エンドポイントは HTTPS を要求します。ローカル Ollama の loopback HTTP と、ユーザーが明示的に許可したプライベートネットワークの HTTP を例外とし、パブリック IP の HTTP は許可しません。
+- **NAS デバイスの SSH 認証情報（ユーザー名、パスワード）**：設定した NAS への SSH 接続（監視データの収集、ターミナルセッションの確立）にのみ使用し、AI リクエストには送信されず、AI リクエストのコンテキストにも含まれません。
 - **認証トークン**：`user_config.json` にこのフィールドが存在する場合があります（初期バージョンが書き込んだもの）。現行バージョンでは実際の使用は確認されていません。存在する場合は手動で削除できます。
 
-補足：これらの認証情報は、設定画面で表示・編集するために本機の IPC 経由でアプリ自身のレンダラープロセスへ渡されます（入力欄はパスワード型でマスク表示）。これは本機内のプロセス間受け渡しであり、遠隔送信ではありません。認証情報は `user_config.json` に平文で保存されます（暗号化なし）。機密ファイルとして扱い、共有しないでください。
-
+これらのフィールドの値は、現在の Windows ユーザー範囲の DPAPI により `dpapi:v1:` の暗号文として保護され、平文では書き込まれません。旧版の平文値は起動時に移行され、移行に失敗した場合、アプリは未保護の認証情報の使用を拒否し、平文へ静かにフォールバックしません。設定画面には「設定済み/マスク」状態のみを返し、レンダラーへ認証情報の平文を返しません。`user_config.json` は機密ファイルとして扱い、共有しないでください。
 ## 第三者サービスについて
 
 DigitalLab は、ユーザーが自ら設定した場合に限り、以下の第三者サービスへ接続することがあります。
@@ -427,9 +406,9 @@ DigitalLab は、ユーザーが自ら設定した場合に限り、以下の第
 
 - `%APPDATA%\DigitalLab\`：公開・機密設定、監視ログとスナップショットのデータベース、AI の対話履歴、AI メモリ
 - `%APPDATA%\digital-lab\`：インターフェース設定（テーマ、言語、起動スプラッシュのオン/オフ、初回ガイドの完了状態）とインターフェースログ
-- プログラムディレクトリ内の `memory\`、`snapshots\`、`reports\` と `launchers.json`：日次集計、パフォーマンススナップショット、レポート、クイックランチャー設定
+- プログラムディレクトリ内の `launchers.json`：クイックランチャー設定。その他の実行データは上記 2 つのユーザーディレクトリにあります
 
-アプリをアンインストールしても上記 2 つの `%APPDATA%` ディレクトリは自動削除されません。手動で削除してください。プログラムディレクトリ内のファイルは、アンインストーラによってインストールディレクトリとともに削除されます。
+アプリをアンインストールしても上記 2 つの `%APPDATA%` ディレクトリは自動削除されません。手動で削除してください。プログラムディレクトリ内の `launchers.json` は、アンインストーラによってインストールディレクトリとともに削除されます。
 
 ## ポリシーの変更
 

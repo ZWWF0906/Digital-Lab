@@ -71,7 +71,7 @@ Log level, monitoring thresholds, NAS device management, AI provider switching, 
 - **All data flows into system_state, and every UI consumes only system_state** — a single source of truth that decouples the frontend from the backend
 - **Local-first, modular, extensible** — core features work without a network, and panels load on demand
 - **Electron core communication does not rely on HTTP** — it uses the JSON Lines IPC protocol with zero network overhead, while an optional Web Dashboard service is also provided
-- **Privacy First** — device data is stored locally by default, and sensitive configuration lives in the user directory
+- **Privacy First** — device data is stored locally by default, and sensitive configuration lives in the user directory; AI/NAS credentials are protected with Windows DPAPI for the current user, and remote AI endpoints require HTTPS (local Ollama loopback HTTP is the exception)
 
 ---
 
@@ -87,7 +87,7 @@ Log level, monitoring thresholds, NAS device management, AI provider switching, 
 - [ ] Agent automation capabilities
 - [ ] Plugin system
 - [ ] Support for more NAS platforms
-- [ ] Personal Digital Memory
+- [x] Personal Digital Memory — v1.6.0
 - [ ] Data analysis and timeline system
 
 ---
@@ -96,10 +96,10 @@ Log level, monitoring thresholds, NAS device management, AI provider switching, 
 
 ### Regular Users
 
-1. Download the latest `DigitalLab Setup.exe` from [Releases](https://github.com/ZWWF0906/Digital-Lab/releases)
-2. Run the installer
-3. After launching, add your NAS device information in the Settings panel
-4. **No need to install Python or Node.js** — all dependencies are bundled
+1. **DigitalLab 1.6.0**: this is the last version to provide a standalone GitHub installer. Download `DigitalLab Setup.exe` from [Releases](https://github.com/ZWWF0906/Digital-Lab/releases).
+2. **1.6.1 and later**: formal releases are installed and updated only through the [Microsoft Store](https://apps.microsoft.com/detail/9n0rtlx1bcp5); GitHub no longer provides a standalone installer.
+3. The installer requires administrator privileges and installs per-machine; after launching, add your NAS device information in the Settings panel.
+4. **No need to install Python or Node.js** — all runtime dependencies are bundled.
 
 ### System Requirements
 
@@ -108,7 +108,7 @@ Log level, monitoring thresholds, NAS device management, AI provider switching, 
 | Operating system | Windows 10 or later |
 | Processor | x64 architecture, dual-core 1.5 GHz |
 | Memory | 4 GB |
-| Graphics | DirectX 9 support (turning off hardware acceleration is recommended for better compatibility); at least 1 GB or 2 GB of VRAM is recommended to enable local AI models |
+| Graphics | A Windows 10-compatible GPU/display driver; hardware acceleration can be disabled in Settings. DigitalLab itself does not require a specific VRAM amount; if you use a local Ollama model, its GPU/VRAM requirements depend on the model. |
 | Storage | 2 GB of available space |
 
 ---
@@ -146,45 +146,29 @@ npm run build
 
 ```text
 DigitalLab/
-├── main.js                 # Electron main process
-├── preload.js              # IPC bridge
-├── dashboard.html          # Main interface
-├── styles.css              # Global styles (Emerald theme system: dark by default / light optional)
-├── package.json            # Node project configuration
-├── requirements.txt        # Python dependencies
-├── README.md               # Project documentation (Simplified Chinese)
-├── README.en-US.md         # Project documentation (English)
-├── README.ja-JP.md         # Project documentation (Japanese)
-├── CHANGELOG.md            # Changelog (English)
-├── CHANGELOG.zh-CN.md      # Changelog (Chinese)
-├── CHANGELOG.ja-JP.md      # Changelog (Japanese)
-├── config.json             # Public configuration
-├── config.schema.json      # Configuration validation rules
-├── core/                   # Python backend modules
-│   ├── config.py           # Configuration loading and two-layer storage
-│   ├── collector.py        # Dual-thread system monitoring collection
-│   ├── monitor.py          # Performance monitoring daemon
-│   ├── hardware.py         # Hardware information collection
-│   ├── hardware_classifier.py  # Hardware model classification
-│   ├── ai_client.py        # AI client (Ollama / OpenAI)
-│   ├── ai_memory.py        # AI local memory (jsonl storage)
-│   ├── nas_monitor.py      # NAS remote monitoring (SSH)
-│   ├── logger.py           # Logging system
-│   ├── system_state.py     # Global state management
-│   ├── event_bus.py        # Event bus
-│   ├── memory.py           # Conversation memory management
-│   ├── snapshot.py         # Performance snapshot storage
-│   ├── renderer.py         # CLI renderer
-│   ├── reporter.py         # Chart generation
-│   ├── launcher.py         # Quick launcher
-│   └── daemon.py           # Daemon process management
-└── panels/                 # Frontend panels
-│   ├── index.js            # Panel registry
-│   ├── dashboard.js        # Dashboard
-│   ├── device-center.js    # Device Center
-│   ├── ai-assistant.js     # AI Assistant
-│   ├── terminal.js         # Terminal
-│   └── settings.js         # Settings
+├── main.js / preload.js              # Electron main process and IPC bridge
+├── preload-terminal.js / renderer-terminal.js
+├── renderer.js / dashboard.html / terminal.html
+├── styles.css / i18n.js / locales/   # Styles, i18n and three-language resources
+├── onboarding.js / splash.js / theme-init.js / lang-init.js / boot-text.js
+├── core/                             # Python backend
+│   ├── config.py / secret_store.py   # Two-file config and DPAPI credential protection
+│   ├── net_policy.py / path_policy.py / ssh_trust.py
+│   ├── agent_tools.py                # Read-only Agent tool infrastructure (not exposed to the model yet)
+│   ├── ai_client.py / ai_memory.py / chat_store.py
+│   ├── nas_monitor.py / monitor.py / collector.py
+│   └── ...                           # Hardware, state, logging, snapshots and more
+├── panels/                           # Frontend panels
+│   ├── index.js / safe-dom.js
+│   └── dashboard.js / device-center.js / ai-assistant.js / terminal.js / settings.js
+├── build/                            # Icons, fonts and packaging resources
+├── scripts/                          # build-windows.ps1 / build-backend.ps1
+├── package.json / package-lock.json
+├── backend.spec / requirements.txt
+├── config.schema.json
+├── README.md / README.en-US.md / README.ja-JP.md
+├── CHANGELOG.md / CHANGELOG.zh-CN.md / CHANGELOG.ja-JP.md
+└── LICENSE
 ```
 
 ---
@@ -195,10 +179,10 @@ DigitalLab uses two-layer configuration storage to separate public settings from
 
 | Config file | Location | Contents |
 |----------|------|------|
-| `config.json` | Shipped with the app | Public config: ports, thresholds, log level, toggles |
-| `user_config.json` | `%APPDATA%\DigitalLab\` | Sensitive data: API Key, Token, NAS credentials |
+| `config.json` | `%APPDATA%\DigitalLab\` | Runtime public config: ports, thresholds, log level, toggles; created after first run |
+| `user_config.json` | `%APPDATA%\DigitalLab\` | Sensitive fields: `ai`, `nas_devices`, `auth_token`; values are protected with Windows DPAPI as `dpapi:v1:` ciphertext, not plaintext |
 
-On first run, if sensitive fields exist in `config.json` and `user_config.json` does not exist, the system automatically migrates the sensitive data to the user directory.
+At startup, legacy plaintext credentials in `config.json`/`user_config.json` are migrated to DPAPI ciphertext; if migration fails, the app blocks use of unprotected credentials rather than silently falling back to plaintext.
 
 ---
 

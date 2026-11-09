@@ -71,7 +71,7 @@ xterm.js ベースの Web ターミナル。SSH 経由で NAS デバイスに接
 - **すべてのデータは system_state に入り、すべての UI は system_state のみを消費する** — 単一のデータソースにより、フロントエンドとバックエンドを分離
 - **ローカル優先、モジュール式、拡張可能** — コア機能にネットワークは不要で、パネルは必要に応じて読み込み
 - **Electron のコア通信は HTTP に依存しない** — JSON Lines IPC プロトコルを採用し、ネットワークオーバーヘッドはゼロ。同時にオプションの Web Dashboard サービスも提供
-- **Privacy First** — デバイスデータは既定でローカルに保存され、機密設定はユーザーディレクトリに保存
+- **Privacy First** — デバイスデータは既定でローカルに保存され、機密設定はユーザーディレクトリに保存; AI/NAS 認証情報は現在の Windows ユーザーの DPAPI で保護され、リモート AI エンドポイントは HTTPS を要求します（ローカル Ollama の loopback HTTP を除く）
 
 ---
 
@@ -87,7 +87,7 @@ xterm.js ベースの Web ターミナル。SSH 経由で NAS デバイスに接
 - [ ] Agent 自動化機能
 - [ ] プラグインシステム
 - [ ] より多くの NAS プラットフォーム対応
-- [ ] Personal Digital Memory
+- [x] Personal Digital Memory — v1.6.0
 - [ ] データ分析とタイムラインシステム
 
 ---
@@ -96,10 +96,10 @@ xterm.js ベースの Web ターミナル。SSH 経由で NAS デバイスに接
 
 ### 一般ユーザー
 
-1. [Releases](https://github.com/ZWWF0906/Digital-Lab/releases) から最新の `DigitalLab Setup.exe` をダウンロード
-2. インストーラーを実行
-3. 起動後、設定パネルで NAS デバイス情報を追加
-4. **Python や Node.js のインストールは不要**。すべての依存関係は内蔵されています
+1. **DigitalLab 1.6.0**：GitHub で単体インストーラーを提供する最後のバージョンです。[Releases](https://github.com/ZWWF0906/Digital-Lab/releases) から `DigitalLab Setup.exe` をダウンロードしてください。
+2. **1.6.1 以降**：正式版は [Microsoft Store](https://apps.microsoft.com/detail/9n0rtlx1bcp5) からのみインストール・更新できます。GitHub では単体インストーラーを提供しません。
+3. インストーラーには管理者権限が必要で、per-machine にインストールされます。起動後、設定パネルで NAS デバイス情報を追加してください。
+4. **Python や Node.js のインストールは不要**。すべての実行時依存関係は内蔵されています。
 
 ### システム要件
 
@@ -108,7 +108,7 @@ xterm.js ベースの Web ターミナル。SSH 経由で NAS デバイスに接
 | オペレーティングシステム | Windows 10 以降 |
 | プロセッサ | x64 アーキテクチャ、デュアルコア 1.5 GHz |
 | メモリ | 4 GB |
-| グラフィックス | DirectX 9 対応（互換性向上のためハードウェアアクセラレーションをオフにすることを推奨）。ローカル AI 大規模モデルを有効にするには、1 GB または 2 GB 以上のビデオメモリを推奨 |
+| グラフィックス | Windows 10 対応の GPU / ディスプレイドライバー。ハードウェアアクセラレーションは設定でオフにできます。DigitalLab 自体は特定の VRAM を要求しません。ローカル Ollama モデルを使う場合の GPU / VRAM 要件はモデルに依存します。 |
 | ストレージ | 2 GB の空き容量 |
 
 ---
@@ -146,45 +146,29 @@ npm run build
 
 ```text
 DigitalLab/
-├── main.js                 # Electron メインプロセス
-├── preload.js              # IPC ブリッジ
-├── dashboard.html          # メイン画面
-├── styles.css              # グローバルスタイル（Emerald テーマ体系：ダークが既定 / ライトは任意）
-├── package.json            # Node プロジェクト設定
-├── requirements.txt        # Python 依存関係
-├── README.md               # プロジェクト説明（簡体字中国語）
-├── README.en-US.md         # プロジェクト説明（英語）
-├── README.ja-JP.md         # プロジェクト説明（日本語）
-├── CHANGELOG.md            # 更新履歴（英語）
-├── CHANGELOG.zh-CN.md      # 更新履歴（中国語）
-├── CHANGELOG.ja-JP.md      # 更新履歴（日本語）
-├── config.json             # 公開設定
-├── config.schema.json      # 設定検証ルール
-├── core/                   # Python バックエンドモジュール
-│   ├── config.py           # 設定の読み込みと二層ストレージ
-│   ├── collector.py        # 2 スレッドのシステム監視収集
-│   ├── monitor.py          # パフォーマンス監視デーモン
-│   ├── hardware.py         # ハードウェア情報の収集
-│   ├── hardware_classifier.py  # ハードウェアモデルの分類
-│   ├── ai_client.py        # AI クライアント（Ollama / OpenAI）
-│   ├── ai_memory.py        # AI ローカルメモリ（jsonl 保存）
-│   ├── nas_monitor.py      # NAS リモート監視（SSH）
-│   ├── logger.py           # ログシステム
-│   ├── system_state.py     # グローバル状態管理
-│   ├── event_bus.py        # イベントバス
-│   ├── memory.py           # 会話メモリ管理
-│   ├── snapshot.py         # パフォーマンススナップショット保存
-│   ├── renderer.py         # CLI レンダラー
-│   ├── reporter.py         # グラフ生成
-│   ├── launcher.py         # クイックランチャー
-│   └── daemon.py           # デーモン管理
-└── panels/                 # フロントエンドパネル
-│   ├── index.js            # パネルレジストリ
-│   ├── dashboard.js        # ダッシュボード
-│   ├── device-center.js    # デバイスセンター
-│   ├── ai-assistant.js     # AI アシスタント
-│   ├── terminal.js         # SSH ターミナル
-│   └── settings.js         # 設定パネル
+├── main.js / preload.js              # Electron メインプロセスと IPC ブリッジ
+├── preload-terminal.js / renderer-terminal.js
+├── renderer.js / dashboard.html / terminal.html
+├── styles.css / i18n.js / locales/   # スタイル、i18n、三言語リソース
+├── onboarding.js / splash.js / theme-init.js / lang-init.js / boot-text.js
+├── core/                             # Python バックエンド
+│   ├── config.py / secret_store.py   # 二層設定と DPAPI 認証情報保護
+│   ├── net_policy.py / path_policy.py / ssh_trust.py
+│   ├── agent_tools.py                # 読み取り専用 Agent ツール基盤（モデルには未公開）
+│   ├── ai_client.py / ai_memory.py / chat_store.py
+│   ├── nas_monitor.py / monitor.py / collector.py
+│   └── ...                           # ハードウェア、状態、ログ、スナップショットなど
+├── panels/                           # フロントエンドパネル
+│   ├── index.js / safe-dom.js
+│   └── dashboard.js / device-center.js / ai-assistant.js / terminal.js / settings.js
+├── build/                            # アイコン、フォント、パッケージ用リソース
+├── scripts/                          # build-windows.ps1 / build-backend.ps1
+├── package.json / package-lock.json
+├── backend.spec / requirements.txt
+├── config.schema.json
+├── README.md / README.en-US.md / README.ja-JP.md
+├── CHANGELOG.md / CHANGELOG.zh-CN.md / CHANGELOG.ja-JP.md
+└── LICENSE
 ```
 
 ---
@@ -195,10 +179,10 @@ DigitalLab は二層の設定ストレージを採用し、公開設定と機密
 
 | 設定ファイル | 場所 | 内容 |
 |----------|------|------|
-| `config.json` | ソフトウェアに同梱 | 公開設定：ポート、しきい値、ログレベル、スイッチ |
-| `user_config.json` | `%APPDATA%\DigitalLab\` | 機密データ：API Key、Token、NAS 認証情報 |
+| `config.json` | `%APPDATA%\DigitalLab\` | 実行時の公開設定：ポート、しきい値、ログレベル、スイッチ。初回実行後に生成されます |
+| `user_config.json` | `%APPDATA%\DigitalLab\` | 機密フィールド：`ai`、`nas_devices`、`auth_token`。値は Windows DPAPI により `dpapi:v1:` の暗号文として保護され、平文ではありません |
 
-初回実行時、`config.json` に機密フィールドが存在し、かつ `user_config.json` が存在しない場合、システムは機密データを自動的にユーザーディレクトリへ移行します。
+起動時に旧版の `config.json`/`user_config.json` にある平文認証情報を DPAPI 暗号文へ移行します。移行に失敗した場合、アプリは未保護の認証情報の使用をブロックし、平文へ静かにフォールバックしません。
 
 ---
 

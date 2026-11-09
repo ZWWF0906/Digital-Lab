@@ -16,6 +16,8 @@
 
 - AI streaming responses have hard single-line, total-size and reasoning-channel limits
 
+- Documentation: corrected installation channels, system requirements, project structure, credential protection and data-storage descriptions to match the implementation
+
 ### Fixed
 
 - Configuration changes can no longer use flat dotted keys to bypass the native sensitive-change confirmation
