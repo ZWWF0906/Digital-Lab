@@ -35,6 +35,7 @@
     'dlg.memoryDelete.message': '警告：メモリの削除は元に戻せません。重要なデータが含まれている可能性がありますので、慎重に操作してください。',
     'dlg.memoryDelete.delete':  '削除',
     'dlg.memoryDelete.cancel':  'キャンセル',
+    'dlg.continue':             '続行',
 
     // 設定パネル：言語
     'set.language':     '言語',
@@ -177,6 +178,13 @@
     'set.dev.testOk':     '✓ 接続に成功しました',
     'set.dev.testFail':   '✗ {message}',
     'set.dev.connFailed': '接続に失敗しました',
+    'set.dev.passConfigured': '設定済み（空欄なら変更しません）',
+    'set.dev.clearPass':      '保存済みパスワードを消去',
+    'set.dev.needFields':     'デバイス名とアドレスは必須です',
+    'set.dev.trustHint':      '初回接続時は NAS のコンソールで ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub を実行して指紋を確認してください。',
+    'set.dev.trustConfirm':   '確認しました。このホストを信頼する',
+    'set.dev.trustSaved':     'ホストの指紋を保存しました',
+    'set.dev.trustFailed':    'ホストの指紋の保存に失敗しました',
     // AI 設定ページ（プロバイダー名は ai.provider.* を再利用）
     'set.ai.providerTitle':    'AI プロバイダー',
     'set.ai.defaultModel':     '既定のモデル',
@@ -202,11 +210,14 @@
     'set.hist.cleared':           '会話履歴を消去しました',
     'set.hist.clearFailed':       '会話履歴の消去に失敗しました',
     'set.ai.save':             'AI 設定を保存',
+    'set.ai.keyConfigured':    '設定済み（新しい値を入力すると置き換えます）',
+    'set.ai.clearKey':         'キーを消去',
+    'set.ai.keyCleared':       'API Key を消去しました',
     // メモリ保存ディレクトリのダイアログ
     'set.memDir.title':   'メモリの保存ディレクトリを選択',
     'set.memDir.label':   'ディレクトリ',
     'set.memDir.ph':      '空欄の場合は既定のディレクトリを使用します',
-    'set.memDir.hint1':   '絶対パスを入力してください。空欄の場合は既定の %APPDATA%\\DigitalLab\\memory を使用します。',
+    'set.memDir.hint1':   'フォルダー選択ボタンでローカルフォルダーを選択してください。空欄の場合は既定の %APPDATA%\\DigitalLab\\memory を使用します。',
     'set.memDir.hint2':   'ディレクトリを変更して保存すると、既存のメモリファイルは新しいディレクトリにコピーされ、元のファイルは保持されます。',
     'set.memDir.updated': 'ディレクトリを更新しました。保存後に反映されます',
     // メモリ一覧
@@ -251,7 +262,7 @@
     'set.about.slogan':   '個人向けデジタルラボ',
     'set.about.features': 'ダッシュボード · ターミナル · AI アシスタント · システム監視',
     'set.about.author':   '作者：ZWWF0906',
-    'set.about.license':  'DigitalLab は MIT ライセンスのオープンソースソフトウェアです',
+    'set.about.license':  'DigitalLab は ISC ライセンスのオープンソースソフトウェアです',
     'set.about.feedback': 'フィードバック',
     // フィードバックダイアログ
     'set.fb.title':       'フィードバックと報告',
@@ -302,6 +313,14 @@
     'ai.err.cloudUnavailable':     'クラウドモデルのサービスが一時的に利用できません。しばらくして再試行してください',
     'ai.err.cloudHttpError':       'クラウドモデルが異常を返しました (HTTP {status})',
     'ai.err.internal':             'AI リクエストの内部エラー：{detail}',
+    'ai.err.streamTooLarge':       'AI ストリームが安全上のサイズ上限を超えたため中止しました',
+    'ai.err.caBundleUnavailable':  'カスタム CA バンドルを利用できないため、リクエストを中止しました（システム信頼へはフォールバックしません）',
+    'ai.err.busy':                 '別の AI リクエストが実行中です。しばらくして再試行してください',
+    'ipc.err.busy':                '同種の操作が実行中です。しばらくして再試行してください',
+    'cfg.err.pathNotApproved':     'このパスはシステムの選択ダイアログで承認されていません。「フォルダーを選択」を使用してください',
+    'cfg.err.secretStorageUnavailable': 'システムの安全な保存領域が利用できないため、資格情報の平文保存を拒否しました',
+    'cfg.err.memoryMigrationFailed': 'メモリディレクトリの移行に失敗しました。旧ディレクトリとデータを保持し、設定は切り替えていません',
+    'nas.err.rateLimited':         '操作が頻繁すぎます。しばらくして再試行してください',
     // ターミナルのエラー（main.py の ssh_terminal_init）
     'term.err.deviceNotConfigured': 'デバイス設定が見つかりません: {host}',
     'term.err.deviceUserMissing':   'デバイスにユーザー名が設定されていません: {host}',

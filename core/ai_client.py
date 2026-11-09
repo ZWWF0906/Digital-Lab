@@ -4,9 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+import re
+import ssl
 import sys
 import threading
+import urllib.parse
+import urllib.request
 from typing import Iterator, Optional
+
+from core import net_policy
 
 
 def _err(code: str, **params) -> dict:
@@ -16,6 +22,124 @@ def _err(code: str, **params) -> dict:
     code 与前端词典 key 完全同名，缺 key 时前端会显示 code 本身而不是空白。
     """
     return {"code": code, "params": params}
+
+
+def _sanitize_detail(value, limit=160) -> str:
+    """错误详情脱敏：去掉 URL（含可能的凭据/查询串）与 host，只保留错误类型与摘要。"""
+    text = str(value or "")
+    text = re.sub(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\")]+", "<url>", text)
+    text = re.sub(r"(?i)(authorization|bearer|api[_-]?key|password|token)\s*[=:]\s*\S+", r"\1=<redacted>", text)
+    text = re.sub(r"[\r\n]+", " ", text).strip()
+    return text[:limit]
+
+
+def _allow_insecure_http(ai_cfg: dict) -> list:
+    """HTTP 例外授权清单（仅 ip[:port]，公网与域名永远不允许）。"""
+    if not isinstance(ai_cfg, dict):
+        return []
+    values = ai_cfg.get("allow_insecure_http")
+    if isinstance(values, list):
+        return [v for v in values if isinstance(v, str)]
+    openai_cfg = ai_cfg.get("openai")
+    if isinstance(openai_cfg, dict) and isinstance(openai_cfg.get("allow_insecure_http"), list):
+        return [v for v in openai_cfg["allow_insecure_http"] if isinstance(v, str)]
+    return []
+
+
+def _ca_bundle(ai_cfg: dict):
+    """返回 (规范化路径, 错误码)。
+
+    DL-SEC-06-07 / CA fail-open：未配置 -> ("", "") 表示使用系统信任；
+    显式配置但无效/不可读 -> ("", "ai.err.caBundleUnavailable")，调用方
+    必须失败关闭，不能静默退回系统信任。
+    """
+    if not isinstance(ai_cfg, dict):
+        return "", ""
+    value = None
+    explicit = False
+    if "ca_bundle" in ai_cfg:
+        value = ai_cfg.get("ca_bundle")
+        explicit = value is not None and value != ""
+    if not explicit:
+        openai_cfg = ai_cfg.get("openai")
+        if isinstance(openai_cfg, dict) and "ca_bundle" in openai_cfg:
+            value = openai_cfg.get("ca_bundle")
+            explicit = value is not None and value != ""
+    if not explicit:
+        return "", ""
+    if not isinstance(value, str) or not value.strip():
+        return "", "ai.err.caBundleUnavailable"
+    try:
+        from core import path_policy as _pp
+        norm, err = _pp.validate_local_file(value)
+        if err:
+            return "", "ai.err.caBundleUnavailable"
+        return norm, ""
+    except Exception:
+        return "", "ai.err.caBundleUnavailable"
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """禁用自动重定向：任何 3xx 直接变成 HTTPError，不发出第二次请求。"""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def _resolve_policy(url: str, ai_cfg: dict) -> dict:
+    return net_policy.check_endpoint(url, _allow_insecure_http(ai_cfg))
+
+
+def _build_connection(url: str, policy: dict):
+    """把已校验的 loopback 主机名替换为已验证的数值 IP，并返回原始 Host 头。"""
+    if not policy.get("pinned"):
+        return policy["url"], None
+    parsed = urllib.parse.urlsplit(policy["url"])
+    host = policy["connect_host"]
+    if ":" in host and not host.startswith("["):
+        host = "[" + host + "]"
+    netloc = host if parsed.port is None else "{0}:{1}".format(host, parsed.port)
+    new_url = urllib.parse.urlunsplit(
+        (parsed.scheme, netloc, parsed.path or "/", parsed.query, parsed.fragment)
+    )
+    return new_url, parsed.netloc
+
+
+def _open_stream(url: str, body: bytes, headers: dict, timeout: int, policy: dict, ca_bundle: str):
+    connect_url, host_header = _build_connection(url, policy)
+    req_headers = dict(headers or {})
+    if host_header:
+        req_headers["Host"] = host_header
+    auth_value = None
+    for key in list(req_headers.keys()):
+        if key.lower() == "authorization":
+            auth_value = req_headers.pop(key)
+            break
+    handlers = [
+        # loopback 必须绕过系统代理，确保请求直达本机；其余保持默认代理行为
+        urllib.request.ProxyHandler({} if policy.get("bypass_proxy") else None),
+        _NoRedirectHandler(),
+    ]
+    if policy.get("scheme") == "https":
+        try:
+            context = ssl.create_default_context(cafile=ca_bundle or None)
+        except Exception as e:
+            raise net_policy.EndpointPolicyError("ai.err.caBundleInvalid",
+                                                 detail=_sanitize_detail(e))
+        handlers.append(urllib.request.HTTPSHandler(context=context))
+    opener = urllib.request.build_opener(*handlers)
+    request = urllib.request.Request(connect_url, data=body, headers=req_headers, method="POST")
+    if auth_value:
+        # 双保险：即使将来误引入重定向处理器，Authorization 也不会被转发
+        request.add_unredirected_header("Authorization", auth_value)
+    return opener.open(request, timeout=timeout)
+
+
+def _classify_http_error(e) -> Optional[dict]:
+    code = getattr(e, "code", None)
+    if code in (301, 302, 303, 307, 308):
+        return _err("ai.err.redirectBlocked", status=code)
+    return None
 
 
 def _human_error(provider: str, err: Exception) -> dict:
@@ -41,8 +165,8 @@ def _human_error(provider: str, err: Exception) -> dict:
         return _err("ai.err.tlsInvalid")
     # ── 兜底 ──
     if provider == "ollama":
-        return _err("ai.err.ollamaRequestFailed", detail=msg)
-    return _err("ai.err.cloudRequestFailed", detail=msg)
+        return _err("ai.err.ollamaRequestFailed", detail=_sanitize_detail(msg))
+    return _err("ai.err.cloudRequestFailed", detail=_sanitize_detail(msg))
 
 
 def _load_ai_config() -> dict:
@@ -51,6 +175,14 @@ def _load_ai_config() -> dict:
     user_config.json 位于 APPDATA 环境变量指向的 DigitalLab 目录，由设置面板保存 AI 配置
     （结构：{"ai": {"provider": ..., "ollama": {...,}, "openai": {...}}}）。
     """
+    # BB-C1-01-R1：先统一迁移/校验凭据；迁移失败时不得使用旧明文 AI Key。
+    try:
+        from core import secret_store as _ss
+        if not _ss.ensure_credentials_ready().get("ok"):
+            return {}
+    except Exception:
+        return {}
+
     # ── 1. 优先 user_config.json ──
     user_path = None
     try:
@@ -71,16 +203,35 @@ def _load_ai_config() -> dict:
                 raw = json.load(f)
             ai = raw.get("ai")
             if isinstance(ai, dict) and ai:
+                try:
+                    from core import secret_store as _ss
+                    openai = ai.get("openai")
+                    if isinstance(openai, dict) and isinstance(openai.get("api_key"), str):
+                        ok, plain = _ss.get_runtime_secret(openai.get("api_key"))
+                        if not ok:
+                            openai["api_key"] = ""
+                        else:
+                            openai["api_key"] = plain
+                except Exception:
+                    ai = {}
                 return ai
         except Exception:
             pass
 
-    # ── 2. 回退 config.json ──
+    # ── 2. 回退 config.json（只保留非敏感字段；旧明文 api_key 不使用）──
     config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "config.json")
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             raw = json.load(f)
-        return raw.get("ai", {})
+        ai = raw.get("ai", {})
+        if isinstance(ai, dict):
+            ai = dict(ai)
+            openai = ai.get("openai")
+            if isinstance(openai, dict):
+                openai = dict(openai)
+                openai.pop("api_key", None)
+                ai["openai"] = openai
+        return ai if isinstance(ai, dict) else {}
     except Exception:
         return {}
 
@@ -104,9 +255,27 @@ def chat_stream(
         return _err("ai.err.notConfigured")
 
     if provider == "ollama":
-        return _ollama_stream(messages, ai_cfg.get("ollama", {}), on_token, lang)
+        return _ollama_stream(messages, ai_cfg.get("ollama", {}), on_token, lang, ai_cfg)
     else:
-        return _openai_stream(messages, ai_cfg.get("openai", {}), on_token, lang)
+        return _openai_stream(messages, ai_cfg.get("openai", {}), on_token, lang, ai_cfg)
+
+
+def _normalize_base(base_url: str, default_scheme: str) -> str:
+    """base_url 缺少协议时补默认协议（不改变已有合法 URL）。"""
+    text = str(base_url or "").strip()
+    if not text:
+        return text
+    if "://" not in text:
+        return default_scheme + "://" + text
+    return text
+
+
+class _StreamLimitError(Exception):
+    """BB-C1-03：流式响应超过单行/总量硬上限。"""
+
+
+_MAX_STREAM_LINE_CHARS = 1024 * 1024
+_MAX_STREAM_TOTAL_CHARS = 8 * 1024 * 1024
 
 
 def _iter_response_lines(resp) -> Iterator[str]:
@@ -122,24 +291,35 @@ def _iter_response_lines(resp) -> Iterator[str]:
     decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
     read_chunk = getattr(resp, "read1", None) or getattr(getattr(resp, "fp", None), "read1", None) or resp.read
     buf = ""
+    total = 0
     while True:
         chunk = read_chunk(65536)
         if not chunk:
             break
+        total += len(chunk)
+        if total > _MAX_STREAM_TOTAL_CHARS:
+            raise _StreamLimitError("total")
         buf += decoder.decode(chunk)
         parts = buf.split("\n")
         buf = parts.pop()
+        if len(buf) > _MAX_STREAM_LINE_CHARS:
+            raise _StreamLimitError("line")
         for line in parts:
+            if len(line) > _MAX_STREAM_LINE_CHARS:
+                raise _StreamLimitError("line")
             yield line
     tail = decoder.decode(b"", final=True)
     if tail:
         buf += tail
+    if len(buf) > _MAX_STREAM_LINE_CHARS:
+        raise _StreamLimitError("line")
     if buf:
         yield buf
 
 
 # ── 失控防护：防止模型陷入无限生成 ──
 _MAX_REPLY_CHARS = 4096   # 单次回复字符数上限
+_MAX_THINKING_CHARS = 32768  # thinking/reasoning 通道独立总量上限
 _REPEAT_MIN_PERIOD = 2    # 重复片段最小周期（字符）
 _REPEAT_MAX_PERIOD = 12   # 重复片段最大周期（字符）
 _REPEAT_MAX_COUNT = 6     # 同一片段连续重复达到该次数即判定失控
@@ -166,9 +346,10 @@ def _should_stop(text: str) -> bool:
     return False
 
 
-def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN") -> str:
-    """Ollama 流式 API。"""
-    base_url = cfg.get("base_url", "http://localhost:11434")
+def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN",
+                   ai_cfg=None) -> str:
+    """Ollama 流式 API（P0：端点策略 + 禁重定向 + loopback 绑定已验证 IP）。"""
+    base_url = _normalize_base(cfg.get("base_url", "http://localhost:11434"), "http")
     model = cfg.get("model", "llama3")
 
     url = f"{base_url.rstrip('/')}/api/chat"
@@ -177,20 +358,19 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
         "messages": messages,
         "stream": True,
     })
+    headers = {"Content-Type": "application/json"}
 
     try:
-        import urllib.request
         import urllib.error
 
-        req = urllib.request.Request(
-            url,
-            data=body.encode("utf-8"),
-            headers={"Content-Type": "application/json"},
-            method="POST",
-        )
-
+        policy = _resolve_policy(url, ai_cfg or {})
+        ca_path, ca_error = _ca_bundle(ai_cfg or {})
+        if ca_error:
+            return _err(ca_error)
         full_text = ""
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        thinking_total = 0
+        with _open_stream(url, body.encode("utf-8"), headers, 120,
+                          policy, ca_path) as resp:
             for line in _iter_response_lines(resp):
                 line = line.strip()
                 if not line:
@@ -200,8 +380,15 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
                     msg = chunk.get("message", {})
                     # 思考过程（如 DeepSeek-R1 通过 Ollama 运行）
                     thinking = msg.get("thinking", "")
-                    if thinking and on_token:
-                        on_token(thinking, "thinking")
+                    if thinking:
+                        thinking_total += len(thinking)
+                        if thinking_total > _MAX_THINKING_CHARS:
+                            note = _stop_note(lang)
+                            if on_token:
+                                on_token(note, "content")
+                            break
+                        if on_token:
+                            on_token(thinking, "thinking")
                     token = msg.get("content", "")
                     if token:
                         full_text += token
@@ -220,7 +407,14 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
 
         return full_text
 
+    except _StreamLimitError:
+        return _err("ai.err.streamTooLarge")
+    except net_policy.EndpointPolicyError as e:
+        return _err(e.code, **e.params)
     except urllib.error.HTTPError as e:
+        redirected = _classify_http_error(e)
+        if redirected is not None:
+            return redirected
         if e.code == 404:
             return _err("ai.err.ollamaModelMissing", model=model)
         return _err("ai.err.ollamaHttpError", status=e.code)
@@ -230,10 +424,11 @@ def _ollama_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
         return _human_error("ollama", e)
 
 
-def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN") -> str:
-    """OpenAI 兼容 API 流式（DeepSeek 等）。"""
+def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN",
+                   ai_cfg=None) -> str:
+    """OpenAI 兼容 API 流式（DeepSeek 等）。P0：端点策略 + 禁重定向 + TLS 校验。"""
     api_key = cfg.get("api_key", "")
-    base_url = cfg.get("base_url", "https://api.deepseek.com")
+    base_url = _normalize_base(cfg.get("base_url", "https://api.deepseek.com"), "https")
     model = cfg.get("model", "deepseek-chat")
 
     if not api_key:
@@ -245,23 +440,22 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
         "messages": messages,
         "stream": True,
     })
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}",
+    }
 
     try:
-        import urllib.request
         import urllib.error
 
-        req = urllib.request.Request(
-            url,
-            data=body.encode("utf-8"),
-            headers={
-                "Content-Type": "application/json",
-                "Authorization": f"Bearer {api_key}",
-            },
-            method="POST",
-        )
-
+        policy = _resolve_policy(url, ai_cfg or {})
+        ca_path, ca_error = _ca_bundle(ai_cfg or {})
+        if ca_error:
+            return _err(ca_error)
         full_text = ""
-        with urllib.request.urlopen(req, timeout=120) as resp:
+        thinking_total = 0
+        with _open_stream(url, body.encode("utf-8"), headers, 120,
+                          policy, ca_path) as resp:
             for line in _iter_response_lines(resp):
                 line = line.strip()
                 if not line or not line.startswith("data: "):
@@ -274,8 +468,15 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
                     delta = chunk.get("choices", [{}])[0].get("delta", {})
                     # 思考过程（DeepSeek-R1 等推理模型）
                     reasoning = delta.get("reasoning_content", "")
-                    if reasoning and on_token:
-                        on_token(reasoning, "thinking")
+                    if reasoning:
+                        thinking_total += len(reasoning)
+                        if thinking_total > _MAX_THINKING_CHARS:
+                            note = _stop_note(lang)
+                            if on_token:
+                                on_token(note, "content")
+                            break
+                        if on_token:
+                            on_token(reasoning, "thinking")
                     token = delta.get("content", "")
                     if token:
                         full_text += token
@@ -292,7 +493,14 @@ def _openai_stream(messages: list[dict], cfg: dict, on_token, lang: str = "zh-CN
 
         return full_text
 
+    except _StreamLimitError:
+        return _err("ai.err.streamTooLarge")
+    except net_policy.EndpointPolicyError as e:
+        return _err(e.code, **e.params)
     except urllib.error.HTTPError as e:
+        redirected = _classify_http_error(e)
+        if redirected is not None:
+            return redirected
         if e.code == 401:
             return _err("ai.err.cloudInvalidKey")
         elif e.code == 402:

@@ -14,8 +14,8 @@ _ANSI = True
 def _ensure_dir():
     global SNAP_DIR
     if not SNAP_DIR:
-        cfg = get_config()
-        SNAP_DIR = os.path.join(cfg.lab_root, "snapshots")
+        from core.config import BASE_DATA_DIR
+        SNAP_DIR = os.path.join(BASE_DATA_DIR, "snapshots")
     os.makedirs(SNAP_DIR, exist_ok=True)
     return SNAP_DIR
 
@@ -246,8 +246,8 @@ def report_snapshot(snap_id: str) -> str:
         uptime=sys_info["uptime"], rows=rows, svcs=svc_html,
         running=len(running), stopped=len(stopped), total=len(svcs))
 
-    cfg = get_config()
-    out_dir = os.path.join(cfg.lab_root, "reports")
+    from core.config import BASE_DATA_DIR
+    out_dir = os.path.join(BASE_DATA_DIR, "reports")
     os.makedirs(out_dir, exist_ok=True)
     path = os.path.join(out_dir, "{}.html".format(snap_id))
     with open(path, "w", encoding="utf-8") as f:

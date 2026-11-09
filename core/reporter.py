@@ -199,8 +199,8 @@ def generate_report(seconds_ago: int = 604800) -> dict:
 
     html = _html_report(img_cpu, img_mem, img_disk, s_cpu, s_mem, s_disk, label)
 
-    from core.config import get_config
-    reports_dir = os.path.join(get_config().lab_root, "reports")
+    from core.config import BASE_DATA_DIR
+    reports_dir = os.path.join(BASE_DATA_DIR, "reports")
     os.makedirs(reports_dir, exist_ok=True)
     filename = "report_{}.html".format(datetime.datetime.now().strftime("%Y%m%d_%H%M%S"))
     path = os.path.join(reports_dir, filename)

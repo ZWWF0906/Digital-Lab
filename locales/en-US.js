@@ -35,6 +35,7 @@
     'dlg.memoryDelete.message': 'Warning: deleting the memory is irreversible and may involve important data. Please proceed with care.',
     'dlg.memoryDelete.delete':  'Delete',
     'dlg.memoryDelete.cancel':  'Cancel',
+    'dlg.continue':             'Continue',
 
     // Settings panel: language
     'set.language':     'Language',
@@ -177,6 +178,13 @@
     'set.dev.testOk':     '✓ Connected',
     'set.dev.testFail':   '✗ {message}',
     'set.dev.connFailed': 'Connection failed',
+    'set.dev.passConfigured': 'Configured (leave blank to keep)',
+    'set.dev.clearPass':      'Clear saved password',
+    'set.dev.needFields':     'Device name and address are required',
+    'set.dev.trustHint':      'For the first connection, verify the fingerprint on the NAS console with ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub before continuing.',
+    'set.dev.trustConfirm':   'I verified it; trust this host',
+    'set.dev.trustSaved':     'Host fingerprint saved',
+    'set.dev.trustFailed':    'Failed to save host fingerprint',
     // AI config tab (provider names reuse ai.provider.*, no duplicate keys)
     'set.ai.providerTitle':    'AI Provider',
     'set.ai.defaultModel':     'Default Model',
@@ -202,11 +210,14 @@
     'set.hist.cleared':           'Chat history cleared',
     'set.hist.clearFailed':       'Failed to clear chat history',
     'set.ai.save':             'Save AI Config',
+    'set.ai.keyConfigured':    'Configured (enter a new value to replace)',
+    'set.ai.clearKey':         'Clear Key',
+    'set.ai.keyCleared':       'API Key cleared',
     // Memory directory dialog
     'set.memDir.title':   'Choose Memory Storage Directory',
     'set.memDir.label':   'Directory',
     'set.memDir.ph':      'Leave empty to use the default directory',
-    'set.memDir.hint1':   'Enter an absolute path; leave it empty to use the default %APPDATA%\\DigitalLab\\memory.',
+    'set.memDir.hint1':   'Use the directory picker to choose a local folder; leave it empty to use the default %APPDATA%\\DigitalLab\\memory.',
     'set.memDir.hint2':   'After you change the directory and save, existing memory files are copied to the new directory and the old files are kept.',
     'set.memDir.updated': 'Directory updated; takes effect after saving',
     // Memory list
@@ -251,7 +262,7 @@
     'set.about.slogan':   'Personal Digital Laboratory',
     'set.about.features': 'Dashboard · Terminal · AI Assistant · System Monitoring',
     'set.about.author':   'Author: ZWWF0906',
-    'set.about.license':  'DigitalLab is open-source software licensed under MIT',
+    'set.about.license':  'DigitalLab is open-source software licensed under ISC',
     'set.about.feedback': 'Feedback',
     // Feedback dialog
     'set.fb.title':       'Feedback & Reports',
@@ -302,6 +313,14 @@
     'ai.err.cloudUnavailable':     'Cloud model service is temporarily unavailable — please try again later',
     'ai.err.cloudHttpError':       'Cloud model returned an error (HTTP {status})',
     'ai.err.internal':             'Internal AI request error: {detail}',
+    'ai.err.streamTooLarge':       'The AI stream exceeded the safety size limit and was stopped',
+    'ai.err.caBundleUnavailable':  'The custom CA bundle is unavailable; the request was stopped (no fallback to system trust)',
+    'ai.err.busy':                 'Another AI request is already running; please try again shortly',
+    'ipc.err.busy':                'A similar operation is already running; please try again shortly',
+    'cfg.err.pathNotApproved':     'This path was not approved by the system picker; use the directory selection button',
+    'cfg.err.secretStorageUnavailable': 'System secure storage is unavailable; saving credentials as plaintext was refused',
+    'cfg.err.memoryMigrationFailed': 'Memory directory migration failed; the old directory and data were preserved and the config was not switched',
+    'nas.err.rateLimited':         'Too many requests; please try again shortly',
     // Terminal errors (main.py ssh_terminal_init)
     'term.err.deviceNotConfigured': 'Device is not configured: {host}',
     'term.err.deviceUserMissing':   'No username configured for device: {host}',

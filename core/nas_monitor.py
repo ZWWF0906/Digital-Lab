@@ -14,6 +14,7 @@ from typing import Optional
 
 import paramiko
 
+from core import ssh_trust
 from core.config import get_config
 from core.system_state import system_state
 from core.logger import log_error, log_info, log_warn
@@ -23,6 +24,147 @@ _stop_events: dict[str, threading.Event] = {}
 _started = False
 _last_docker_collect: dict[str, float] = {}
 _docker_lock = threading.Lock()
+
+# U01：远端 SSH 输出先经过本文件的 schema 约束，再进入 system_state。
+# Renderer 仍必须用 textContent 渲染；这里是第一层边界，不是唯一防线。
+_MAX_NAS_DEVICES = 64
+_MAX_PROCESSES = 15
+_MAX_CONTAINERS = 100
+
+
+def _clean_text(value, max_len, single_line=True):
+    """把远端值转为有界纯文本；只去除控制字符，不把 HTML 当作可信内容。"""
+    if value is None:
+        return ""
+    text = str(value)
+    if single_line:
+        text = text.replace("\r", " ").replace("\n", " ")
+    text = "".join(ch for ch in text if ch == "\t" or ord(ch) >= 32)
+    return text[:max_len]
+
+
+def _safe_last_error(value, fallback="nas.err.collectFailed"):
+    """W-07：last_error 只暴露内部稳定错误码，绝不把异常文本/URL/凭据给渲染进程。"""
+    text = str(value) if value is not None else ""
+    if 1 <= len(text) <= 80 and all(ch.isalnum() or ch in "._:-" for ch in text):
+        return text
+    return fallback
+
+
+def _safe_num(value, low, high, default=0.0):
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return default
+    if number != number or number in (float("inf"), float("-inf")):
+        return default
+    return max(low, min(high, number))
+
+
+def _safe_bool(value):
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in ("1", "true", "yes", "on")
+
+
+def _sanitize_hardware(value):
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for key, limit in (
+        ("cpu_model", 160), ("cpu_cores", 32), ("memory_total", 40),
+        ("disk_total", 40), ("disk_model", 160), ("os", 160),
+    ):
+        if key in value:
+            result[key] = _clean_text(value.get(key), limit)
+    return result
+
+
+def _sanitize_nas_entry(value):
+    if not isinstance(value, dict):
+        return {}
+    out = {
+        "online": _safe_bool(value.get("online", True)),
+        "name": _clean_text(value.get("name", ""), 64),
+        "host": _clean_text(value.get("host", ""), 128),
+        "ssh_trust": _clean_text(value.get("ssh_trust", ""), 32),
+        "fingerprint": _clean_text(value.get("fingerprint", ""), 128),
+        "last_error": _clean_text(value.get("last_error", ""), 200),
+        "last_updated": _clean_text(value.get("last_updated", ""), 32),
+    }
+    if "is_mock" in value:
+        out["is_mock"] = _safe_bool(value.get("is_mock"))
+    if "cpu" in value:
+        out["cpu"] = round(_safe_num(value.get("cpu"), 0, 100), 1)
+    mem = value.get("memory")
+    if isinstance(mem, dict):
+        out["memory"] = {
+            "percent": round(_safe_num(mem.get("percent"), 0, 100), 1),
+            "used_gb": round(_safe_num(mem.get("used_gb"), 0, 1e9), 2),
+            "total_gb": round(_safe_num(mem.get("total_gb"), 0, 1e9), 2),
+        }
+    disk = value.get("disk")
+    if isinstance(disk, dict):
+        out["disk"] = {
+            "percent": round(_safe_num(disk.get("percent"), 0, 100), 1),
+            "used_gb": round(_safe_num(disk.get("used_gb"), 0, 1e9), 2),
+            "total_gb": round(_safe_num(disk.get("total_gb"), 0, 1e9), 2),
+        }
+    if "temperature" in value:
+        out["temperature"] = round(_safe_num(value.get("temperature"), -50, 200), 1)
+    if "uptime" in value:
+        out["uptime"] = _clean_text(value.get("uptime"), 120)
+    load = value.get("load")
+    if isinstance(load, dict):
+        out["load"] = {
+            "load_1m": round(_safe_num(load.get("load_1m"), 0, 1e6), 2),
+            "load_5m": round(_safe_num(load.get("load_5m"), 0, 1e6), 2),
+            "load_15m": round(_safe_num(load.get("load_15m"), 0, 1e6), 2),
+        }
+    out["hardware"] = _sanitize_hardware(value.get("hardware"))
+    processes = value.get("processes")
+    if isinstance(processes, list):
+        out["processes"] = [
+            {
+                "pid": _clean_text(p.get("pid", ""), 24),
+                "name": _clean_text(p.get("name", ""), 128),
+                "cpu": round(_safe_num(p.get("cpu"), 0, 100), 1),
+                "memory": round(_safe_num(p.get("memory"), 0, 100), 1),
+                "command": _clean_text(p.get("command", ""), 256),
+            }
+            for p in processes[:_MAX_PROCESSES] if isinstance(p, dict)
+        ]
+    docker = value.get("docker")
+    if isinstance(docker, dict):
+        containers = docker.get("containers")
+        out["docker"] = {
+            "containers": [
+                {
+                    "name": _clean_text(c.get("name", ""), 128),
+                    "image": _clean_text(c.get("image", ""), 200),
+                    "status": _clean_text(c.get("status", ""), 80),
+                }
+                for c in (containers if isinstance(containers, list) else [])[:_MAX_CONTAINERS]
+                if isinstance(c, dict)
+            ],
+            "total_containers": int(_safe_num(docker.get("total_containers"), 0, _MAX_CONTAINERS)),
+            "running": int(_safe_num(docker.get("running"), 0, _MAX_CONTAINERS)),
+            "last_updated": _clean_text(docker.get("last_updated", ""), 32),
+        }
+    return out
+
+
+def sanitize_nas_state(value):
+    """把 system_state["nas"] 转为有数量/长度上限的安全结构。"""
+    if not isinstance(value, dict):
+        return {}
+    result = {}
+    for raw_name, raw_entry in list(value.items())[:_MAX_NAS_DEVICES]:
+        clean_name = _clean_text(raw_name, 64)
+        if not clean_name or clean_name in result:
+            continue
+        result[clean_name] = _sanitize_nas_entry(raw_entry)
+    return result
 
 
 def _parse_cpu(top_output: str) -> Optional[float]:
@@ -210,6 +352,21 @@ def _exec_ssh(client, cmd: str) -> str:
         return ""
 
 
+def _update_nas_trust_state(name, host, trust_state, error_code, fingerprint=""):
+    """把 SSH 主机信任状态写入 system_state（保留已采集数据，标记离线）。"""
+    existing = system_state.get("nas", {}).get(name, {})
+    existing.update({
+        "name": name,
+        "host": host,
+        "online": False,
+        "ssh_trust": trust_state,
+        "fingerprint": fingerprint or "",
+        "last_error": _safe_last_error(error_code),
+        "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S"),
+    })
+    system_state.update("nas", name, existing)
+
+
 def _collect_nas(device: dict, stop_event: threading.Event):
     """单台 NAS 设备的采集线程"""
     name = device.get("name", "unknown")
@@ -242,16 +399,11 @@ def _collect_nas(device: dict, stop_event: threading.Event):
     while not stop_event.is_set():
         client = None
         try:
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                hostname=host,
-                port=port,
-                username=username,
-                password=password,
-                timeout=10,
-                banner_timeout=10,
-                auth_timeout=10,
+            # P0（S1）：统一通过信任库建链。paramiko 在认证之前调用主机密钥策略，
+            # 未信任/指纹变化时抛异常，用户名与密码不会发送给未信任主机。
+            client = ssh_trust.connect_ssh(
+                host, port, username, password,
+                timeout=10, banner_timeout=10, auth_timeout=10,
             )
 
             data = {"online": True, "name": name, "host": host}
@@ -363,11 +515,20 @@ def _collect_nas(device: dict, stop_event: threading.Event):
             data["last_updated"] = time.strftime("%Y-%m-%dT%H:%M:%S")
             data["last_error"] = None
 
-            system_state.update("nas", name, data)
+            system_state.update("nas", name, _sanitize_nas_entry(data))
 
+        except ssh_trust.UntrustedHost as e:
+            # 只做握手、未认证：等待用户在 NAS 控制台核对指纹后显式确认
+            _update_nas_trust_state(name, host, "untrusted", e.code,
+                                    e.params.get("fingerprint", ""))
+            log_warn(f"NAS [{name}] SSH 主机未信任", host=host, error=e.code)
+        except ssh_trust.HostKeyChanged as e:
+            _update_nas_trust_state(name, host, "changed", e.code,
+                                    e.params.get("new_fingerprint", ""))
+            log_warn(f"NAS [{name}] SSH 主机密钥变化", host=host, error=e.code)
         except Exception as e:
-            error_msg = str(e)
-            log_error(f"NAS [{name}] 连接失败", error=error_msg, host=host)
+            # W-07：日志与 state 都不直接写入异常全文；稳定码给 UI，类型名供内部排查。
+            log_error(f"NAS [{name}] 连接失败", error=type(e).__name__, host=host)
 
             # 保留上次已知数据，更新离线和错误状态
             existing = system_state.get("nas", {}).get(name, {})
@@ -375,7 +536,7 @@ def _collect_nas(device: dict, stop_event: threading.Event):
                 "name": name,
                 "host": host,
                 "online": False,
-                "last_error": error_msg,
+                "last_error": _safe_last_error("nas.err.collectFailed"),
                 "last_updated": time.strftime("%Y-%m-%dT%H:%M:%S"),
             })
             system_state.update("nas", name, existing)
@@ -514,20 +675,46 @@ def start_nas_monitor():
             with open(config_path, "r", encoding="utf-8") as f:
                 raw_config = json.load(f)
         except Exception:
-            pass
+            raw_config = {}
 
-    # 合并用户敏感配置（nas_devices 含密码，存储在 AppData）
+    from core import secret_store as _ss
     from core.config import _get_user_config_path
+    from core.secret_store import SENSITIVE_KEYS
+    if not isinstance(raw_config, dict):
+        raw_config = {}
+    for _k in SENSITIVE_KEYS:
+        raw_config.pop(_k, None)
+
+    # user_config 是凭据的唯一来源；迁移失败时 devices=[]，绝不回退 legacy。
+    migration = _ss.ensure_credentials_ready()
     user_config_path = _get_user_config_path()
+    user_data = {}
     if os.path.exists(user_config_path):
         try:
             with open(user_config_path, "r", encoding="utf-8") as f:
                 user_data = json.load(f)
-            raw_config.update(user_data)
         except Exception:
-            pass
+            user_data = {}
+    if isinstance(user_data, dict):
+        for _k, _v in user_data.items():
+            if _k not in SENSITIVE_KEYS:
+                raw_config[_k] = _v
 
-    devices = raw_config.get("nas_devices", [])
+    devices = []
+    if migration.get("ok"):
+        raw_devices = user_data.get("nas_devices") if isinstance(user_data, dict) else None
+        if isinstance(raw_devices, list):
+            for _d in raw_devices:
+                if not isinstance(_d, dict):
+                    continue
+                entry = dict(_d)
+                if "password" in entry:
+                    ok, plain = _ss.get_runtime_secret(entry.get("password"))
+                    if not ok:
+                        # 失败关闭：不把未保护/不可解密密码交给 Paramiko。
+                        continue
+                    entry["password"] = plain
+                devices.append(entry)
     mock_enabled = raw_config.get("nas_mock_enabled", False)
 
     # ── Mock 模式：无真实设备时提供测试数据 ──

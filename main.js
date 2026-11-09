@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, Tray, Menu, nativeImage, dialog, Notification, shell, session } = require('electron');
+const { pathToFileURL } = require('url');
 // 多语言：语言清单、词典与 t() 机制，与渲染进程共用 locales/ 下的同一份文件
 const Locales = require('./locales/index.js');
 const i18n = require('./i18n.js');
@@ -7,6 +8,31 @@ const path = require('path');
 const fs = require('fs');
 const readline = require('readline');
 const crypto = require('crypto');
+const { isTestHooksEnabled } = require('./core/test_hook_policy.js');
+
+// ── DL-SEC-02 / DL-SEC-02-A 验收测试钩子（生产构建强制关闭）──
+// 用途：1) 原生对话框测试替身（覆盖取消/确认分支）；2) 不可信窗口 IPC 来源测试。
+// 注意：测试钩子只影响“是否弹真实对话框”和“是否创建测试窗口”，不改变任何安全判定逻辑。
+// 生产安全边界（DL-SEC-02-B）：打包环境 app.isPackaged === true 时，无论环境变量如何设置，
+// 测试钩子一律不启用；该检查发生在注册 test:report、不可信窗口工厂、对话框替身之前。
+// 测试环境可用 DIGITAL_LAB_TEST_SIMULATE_PACKAGED=1 在非打包构建中模拟“已打包”条件。
+const SIMULATED_PACKAGED = app.isPackaged !== true &&
+  process.env.DIGITAL_LAB_TEST_SIMULATE_PACKAGED === '1';
+const TEST_HOOKS = isTestHooksEnabled(
+  app.isPackaged === true || SIMULATED_PACKAGED,
+  process.env.DIGITAL_LAB_TEST_HOOKS
+);
+const TEST_DIALOG_MODE = String(process.env.DIGITAL_LAB_TEST_DIALOG || '').toLowerCase();
+const TEST_REPORT_PATH = process.env.DIGITAL_LAB_TEST_REPORT || '';
+// 仅测试模式：Electron 的 appData 不跟随 APPDATA 环境变量，测试需要显式隔离主进程读取的配置目录。
+const TEST_APPDATA = (TEST_HOOKS && process.env.DIGITAL_LAB_TEST_APPDATA) ? process.env.DIGITAL_LAB_TEST_APPDATA : '';
+
+function testReport(entry) {
+  if (!TEST_HOOKS || !TEST_REPORT_PATH) return;
+  try {
+    fs.appendFileSync(TEST_REPORT_PATH, JSON.stringify(entry) + '\n', 'utf-8');
+  } catch (e) {}
+}
 
 // ── 单实例锁：防止多开 ──
 // 注意：app.requestSingleInstanceLock() 必须在 app.whenReady() 之前调用
@@ -263,11 +289,35 @@ process.on('unhandledRejection', function (reason) {
 });
 
 let mainWindow = null;
+// U02：独立 Terminal WebContents 与会话能力。
+let terminalWindow = null;
+let terminalSession = null;
+// W-04：打开请求从并发入口到 backend 会话创建完成前必须串行，防止孤儿会话。
+let terminalOpenInFlight = false;
+let testTerminalFailUsed = false;
+const trustChallenges = new Map();
+// DL-SEC-06-03 / W-02：只有主进程原生选择器返回、或已存在于用户配置中的路径可被保存。
+const approvedMemoryDirs = new Set();
+const approvedCaBundles = new Set();
+// W-09：同一设备的探测/连接测试至少间隔 1 秒，避免 UI 或 renderer 被滥用成快速探测放大器。
+const nasProbeLast = new Map();
+const NAS_PROBE_COOLDOWN_MS = 1000;
+// W-09：高成本/有状态的局部并发与容量限制。不做全量全局 IPC 配额，避免破坏正常交互。
+let dialogInFlight = false;
+let aiChatInFlight = false;
+let aiChatRequestId = '';
+let aiChatTimer = null;
+const TRUST_CHALLENGE_MAX = 128;
+const APPROVED_MEMORY_MAX = 64;
+const APPROVED_CA_MAX = 32;
 let tray = null;
 let isQuitting = false;
 let pythonProcess = null;
 let pythonRetryCount = 0;
 const MAX_RETRIES = 3;
+// DL-SEC-05-04：Dashboard 只有一个当前对话，历史能力不得跨会话扩大。
+// session_id 由主进程持有，renderer 不能提交或覆盖；当前产品仅使用 default 会话。
+const HISTORY_SESSION_ID = 'default';
 let latestState = { monitor: { cpu: 0, memory: 0, disk: 0, processes: [] }, hardware: null };
 // 阈值告警通知：已处理过的最大告警序号。Python 侧的 seq 在进程内递增、重启后归零，
 // 所以这里也在 startPython() 里归零，两边协同避免重启后漏弹或重复弹。
@@ -305,8 +355,28 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // P0（S9）：显式声明安全默认值，不依赖 Electron 默认行为
+      sandbox: true,
+      webSecurity: true,
+      webviewTag: false,
+      spellcheck: false,
+      additionalArguments: TEST_HOOKS ? ['--dl-test-hooks'] : [],
     },
   });
+
+  // P0（S9）：窗口打开/导航加固——远程页面绝不能继承 preload
+  mainWindow.webContents.setWindowOpenHandler(function () {
+    writeLog('blocked window.open');
+    return { action: 'deny' };
+  });
+  var blockNavigation = function (event, url) {
+    if (!isTrustedPage(url)) {
+      writeLog('blocked navigation');
+      try { event.preventDefault(); } catch (e) {}
+    }
+  };
+  mainWindow.webContents.on('will-navigate', blockNavigation);
+  mainWindow.webContents.on('will-redirect', blockNavigation);
 
   writeLog('Window created, loading dashboard.html');
   mainWindow.loadFile('dashboard.html');
@@ -395,33 +465,78 @@ function showAlertNotification(alert) {
   }
 }
 
+// 不可信窗口测试：只用于 DL-SEC-02-A 验收，证明非主窗口无法调用业务 API 与固定偏好通道。
+// 该窗口使用测试专用 preload（含 nodeIntegration），模拟“不受信任但能触达 ipcRenderer”的场景。
+function openUntrustedTestWindow() {
+  if (!TEST_HOOKS) return;
+  var testPreload = path.join(__dirname, 'tests', 'untrusted-preload.js');
+  if (!fs.existsSync(testPreload)) {
+    testReport({ kind: 'untrusted_window', created: false, error: 'preload_missing' });
+    return;
+  }
+  try {
+    var win = new BrowserWindow({
+      width: 600,
+      height: 420,
+      show: false,
+      webPreferences: {
+        preload: testPreload,
+        contextIsolation: false,
+        nodeIntegration: true,
+        sandbox: false,
+      },
+    });
+    win.loadURL('data:text/html,<html><body><h1>untrusted test page</h1></body></html>');
+    testReport({ kind: 'untrusted_window', created: true });
+  } catch (e) {
+    testReport({ kind: 'untrusted_window', created: false, error: String((e && e.message) || e) });
+  }
+}
+
+// 测试专报通道：只写入测试报告文件，不触发任何特权操作；仅测试模式注册。
+if (TEST_HOOKS) {
+  ipcMain.handle('test:report', function (event, payload) {
+    var url = '';
+    try { url = event.senderFrame ? event.senderFrame.url : ''; } catch (e) {}
+    testReport({ kind: 'untrusted_result', senderUrl: url, payload: payload });
+    return { ok: true };
+  });
+}
+
 function startPython() {
   lastSeenSeq = 0;   // 新进程的 seq 从 0 开始，游标同步归零
   var isPackaged = app.isPackaged;
   var pythonPath, args, cwd;
 
   if (isPackaged) {
-    // 打包模式：使用内置的 backend.exe
+    // 打包模式：使用内置的 backend.exe（保持发布兼容，本次不改打包配置）
     pythonPath = path.join(process.resourcesPath, 'backend.exe');
     args = ['--json-mode'];
     cwd = process.resourcesPath;
   } else {
-    // 开发模式：优先使用本地 backend.exe，否则使用系统 Python
-    var backendExePath = path.join(__dirname, 'backend.exe');
-    if (fs.existsSync(backendExePath)) {
-      pythonPath = backendExePath;
-      args = ['--json-mode'];
-    } else {
-      pythonPath = 'python';
-      args = [path.join(__dirname, 'main.py'), '--json-mode'];
-    }
+    // 开发模式：固定使用当前仓库的 Python 源码，避免误启动仓库里过期的 backend.exe。
+    // 正常开发启动与测试启动使用同一条规则（不依赖测试专用环境变量）。
+    pythonPath = 'python';
+    args = [path.join(__dirname, 'main.py'), '--json-mode'];
     cwd = __dirname;
   }
 
+  // DL-SEC-05-03：PyInstaller onefile 在启动早期需要一个可写的解压临时目录。
+  // 使用当前应用 userData 下的专用 tmp，不依赖宿主机的 TEMP/TMP；只对本次 child 生效。
+  var backendTemp = path.join(app.getPath('userData'), 'tmp');
+  fs.mkdirSync(backendTemp, { recursive: true });
+  var backendEnv = {
+    ...process.env,
+    TEMP: backendTemp,
+    TMP: backendTemp,
+    PYTHONUNBUFFERED: '1',
+    PYTHONIOENCODING: 'utf-8',
+  };
+  writeLog('Python temp dir: ' + backendTemp);
   pythonProcess = spawn(pythonPath, args, {
     cwd: cwd,
     stdio: ['pipe', 'pipe', 'pipe'],
-    env: { ...process.env, PYTHONUNBUFFERED: '1', PYTHONIOENCODING: 'utf-8' },
+    env: backendEnv,
   });
 
   const rl = readline.createInterface({ input: pythonProcess.stdout });
@@ -448,6 +563,7 @@ function startPython() {
         return;
       }
       if (data.type === 'ai_done' && mainWindow && !mainWindow.isDestroyed()) {
+        finishAiChat(data.requestId);
         // 这里的载荷是逐字段重建的，新增字段必须在这里带上，否则渲染进程永远收不到。
         // error：阶段 4a 的结构化错误（{code, params}）；旧后端没有该字段时为 undefined，
         // 前端回退到 text 的 [错误] 前缀判断，两条路都不会空白。
@@ -456,14 +572,16 @@ function startPython() {
       }
       // 兼容旧 AI 响应
       if (data.type === 'ai_response' && mainWindow && !mainWindow.isDestroyed()) {
+        finishAiChat();
         mainWindow.webContents.send('ai-message', data.text);
         return;
       }
 
-      // 连接类命令的异步结果（1.5.1）：ssh_terminal_init(async) / test_nas_connection(async)
-      // 立即返回 pending 后，真正的结果从这里回传渲染进程。
-      if (data.type === 'terminal_connect_result' && mainWindow && !mainWindow.isDestroyed()) {
-        mainWindow.webContents.send('terminal-connect-result', data.data || {});
+      // 连接类命令的异步结果只允许进入独立 Terminal 窗口；Dashboard 不再接收终端能力。
+      if (data.type === 'terminal_connect_result' && terminalWindow && !terminalWindow.isDestroyed()) {
+        if (terminalSession && data.data && String(data.data.session_id || '') === terminalSession.sessionId) {
+          terminalWindow.webContents.send('terminal-connect-result', data.data || {});
+        }
         return;
       }
       if (data.type === 'nas_test_result' && mainWindow && !mainWindow.isDestroyed()) {
@@ -471,10 +589,12 @@ function startPython() {
         return;
       }
 
-      // 终端输出（session_id + data 字段）→ 转发到 terminal-data 通道
-      if (data.session_id !== undefined && data.data !== undefined) {
-        if (mainWindow && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('terminal-data', data);
+      // 终端输出/关闭事件只路由到创建它的 Terminal WebContents，绝不广播到 Dashboard。
+      if (data.session_id !== undefined && (data.data !== undefined || data.closed === true)) {
+        if (terminalWindow && !terminalWindow.isDestroyed() && terminalSession &&
+            String(data.session_id) === terminalSession.sessionId) {
+          terminalWindow.webContents.send('terminal-data', data);
+          if (data.closed === true) terminalSession = null;
         }
         return;
       }
@@ -506,11 +626,9 @@ function startPython() {
   pythonProcess.stderr.on('data', (data) => {
     const text = data.toString().trim();
     if (text) {
-      console.error(`[Python] ${text}`);
-      pythonStderrBuffer.push('[' + new Date().toISOString() + '] ' + text);
-      if (pythonStderrBuffer.length > STDERR_BUFFER_MAX) {
-        pythonStderrBuffer.shift();
-      }
+      // P0（S10 前置）：stderr 只保留错误类型与长度，不把整段文本落盘（避免异常细节泄露）
+      const kind = (text.split(':')[0] || 'stderr').replace(/[^A-Za-z_ ]/g, '').slice(0, 40);
+      writeLog('Python stderr: kind=' + kind + ' bytes=' + text.length);
     }
   });
 
@@ -640,85 +758,911 @@ function createTray() {
 //  IPC handlers
 // ============================================================
 
-ipcMain.handle('get-hardware', () => {
+// ============================================================
+//  P0 安全边界（DL-SEC-02 / S3、S5、S9）
+//  - 渲染进程只能调用固定业务 API（api:<op>），不能指定 Python 命令名
+//  - 主进程负责 op → Python command 映射、参数校验与来源校验
+//  - 高影响操作（改 AI 服务商/地址、改 NAS 目标、授权内网 HTTP、开终端）走原生确认
+// ============================================================
+
+const _userConfigPath = () => path.join(TEST_APPDATA || app.getPath('appData'), 'DigitalLab', 'user_config.json');
+
+function readUserConfig() {
+  try {
+    var p = _userConfigPath();
+    if (!fs.existsSync(p)) return {};
+    var data = JSON.parse(fs.readFileSync(p, 'utf-8').replace(/^\uFEFF/, ''));
+    return (data && typeof data === 'object' && !Array.isArray(data)) ? data : {};
+  } catch (e) {
+    return {};
+  }
+}
+
+function nasProbeRateLimited(deviceId) {
+  var key = String(deviceId || '');
+  var now = Date.now();
+  var last = nasProbeLast.get(key) || 0;
+  if (now - last < NAS_PROBE_COOLDOWN_MS) return true;
+  nasProbeLast.set(key, now);
+  if (nasProbeLast.size > 128) {
+    nasProbeLast.forEach(function (ts, k) {
+      if (now - ts > 60000) nasProbeLast.delete(k);
+    });
+  }
+  return false;
+}
+
+function isApprovedUserPath(kind, value) {
+  if (value === undefined || value === null || value === '') return true;
+  var text = String(value);
+  var set = kind === 'memory' ? approvedMemoryDirs : approvedCaBundles;
+  if (set.has(text)) return true;
+  // 兼容升级前已经存在的配置路径；仍是主进程读取的现有值，不是 renderer 新造路径。
+  var current = kind === 'memory'
+    ? configValueAt(readUserConfig(), 'ai.memory.dir')
+    : configValueAt(readUserConfig(), 'ai.ca_bundle');
+  if (current === text) {
+    set.add(text);
+    return true;
+  }
+  return false;
+}
+
+function isPlainObject(v) {
+  return v !== null && typeof v === 'object' && !Array.isArray(v);
+}
+
+function validInt(v, low, high) {
+  return typeof v === 'number' && Number.isInteger(v) && v >= low && v <= high;
+}
+
+function requiredString(v, max) {
+  return typeof v === 'string' && v.length > 0 && v.length <= max;
+}
+
+function validateMessages(messages) {
+  if (!Array.isArray(messages) || messages.length < 1 || messages.length > 16) return 'messages';
+  for (var i = 0; i < messages.length; i++) {
+    var m = messages[i];
+    if (!isPlainObject(m)) return 'messages';
+    if (m.role !== 'user' && m.role !== 'assistant') return 'messages.role';
+    if (typeof m.content !== 'string' || m.content.length > 4000) return 'messages.content';
+  }
+  return null;
+}
+
+function isTrustedPage(url) {
+  try {
+    if (typeof url !== 'string') return false;
+    var u = new URL(url);
+    if (u.protocol !== 'file:') return false;
+    var expected = pathToFileURL(path.join(__dirname, 'dashboard.html')).href;
+    return u.href.split('#')[0].split('?')[0] === expected;
+  } catch (e) {
+    return false;
+  }
+}
+
+function trustedSender(event) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return false;
+    if (!event || event.sender !== mainWindow.webContents) return false;
+    if (!event.senderFrame) return false;
+    return isTrustedPage(event.senderFrame.url);
+  } catch (e) {
+    return false;
+  }
+}
+
+// U02：终端窗口有独立页面和独立 preload，不继承 dashboard 的 bridge。
+function isTerminalPage(url) {
+  try {
+    if (typeof url !== 'string') return false;
+    var u = new URL(url);
+    if (u.protocol !== 'file:') return false;
+    var expected = pathToFileURL(path.join(__dirname, 'terminal.html')).href;
+    return u.href.split('#')[0].split('?')[0] === expected;
+  } catch (e) {
+    return false;
+  }
+}
+
+function terminalSender(event) {
+  try {
+    if (!terminalWindow || terminalWindow.isDestroyed()) return false;
+    if (!event || event.sender !== terminalWindow.webContents) return false;
+    if (!event.senderFrame || !isTerminalPage(event.senderFrame.url)) return false;
+    return !!(terminalSession && terminalSession.webContentsId === event.sender.id);
+  } catch (e) {
+    return false;
+  }
+}
+
+function closeTerminalSession(sendClose) {
+  var session = terminalSession;
+  terminalSession = null;
+  if (session && sendClose && session.sessionId) {
+    sendToPython({ cmd: 'terminal_close', session_id: session.sessionId }).catch(function () {});
+  }
+}
+
+function failTerminalWindow() {
+  // W-04-R1：窗口构造/加载失败的统一回收点。先断开 session 所有权并关闭
+  // backend 会话，再销毁可能已创建但不可用的窗口。
+  var win = terminalWindow;
+  var failedSession = terminalSession ? terminalSession.sessionId : '';
+  terminalWindow = null;
+  try { closeTerminalSession(true); } catch (e) {}
+  if (win && !win.isDestroyed()) {
+    try { win.destroy(); } catch (e) {}
+  }
+  testReport({ kind: 'terminal_open_cleanup', session_id: failedSession });
+}
+
+function rememberApproved(set, value, limit) {
+  if (!set || !value) return;
+  if (set.has(value)) set.delete(value);
+  set.add(value);
+  while (set.size > limit) {
+    var first = set.values().next().value;
+    set.delete(first);
+  }
+}
+
+async function withDialogGuard(fn) {
+  if (dialogInFlight) return { ok: false, error: 'ipc.err.busy' };
+  dialogInFlight = true;
+  try {
+    return await fn();
+  } finally {
+    dialogInFlight = false;
+  }
+}
+
+function finishAiChat(requestId) {
+  if (!aiChatInFlight) return;
+  if (requestId && aiChatRequestId && String(requestId) !== aiChatRequestId) return;
+  aiChatInFlight = false;
+  aiChatRequestId = '';
+  if (aiChatTimer) {
+    clearTimeout(aiChatTimer);
+    aiChatTimer = null;
+  }
+}
+
+function openTerminalWindow(sessionInfo, deviceId, deviceName) {
+  if (!sessionInfo || !sessionInfo.session_id) return false;
+  if (terminalWindow && !terminalWindow.isDestroyed()) {
+    terminalWindow.focus();
+    return false;
+  }
+  terminalSession = {
+    sessionId: String(sessionInfo.session_id),
+    deviceId: String(deviceId || ''),
+    deviceName: String(deviceName || deviceId || ''),
+    createdAt: Date.now(),
+    webContentsId: null,
+  };
+  try {
+    // 仅非打包测试模式：模拟一次 BrowserWindow 初始化异常，验证失败回收。
+    if (TEST_HOOKS && process.env.DIGITAL_LAB_TEST_TERMINAL_FAIL === '1' && !testTerminalFailUsed) {
+      testTerminalFailUsed = true;
+      throw new Error('synthetic terminal window failure');
+    }
+    terminalWindow = new BrowserWindow({
+      width: 900,
+      height: 600,
+      minWidth: 600,
+      minHeight: 400,
+      show: false,
+      title: 'DigitalLab Terminal',
+      webPreferences: {
+        preload: path.join(__dirname, 'preload-terminal.js'),
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        webSecurity: true,
+        webviewTag: false,
+        spellcheck: false,
+      },
+    });
+    terminalSession.webContentsId = terminalWindow.webContents.id;
+    terminalWindow.webContents.setWindowOpenHandler(function () { return { action: 'deny' }; });
+    terminalWindow.webContents.on('will-navigate', function (event, url) {
+      if (!isTerminalPage(url)) { try { event.preventDefault(); } catch (e) {} }
+    });
+    terminalWindow.on('closed', function () {
+      closeTerminalSession(true);
+      terminalWindow = null;
+    });
+    var loadPromise = terminalWindow.loadFile('terminal.html');
+    if (loadPromise && typeof loadPromise.catch === 'function') {
+      loadPromise.catch(function () { failTerminalWindow(); });
+    }
+    terminalWindow.webContents.on('did-fail-load', function () { failTerminalWindow(); });
+    terminalWindow.webContents.on('render-process-gone', function () { failTerminalWindow(); });
+    terminalWindow.once('ready-to-show', function () {
+      if (terminalWindow && !terminalWindow.isDestroyed()) terminalWindow.show();
+    });
+    terminalWindow.webContents.on('did-finish-load', function () {
+      if (!terminalWindow || terminalWindow.isDestroyed() || !terminalSession) return;
+      terminalWindow.webContents.send('terminal-context', {
+        sessionId: terminalSession.sessionId,
+        deviceId: terminalSession.deviceId,
+        deviceName: terminalSession.deviceName,
+      });
+    });
+    return true;
+  } catch (e) {
+    failTerminalWindow();
+    return false;
+  }
+}
+
+function deviceFromConfig(name) {
+  var devices = readUserConfig().nas_devices;
+  if (!Array.isArray(devices)) return null;
+  if (typeof name !== 'string') return null;
+  for (var i = 0; i < devices.length; i++) {
+    var d = devices[i];
+    if (d && d.name === name) return d;
+  }
+  return null;
+}
+
+// U02：信任决定只能引用主进程生成的 challenge；renderer 不能提交任意 fingerprint。
+function createTrustChallenge(event, deviceId, probe) {
+  var device = deviceFromConfig(deviceId);
+  if (!device) return null;
+  var params = (probe && probe.error && probe.error.params) || probe || {};
+  var fingerprint = String(params.fingerprint || params.new_fingerprint || '').trim();
+  if (!fingerprint) return null;
+  var oldFingerprint = String(params.old_fingerprint || params.trusted_fingerprint || '').trim();
+  var id = crypto.randomUUID();
+  if (trustChallenges.size >= TRUST_CHALLENGE_MAX) {
+    var now = Date.now();
+    for (var [cid, ch] of trustChallenges) {
+      if (ch.used || ch.expiresAt < now) trustChallenges.delete(cid);
+    }
+    while (trustChallenges.size >= TRUST_CHALLENGE_MAX) {
+      var oldest = trustChallenges.keys().next().value;
+      trustChallenges.delete(oldest);
+    }
+  }
+  trustChallenges.set(id, {
+    id: id,
+    senderId: event.sender.id,
+    deviceId: String(deviceId),
+    name: String(device.name || deviceId),
+    host: String(device.host || params.host || ''),
+    port: String(device.port || params.port || 22),
+    keyType: String(params.key_type || params.keyType || ''),
+    fingerprint: fingerprint,
+    oldFingerprint: oldFingerprint,
+    replace: !!(oldFingerprint && oldFingerprint !== fingerprint),
+    expiresAt: Date.now() + 120000,
+    used: false,
+  });
+  return id;
+}
+
+function getTrustChallenge(event, id) {
+  var challenge = trustChallenges.get(String(id || ''));
+  if (!challenge) return null;
+  if (challenge.used || challenge.senderId !== event.sender.id || challenge.expiresAt < Date.now()) {
+    trustChallenges.delete(challenge.id);
+    return null;
+  }
+  return challenge;
+}
+
+function trustChallengeView(challenge) {
+  return [
+    '设备: ' + challenge.name,
+    '目标: ' + challenge.host + ':' + challenge.port,
+    '主机密钥类型: ' + (challenge.keyType || 'unknown'),
+    '主机指纹: ' + challenge.fingerprint,
+    challenge.oldFingerprint ? '旧指纹: ' + challenge.oldFingerprint : '旧指纹: 无',
+    challenge.replace ? '此操作将更换已信任的主机密钥。' : '首次信任该主机。',
+  ].join('\n');
+}
+
+async function nativeConfirm(title, detail) {
+  // DL-SEC-02-A：可控原生对话框测试替身（仅测试模式生效，生产必须走真实对话框）。
+  // 替身覆盖的是真实取消分支：命中后直接 return，绝不调用后端。
+  if (TEST_HOOKS && (TEST_DIALOG_MODE === 'cancel' || TEST_DIALOG_MODE === 'confirm')) {
+    var fakeAnswer = TEST_DIALOG_MODE === 'confirm';
+    testReport({ kind: 'dialog', title: title, answer: fakeAnswer });
+    return fakeAnswer;
+  }
+  try {
+    var opts = {
+      type: 'warning',
+      title: 'DigitalLab',
+      message: title,
+      detail: String(detail || '').slice(0, 1200),
+      buttons: [i18n.t('dlg.memoryDelete.cancel'), i18n.t('dlg.continue')],
+      defaultId: 0,
+      cancelId: 0,
+      noLink: true,
+    };
+    var result = mainWindow ? await dialog.showMessageBox(mainWindow, opts) : await dialog.showMessageBox(opts);
+    testReport({ kind: 'dialog', title: title, answer: result.response === 1 });
+    return result.response === 1;
+  } catch (e) {
+    return false;
+  }
+}
+
+function memoryItemDigest(item) {
+  return crypto.createHash('sha256')
+    .update(String((item && item.ts) || '') + '\0' + String((item && item.content) || ''))
+    .digest('hex');
+}
+
+const API_VALIDATORS = {
+  'hardware:get': function () { return null; },
+  'config:get': function () { return null; },
+  'config:reload': function () { return null; },
+  'test:inject_state': function (a) { return isPlainObject(a.state) ? null : 'state'; },
+  'memory:status': function () { return null; },
+  'memory:choose_dir': function () { return null; },
+  'ai:choose_ca_bundle': function () { return null; },
+  'memory:clear': function () { return null; },
+  'memory:dedupe': function () { return null; },
+  'history:clear': function () { return null; },
+  'app:open_external': function (a) {
+    return (a.target === 'issues' || a.target === 'mailto') ? null : 'target';
+  },
+  'config:save_settings': function (a) {
+    if (!isPlainObject(a.patch)) return 'patch';
+    if (a.dirty !== undefined && (!Array.isArray(a.dirty) || a.dirty.length > 32)) return 'dirty';
+    return null;
+  },
+  'config:save_device': function (a) {
+    if (!isPlainObject(a.device)) return 'device';
+    if (a.dirty !== undefined && (!Array.isArray(a.dirty) || a.dirty.length > 32)) return 'dirty';
+    return null;
+  },
+  'config:delete_device': function (a) { return requiredString(a.name, 64) ? null : 'name'; },
+  'config:clear_credential': function (a) {
+    if (['ai_key', 'nas_password', 'auth_token'].indexOf(a.kind) < 0) return 'kind';
+    if (a.kind === 'nas_password' && !requiredString(a.name, 64)) return 'name';
+    return null;
+  },
+  'memory:list': function (a) { return (a.limit === undefined || validInt(a.limit, 1, 5000)) ? null : 'limit'; },
+  'memory:delete': function (a) {
+    if (!validInt(a.index, 0, 100000)) return 'index';
+    return /^[a-f0-9]{64}$/i.test(String(a.expectedSha256 || '')) ? null : 'expectedSha256';
+  },
+  'history:list': function (a) { return (a.limit === undefined || validInt(a.limit, 1, 5000)) ? null : 'limit'; },
+  'history:append': function (a) {
+    if (a.role !== 'user' && a.role !== 'assistant') return 'role';
+    return requiredString(a.content, 12000) ? null : 'content';
+  },
+  'ai:chat': function (a) {
+    var msgProblem = validateMessages(a.messages);
+    if (msgProblem) return msgProblem;
+    if (a.provider !== 'ollama' && a.provider !== 'openai') return 'provider';
+    if (['zh-CN', 'en-US', 'ja-JP'].indexOf(a.lang) < 0) return 'lang';
+    return null;
+  },
+  'nas:test': function (a) { return requiredString(a.deviceId, 64) ? null : 'deviceId'; },
+  'nas:probe': function (a) { return requiredString(a.deviceId, 64) ? null : 'deviceId'; },
+  'nas:confirm_trust': function (a) {
+    return requiredString(a.challengeId, 64) ? null : 'challengeId';
+  },
+  'terminal:open': function (a) {
+    return (requiredString(a.deviceId, 64) && validInt(a.cols, 1, 500) && validInt(a.rows, 1, 500)) ? null : 'param';
+  },
+  'terminal:input': function (a) {
+    return (requiredString(a.sessionId, 64) && typeof a.data === 'string' && a.data.length <= 8192) ? null : 'param';
+  },
+  'terminal:resize': function (a) {
+    return (requiredString(a.sessionId, 64) && validInt(a.cols, 1, 500) && validInt(a.rows, 1, 500)) ? null : 'param';
+  },
+  'terminal:close': function (a) { return requiredString(a.sessionId, 64) ? null : 'sessionId'; },
+  'terminal:attach': function (a) { return requiredString(a.sessionId, 64) ? null : 'sessionId'; },
+};
+
+const TERMINAL_API_OPS = new Set(['terminal:input', 'terminal:resize', 'terminal:close', 'terminal:attach']);
+
+function registerApi(op, handler) {
+  ipcMain.handle('api:' + op, async function (event, args) {
+    var allowed = trustedSender(event) || (TERMINAL_API_OPS.has(op) && terminalSender(event));
+    if (!allowed) {
+      writeLog('blocked ipc op from untrusted sender: ' + op);
+      return { ok: false, error: 'ipc.err.forbidden' };
+    }
+    var payload = isPlainObject(args) ? args : {};
+    var validator = API_VALIDATORS[op];
+    var problem = validator ? validator(payload) : null;
+    if (problem) {
+      return { ok: false, error: 'ipc.err.invalidParams', field: problem };
+    }
+    try {
+      return await handler(payload, event);
+    } catch (e) {
+      return { ok: false, error: 'ipc.err.internal', detail: String((e && e.message) || e).slice(0, 120) };
+    }
+  });
+}
+
+function maskUrlForDialog(value) {
+  // W-01：不能只显示 origin+path，否则仅 query/fragment 不同的两个配置看起来
+  // 完全一样。参数值仍然隐藏；保留参数名并用短 SHA-256 指纹让用户能区分
+  // 不同的 query/fragment，同时不把 token/密码直接放到对话框。
+  var text = String(value || '');
+  function digest(part) {
+    try {
+      return crypto.createHash('sha256').update(part).digest('hex').slice(0, 8);
+    } catch (e) {
+      return '????????';
+    }
+  }
+  try {
+    var u = new URL(text);
+    var out = u.origin + u.pathname;
+    if (u.search) {
+      var names = [];
+      u.searchParams.forEach(function (_v, k) {
+        if (names.indexOf(k) < 0) names.push(k);
+      });
+      if (names.length) {
+        out += '?' + names.map(function (k) { return k + '=***'; }).join('&');
+      } else {
+        out += '?***';
+      }
+      out += ' [q:' + digest(u.search) + ']';
+    }
+    if (u.hash) out += ' [f:' + digest(u.hash) + ']';
+    return out.slice(0, 320);
+  } catch (e) {
+    // 不是合法 URL 时也不能把明显的 token/密码原样放进确认框。
+    return text.replace(/([?&](?:token|key|api_key|password|secret|code)=)[^&\s#]+/gi, '$1***').slice(0, 200);
+  }
+}
+
+registerApi('hardware:get', async function () {
   return latestState.hardware;
 });
 
-ipcMain.handle('get-processes', () => {
-  return latestState.monitor?.processes || [];
+registerApi('config:get', async function () {
+  return sendToPython({ cmd: 'get_config' });
 });
 
-ipcMain.handle('get-history', async (_event, hours) => {
-  try {
-    const response = await sendToPython({ cmd: 'get_history', hours: hours || 24 });
-    // Python 响应: { cpu_avg, cpu_max, memory_avg, memory_max, disk_avg, disk_max, count }
-    if (response.error) {
-      return { cpu_avg: 0, cpu_max: 0, memory_avg: 0, memory_max: 0, disk_avg: 0, disk_max: 0, count: 0, error: response.error };
+registerApi('config:reload', async function () {
+  return sendToPython({ cmd: 'reload_config' });
+});
+
+function canonicalizeSettingsPatch(patch) {
+  // DL-SEC-06-03 / W-01：主进程必须用与后端一致的规范化结果做确认和写入。
+  // 含点号的扁平键、空键、原型污染键一律拒绝；嵌套对象只保留普通对象/数组/原始值。
+  var out = {};
+  var leaves = 0;
+  function walk(node, prefix, depth) {
+    if (depth > 4) throw new Error('tooDeep');
+    if (!isPlainObject(node)) throw new Error('notObject');
+    Object.keys(node).forEach(function (key) {
+      if (!key || key.indexOf('.') >= 0 || key === '__proto__' || key === 'constructor' || key === 'prototype') {
+        throw new Error('ambiguousPath');
+      }
+      var value = node[key];
+      if (isPlainObject(value)) {
+        walk(value, prefix.concat([key]), depth + 1);
+      } else {
+        leaves += 1;
+        if (leaves > 64) throw new Error('tooManyLeaves');
+        var cur = out;
+        for (var i = 0; i < prefix.length; i++) {
+          if (!isPlainObject(cur[prefix[i]])) cur[prefix[i]] = {};
+          cur = cur[prefix[i]];
+        }
+        cur[key] = value;
+      }
+    });
+  }
+  walk(patch, [], 0);
+  return out;
+}
+
+function configValueAt(obj, dottedPath) {
+  var cur = obj;
+  var parts = dottedPath.split('.');
+  for (var i = 0; i < parts.length; i++) {
+    if (!isPlainObject(cur) || !Object.prototype.hasOwnProperty.call(cur, parts[i])) return undefined;
+    cur = cur[parts[i]];
+  }
+  return cur;
+}
+
+function sensitiveSettingsChanges(patch, user, dirty) {
+  var lines = [];
+  var provider = configValueAt(patch, 'ai.provider');
+  var oldProvider = configValueAt(user, 'ai.provider');
+  if (provider !== undefined && provider !== oldProvider) {
+    lines.push('AI 服务商: ' + String(oldProvider || '未设置') + ' → ' + String(provider));
+  }
+  ['ai.openai.base_url', 'ai.ollama.base_url'].forEach(function (path) {
+    var value = configValueAt(patch, path);
+    var oldValue = configValueAt(user, path);
+    if (value !== undefined && value !== oldValue) {
+      var prefix = path.indexOf('openai') >= 0 ? '云端 AI 地址: ' : 'Ollama 地址: ';
+      lines.push(prefix + maskUrlForDialog(oldValue) + ' → ' + maskUrlForDialog(value));
     }
-    return {
-      cpu_avg: response.cpu_avg || 0,
-      cpu_max: response.cpu_max || 0,
-      memory_avg: response.memory_avg || 0,
-      memory_max: response.memory_max || 0,
-      disk_avg: response.disk_avg || 0,
-      disk_max: response.disk_max || 0,
-      count: response.count || 0,
-    };
-  } catch (e) {
-    return { cpu_avg: 0, cpu_max: 0, memory_avg: 0, memory_max: 0, disk_avg: 0, disk_max: 0, count: 0, error: e.message };
+  });
+  var allow = configValueAt(patch, 'ai.allow_insecure_http');
+  if (Array.isArray(allow)) {
+    var oldAllow = configValueAt(user, 'ai.allow_insecure_http');
+    oldAllow = Array.isArray(oldAllow) ? oldAllow : [];
+    var added = allow.filter(function (x) { return oldAllow.indexOf(x) < 0; });
+    if (added.length) lines.push('新增内网/Tailscale HTTP 例外: ' + added.join(', '));
   }
-});
+  ['ai.ca_bundle', 'ai.memory.dir'].forEach(function (path) {
+    var value = configValueAt(patch, path);
+    var oldValue = configValueAt(user, path);
+    if (value !== undefined && value !== oldValue) {
+      var prefix = path === 'ai.ca_bundle' ? 'CA Bundle 路径: ' : 'AI 记忆目录: ';
+      lines.push(prefix + String(oldValue || '自动/默认') + ' → ' + String(value || '自动/默认'));
+    }
+  });
+  if (configValueAt(patch, 'ai.openai.api_key') !== undefined && Array.isArray(dirty) &&
+      dirty.indexOf('ai.openai.api_key') >= 0) {
+    lines.push('AI API Key: 将更新为新值（值不在对话框中显示）');
+  }
+  return lines;
+}
 
-ipcMain.handle('send-message', async (_event, text) => {
+registerApi('config:save_settings', async function (args) {
+  var rawPatch = isPlainObject(args.patch) ? args.patch : {};
+  var patch;
   try {
-    const response = await sendToPython({ cmd: 'ai_message', text });
-    return response;
+    patch = canonicalizeSettingsPatch(rawPatch);
   } catch (e) {
-    return { error: e.message };
+    return { ok: false, error: 'ipc.err.invalidParams', field: 'patch' };
   }
+  var dirty = Array.isArray(args.dirty) ? args.dirty : [];
+  var user = readUserConfig();
+  var memoryDir = configValueAt(patch, 'ai.memory.dir');
+  if (memoryDir !== undefined && !isApprovedUserPath('memory', memoryDir)) {
+    return { ok: false, error: 'cfg.err.pathNotApproved', field: 'ai.memory.dir' };
+  }
+  var caBundle = configValueAt(patch, 'ai.ca_bundle');
+  if (caBundle !== undefined && !isApprovedUserPath('ca', caBundle)) {
+    return { ok: false, error: 'cfg.err.pathNotApproved', field: 'ai.ca_bundle' };
+  }
+  var confirmations = sensitiveSettingsChanges(patch, user, dirty);
+  if (confirmations.length) {
+    var ok = await nativeConfirm('确认修改敏感配置？',
+      confirmations.join('\n') + '\n\n此操作会影响后续请求的目标或本机数据位置。');
+    if (!ok) return { ok: false, canceled: true };
+  }
+  return sendToPython({ cmd: 'save_config_patch', patch: patch, dirty: dirty });
 });
 
-ipcMain.handle('send-command', async (_event, cmd) => {
+registerApi('config:save_device', async function (args) {
+  var device = isPlainObject(args.device) ? args.device : {};
+  var name = typeof device.name === 'string' ? device.name : '';
+  var existing = deviceFromConfig(name);
+  var lines = [];
+  if (!existing) {
+    lines.push('新增 NAS 设备: ' + name + '（' + String(device.host || '') + ':' + String(device.port || 22) + '）');
+  } else if (String(device.host || '') !== String(existing.host || '') ||
+             String(device.port || 22) !== String(existing.port || 22)) {
+    lines.push('修改 NAS 连接目标: ' + name);
+    lines.push('  ' + String(existing.host || '') + ':' + String(existing.port || 22) +
+               ' → ' + String(device.host || '') + ':' + String(device.port || 22));
+  }
+  if (lines.length) {
+    var ok = await nativeConfirm('确认修改 NAS 设备？', lines.join('\n') + '\n\n首次连接需要核对主机指纹。');
+    if (!ok) return { ok: false, canceled: true };
+  }
+  return sendToPython({ cmd: 'save_device', device: args.device, dirty: args.dirty || [] });
+});
+
+registerApi('config:delete_device', async function (args) {
+  var ok = await nativeConfirm('删除 NAS 设备？', '设备: ' + args.name + '\n删除后该设备的监控与终端配置将被移除。');
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'delete_device', name: args.name });
+});
+
+registerApi('config:clear_credential', async function (args) {
+  var label = args.kind === 'ai_key' ? 'AI API Key' :
+    (args.kind === 'nas_password' ? ('NAS 密码（' + (args.name || '') + '）') : '认证 Token');
+  var ok = await nativeConfirm('清除凭据？', '将清除: ' + label + '\n此操作不可撤销，清除后需要重新输入。');
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'clear_credential', kind: args.kind, name: args.name });
+});
+
+registerApi('memory:choose_dir', async function () {
+  // W-02：目录只能由主进程原生选择器产生；返回后加入本轮进程的批准集合。
+  // W-09：同一时间只允许一个原生选择器，避免重复弹窗和状态堆积。
+  return withDialogGuard(async function () {
+    var result = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: '选择 AI 记忆目录',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+      return { ok: false, canceled: true };
+    }
+    var selected = String(result.filePaths[0]);
+    rememberApproved(approvedMemoryDirs, selected, APPROVED_MEMORY_MAX);
+    return { ok: true, path: selected };
+  });
+});
+
+registerApi('ai:choose_ca_bundle', async function () {
+  return withDialogGuard(async function () {
+    var result = await dialog.showOpenDialog(mainWindow || undefined, {
+      title: '选择 CA Bundle',
+      properties: ['openFile'],
+      filters: [{ name: 'Certificate bundle', extensions: ['pem', 'crt', 'cer'] }],
+    });
+    if (result.canceled || !result.filePaths || !result.filePaths[0]) {
+      return { ok: false, canceled: true };
+    }
+    var selected = String(result.filePaths[0]);
+    rememberApproved(approvedCaBundles, selected, APPROVED_CA_MAX);
+    return { ok: true, path: selected };
+  });
+});
+
+registerApi('memory:status', async function () {
+  var res = await sendToPython({ cmd: 'get_ai_memory' });
+  if (res && typeof res === 'object') {
+    return { enabled: !!res.enabled, dir: res.dir || '', count: res.count || 0 };
+  }
+  return res;
+});
+
+registerApi('memory:list', async function (args) {
+  var res = await sendToPython({ cmd: 'get_ai_memory' });
+  if (res && Array.isArray(res.items)) {
+    res.items = res.items.map(function (it) {
+      return Object.assign({}, it, { sha256: memoryItemDigest(it) });
+    });
+    if (args.limit) res.items = res.items.slice(0, args.limit);
+  }
+  return res;
+});
+
+registerApi('memory:delete', async function (args, event) {
+  // U02：最终授权由主进程执行；renderer 的 confirmMemoryDelete 不再是安全边界。
+  var state = await sendToPython({ cmd: 'get_ai_memory' });
+  var items = state && Array.isArray(state.items) ? state.items : [];
+  var item = items[args.index];
+  if (!item) return { ok: false, error: 'memory.err.invalidIndex' };
+  var digest = memoryItemDigest(item);
+  // 调用方必须提交 list 时看到的摘要；旧请求复用旧摘要会在确认前被拒绝，
+  // 避免删除被删除条目的相邻项。
+  if (digest !== String(args.expectedSha256 || '').toLowerCase()) {
+    return { ok: false, error: 'memory.err.staleTarget' };
+  }
+  var preview = String(item.content || '').replace(/\s+/g, ' ').slice(0, 160);
+  var ok = await nativeConfirm('删除 AI 记忆？', '将删除以下记忆条目，此操作不可撤销：\n' + preview + '\n\n索引: ' + args.index);
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'delete_ai_memory', index: args.index, expected_sha256: digest });
+});
+
+registerApi('memory:clear', async function () {
+  var ok = await nativeConfirm('清空 AI 记忆？', '将删除本机保存的全部记忆条目，此操作不可撤销。');
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'clear_ai_memory' });
+});
+
+registerApi('memory:dedupe', async function () {
+  var ok = await nativeConfirm('合并重复记忆？', '同一内容只保留最早一条，此操作不可撤销。');
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'dedupe_ai_memory' });
+});
+
+registerApi('history:list', async function (args) {
+  // DL-SEC-05-04：sender 合法不等于数据范围合法。renderer 不能指定 sessionId，
+  // 主进程只查询自己持有的当前会话；limit 仅做资源上限，不能扩大权限范围。
+  // 返回字段仍最小化为 role/content/ts。
+  var limit = Math.max(1, Math.min(100, Number(args.limit) || 50));
+  var res = await sendToPython({
+    cmd: 'chat_history_get',
+    limit: limit,
+    session_id: HISTORY_SESSION_ID,
+  });
+  if (res && Array.isArray(res.items)) {
+    res.items = res.items.slice(-limit).map(function (it) {
+      return { role: it && it.role, content: it && it.content, ts: it && it.ts };
+    });
+  }
+  return res;
+});
+
+registerApi('history:append', async function (args) {
+  return sendToPython({
+    cmd: 'chat_history_append',
+    role: args.role,
+    content: args.content,
+    session_id: HISTORY_SESSION_ID,
+  });
+});
+
+registerApi('history:clear', async function () {
+  // 只清除主进程持有的当前会话，不再清除其他会话。
+  var ok = await nativeConfirm('清空当前对话历史？', '将删除当前会话保存在本机的对话记录，此操作不可撤销。');
+  if (!ok) return { ok: false, canceled: true };
+  return sendToPython({ cmd: 'chat_history_clear', session_id: HISTORY_SESSION_ID });
+});
+
+registerApi('ai:chat', async function (args) {
+  // W-09：AI 请求有独立的 backend 线程与流式资源；同一时间只允许一个活动请求。
+  if (aiChatInFlight) return { ok: false, error: 'ai.err.busy' };
+  aiChatInFlight = true;
+  aiChatRequestId = '';
+  if (aiChatTimer) clearTimeout(aiChatTimer);
+  aiChatTimer = setTimeout(function () {
+    // 后端未发送完成事件时的兜底；不能让 in-flight 状态永久占用。
+    aiChatInFlight = false;
+    aiChatRequestId = '';
+    aiChatTimer = null;
+  }, 180000);
   try {
-    return await sendToPython(cmd);
+    var res = await sendToPython({ cmd: 'ai_chat', messages: args.messages, provider: args.provider, lang: args.lang });
+    if (res && res.requestId) aiChatRequestId = String(res.requestId);
+    if (!res || res.ok === false || res.streaming !== true) finishAiChat(aiChatRequestId);
+    return res;
   } catch (e) {
-    return { error: e.message };
+    finishAiChat();
+    throw e;
   }
 });
 
-ipcMain.handle('get-config', async () => {
+registerApi('nas:test', async function (args, event) {
+  if (nasProbeRateLimited(args.deviceId)) return { ok: false, error: 'nas.err.rateLimited' };
+  var res = await sendToPython({ cmd: 'test_nas_connection', device_id: args.deviceId });
+  if (res && res.error && (res.error.code === 'ssh.err.untrustedHost' || res.error.code === 'ssh.err.hostKeyChanged')) {
+    var challengeId = createTrustChallenge(event, args.deviceId, res);
+    if (challengeId) res.challengeId = challengeId;
+  }
+  return res;
+});
+
+registerApi('nas:probe', async function (args, event) {
+  if (nasProbeRateLimited(args.deviceId)) return { ok: false, error: 'nas.err.rateLimited' };
+  var res = await sendToPython({ cmd: 'ssh_probe', device_id: args.deviceId });
+  if (res && res.ok && res.fingerprint && res.trusted !== true) {
+    var challengeId = createTrustChallenge(event, args.deviceId, res);
+    if (challengeId) res.challengeId = challengeId;
+  }
+  return res;
+});
+
+registerApi('nas:confirm_trust', async function (args, event) {
+  var challenge = getTrustChallenge(event, args.challengeId);
+  if (!challenge) return { ok: false, error: 'ssh.err.trustChallengeExpired' };
+  // 一次性消耗，防止重放；取消后用户需要重新 probe。
+  challenge.used = true;
+  var confirmed = await nativeConfirm('确认 SSH 主机信任？', trustChallengeView(challenge));
+  if (!confirmed) {
+    trustChallenges.delete(challenge.id);
+    return { ok: false, canceled: true };
+  }
+  var result = await sendToPython({
+    cmd: 'ssh_confirm_trust',
+    device_id: challenge.deviceId,
+    fingerprint: challenge.fingerprint,
+    replace: challenge.replace,
+  });
+  trustChallenges.delete(challenge.id);
+  return result;
+});
+
+registerApi('terminal:open', async function (args) {
+  var device = deviceFromConfig(args.deviceId);
+  if (!device) return { ok: false, error: 'term.err.deviceNotConfigured' };
+  if (terminalOpenInFlight || (terminalWindow && !terminalWindow.isDestroyed())) {
+    return { ok: false, error: 'term.err.alreadyOpen' };
+  }
+  terminalOpenInFlight = true;
   try {
-    return await sendToPython({ cmd: 'get_config' });
-  } catch (e) {
-    return { error: e.message };
+    var detail = '设备: ' + device.name + '\n目标: ' + String(device.host || '') + ':' + String(device.port || 22) +
+      '\n未信任的主机不会收到认证凭据。\n终端将在独立窗口中运行。';
+    var ok = await nativeConfirm('打开 SSH 终端？', detail);
+    if (!ok) return { ok: false, canceled: true };
+    var res = await sendToPython({
+      cmd: 'ssh_terminal_init',
+      device_id: args.deviceId,
+      cols: args.cols,
+      rows: args.rows,
+      async: false,
+    });
+    if (!res || !res.session_id) return res || { ok: false, error: 'term.err.openFailed' };
+    if (!openTerminalWindow(res, args.deviceId, device.name)) {
+      // 窗口创建失败时立即关闭刚创建的 backend session，避免无主会话。
+      sendToPython({ cmd: 'terminal_close', session_id: res.session_id }).catch(function () {});
+      return { ok: false, error: 'term.err.openFailed' };
+    }
+    return { ok: true, sessionId: res.session_id, deviceId: args.deviceId };
+  } finally {
+    terminalOpenInFlight = false;
   }
 });
 
-// 应用版本号（1.5.0）：关于页动态显示，避免前端硬编码版本号再次过期。
-// 打包态读应用内 package.json 的 version，开发态读仓库 package.json，均为权威来源。
-ipcMain.handle('get-app-version', () => {
+registerApi('terminal:input', async function (args, event) {
+  if (!terminalSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
+  if (!terminalSession || args.sessionId !== terminalSession.sessionId) {
+    return { ok: false, error: 'term.err.sessionGone' };
+  }
+  if (typeof args.data !== 'string' || args.data.length === 0 || args.data.length > 8192) {
+    return { ok: false, error: 'term.err.invalidInput' };
+  }
+  var now = Date.now();
+  if (!terminalSession.inputWindowStart || now - terminalSession.inputWindowStart > 1000) {
+    terminalSession.inputWindowStart = now;
+    terminalSession.inputCount = 0;
+  }
+  terminalSession.inputCount = (terminalSession.inputCount || 0) + 1;
+  if (terminalSession.inputCount > 200) return { ok: false, error: 'term.err.rateLimited' };
+  return sendToPython({ cmd: 'terminal_input', session_id: args.sessionId, data: args.data });
+});
+
+registerApi('terminal:resize', async function (args, event) {
+  if (!terminalSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
+  if (!terminalSession || args.sessionId !== terminalSession.sessionId) {
+    return { ok: false, error: 'term.err.sessionGone' };
+  }
+  return sendToPython({ cmd: 'terminal_resize', session_id: args.sessionId, cols: args.cols, rows: args.rows });
+});
+
+registerApi('terminal:close', async function (args, event) {
+  if (!terminalSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
+  if (!terminalSession || args.sessionId !== terminalSession.sessionId) {
+    return { ok: false, error: 'term.err.sessionGone' };
+  }
+  var sessionId = args.sessionId;
+  closeTerminalSession(false);
+  await sendToPython({ cmd: 'terminal_close', session_id: sessionId });
+  return { ok: true };
+});
+
+registerApi('terminal:attach', async function (args, event) {
+  if (!terminalSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
+  if (!terminalSession || args.sessionId !== terminalSession.sessionId) {
+    return { ok: false, error: 'term.err.sessionGone' };
+  }
+  return sendToPython({ cmd: 'terminal_attach', session_id: args.sessionId });
+});
+
+// 外部链接：只允许固定目的地（不接受渲染进程提交任意 URL）
+var EXTERNAL_TARGETS = {
+  issues: 'https://github.com/ZWWF0906/Digital-Lab/issues/new',
+  mailto: 'mailto:ZWWF0906@outlook.com',
+};
+registerApi('app:open_external', async function (args) {
+  var target = EXTERNAL_TARGETS[args.target];
+  if (!target) return { ok: false, error: 'ipc.err.invalidParams' };
   try {
-    return app.getVersion();
+    await shell.openExternal(target);
+    return { ok: true };
   } catch (e) {
-    return null;
+    return { ok: false, error: 'ipc.err.internal' };
   }
 });
 
-ipcMain.handle('save-config', async (_event, config) => {
-  try {
-    return await sendToPython({ cmd: 'save_config', config });
-  } catch (e) {
-    return { error: e.message };
-  }
+// 应用版本号（关于页动态显示）与退出：固定通道 + 来源校验
+ipcMain.handle('get-app-version', function (event) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
+  // 仅非打包测试模式：验证 About 页在版本 IPC 失败时仍显示与产品一致的兜底版本。
+  if (TEST_HOOKS && process.env.DIGITAL_LAB_TEST_VERSION_FAIL === '1') return null;
+  try { return app.getVersion(); } catch (e) { return null; }
 });
 
-ipcMain.handle('quit-app', () => {
+ipcMain.handle('quit-app', function (event) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   isQuitting = true;
   app.quit();
+  return { ok: true };
 });
 
 // ── 硬件加速配置（直接读写 config.json，不经过 Python） ──
-ipcMain.handle('get-hardware-accel', function() {
+ipcMain.handle('get-hardware-accel', function(event) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden', enabled: true };
   try {
     var p = getHwAccelConfigPath();
     if (fs.existsSync(p)) {
@@ -729,7 +1673,8 @@ ipcMain.handle('get-hardware-accel', function() {
   return { enabled: true };
 });
 
-ipcMain.handle('set-hardware-accel', function(_event, enabled) {
+ipcMain.handle('set-hardware-accel', function(event, enabled) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   try {
     var p = getHwAccelConfigPath();
     var cfg = {};
@@ -745,7 +1690,8 @@ ipcMain.handle('set-hardware-accel', function(_event, enabled) {
 });
 
 // ── 开屏动画开关（应用级配置，与硬件加速同一份 config.json，键名 splash_animation） ──
-ipcMain.handle('get-splash-animation', function() {
+ipcMain.handle('get-splash-animation', function(event) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden', enabled: true };
   try {
     var cfg = readAppConfig();
     return { enabled: cfg.splash_animation !== false };
@@ -753,7 +1699,8 @@ ipcMain.handle('get-splash-animation', function() {
   return { enabled: true };
 });
 
-ipcMain.handle('set-splash-animation', function(_event, enabled) {
+ipcMain.handle('set-splash-animation', function(event, enabled) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   try {
     var p = getHwAccelConfigPath();
     var cfg = readAppConfig();
@@ -768,6 +1715,7 @@ ipcMain.handle('set-splash-animation', function(_event, enabled) {
 // 启动期同步读取：开屏覆盖层的脚本在页面解析阶段就要决定是否渲染，异步 invoke 来不及，
 // 所以单开一条 sendSync 通道（每次启动只调用一次，开销可忽略）。
 ipcMain.on('get-splash-animation-sync', function(event) {
+  if (!trustedSender(event)) { event.returnValue = true; return; }
   var enabled = true;
   try {
     var cfg = readAppConfig();
@@ -779,6 +1727,7 @@ ipcMain.on('get-splash-animation-sync', function(event) {
 // 启动期同步读取主题：<head> 里的初始化脚本要在首帧前定好 data-theme，异步来不及。
 // config.json 是主题的唯一权威源；localStorage 只作渲染进程侧的快速缓存。
 ipcMain.on('get-theme-sync', function(event) {
+  if (!trustedSender(event)) { event.returnValue = 'dark'; return; }
   var theme = 'dark';
   try {
     var cfg = readAppConfig();
@@ -788,7 +1737,8 @@ ipcMain.on('get-theme-sync', function(event) {
 });
 
 // ── 主题持久化（应用级配置，键名 theme）：供下次启动设置窗口底色，避免浅色主题下闪黑 ──
-ipcMain.handle('set-theme', function(_event, theme) {
+ipcMain.handle('set-theme', function(event, theme) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   try {
     var p = getHwAccelConfigPath();
     var cfg = readAppConfig();
@@ -821,11 +1771,13 @@ function applyConfiguredLanguage() {
 
 // 启动期同步读取语言：<head> 脚本要在首帧前定好 <html lang> 并装好词典
 ipcMain.on('get-language-sync', function(event) {
+  if (!trustedSender(event)) { event.returnValue = null; return; }
   event.returnValue = resolveConfiguredLanguage();
 });
 
 // 语言切换：校验必须在本语言清单里，非法值直接拒绝（返回 ok:false），不写文件
-ipcMain.handle('set-language', function(_event, lang) {
+ipcMain.handle('set-language', function(event, lang) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   try {
     if (!Locales.hasLanguage(lang)) { return { ok: false, error: 'unsupported language: ' + lang }; }
     var p = getHwAccelConfigPath();
@@ -843,12 +1795,14 @@ ipcMain.handle('set-language', function(_event, lang) {
 // 读：启动期同步读取，外壳要在开屏结束后立刻决定是否显示引导；
 // 写：引导完成/稍后配置时置 true，设置面板"重新运行引导"时置回 false。
 ipcMain.on('get-onboarding-done-sync', function(event) {
+  if (!trustedSender(event)) { event.returnValue = true; return; }
   var done = false;
   try { done = readAppConfig().onboarding_done === true; } catch (e) {}
   event.returnValue = done;
 });
 
-ipcMain.handle('set-onboarding-done', function(_event, done) {
+ipcMain.handle('set-onboarding-done', function(event, done) {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   try {
     var p = getHwAccelConfigPath();
     var cfg = readAppConfig();
@@ -863,6 +1817,7 @@ ipcMain.handle('set-onboarding-done', function(_event, done) {
 
 // ── 快速部署占位：功能尚未实现，仅弹原生提示对话框 ──
 ipcMain.handle('quick-deploy-soon', async (event) => {
+  if (!trustedSender(event)) return { ok: false, error: 'ipc.err.forbidden' };
   const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
   const opts = {
     type: 'info',
@@ -881,25 +1836,16 @@ ipcMain.handle('quick-deploy-soon', async (event) => {
   }
 });
 
-// ── AI 记忆删除确认：Windows 原生警告对话框（不可逆操作，最大化注意力） ──
-ipcMain.handle('confirm-memory-delete', async (event) => {
-  const win = BrowserWindow.fromWebContents(event.sender) || mainWindow;
-  const opts = {
-    type: 'warning',
-    title: 'DigitalLab',
-    message: i18n.t('dlg.memoryDelete.message'),
-    buttons: [i18n.t('dlg.memoryDelete.delete'), i18n.t('dlg.memoryDelete.cancel')],
-    defaultId: 1,   // 默认选中“取消”，防止误按回车直接删除
-    cancelId: 1,    // 关闭对话框等同取消
-    noLink: true,
-  };
-  try {
-    const r = win ? await dialog.showMessageBox(win, opts) : await dialog.showMessageBox(opts);
-    return { confirmed: r.response === 0 };
-  } catch (e) {
-    return { confirmed: false, error: e.message };
-  }
-});
+// C1 E2E：只注入测试状态，用于在真实 Electron renderer 中验证 U01 DOM 安全。
+// 生产 app.isPackaged 为 true 时 TEST_HOOKS 恒为 false，本通道不会注册。
+if (TEST_HOOKS) {
+  registerApi('test:inject_state', async function (args) {
+    if (!mainWindow || mainWindow.isDestroyed()) return { ok: false, error: 'no-window' };
+    latestState = args.state;
+    mainWindow.webContents.send('state-update', args.state);
+    return { ok: true };
+  });
+}
 
 // ============================================================
 //  应用启动
@@ -936,9 +1882,41 @@ app.on('second-instance', function() {
 
 app.whenReady().then(() => {
   if (!gotTheLock) return;
+  if (TEST_APPDATA) { try { app.setPath('userData', path.join(TEST_APPDATA, 'digital-lab')); } catch (e) {} }
+  // P0（S9）：统一权限与子窗口加固
+  try {
+    session.defaultSession.setPermissionRequestHandler(function (_wc, _permission, callback) {
+      callback(false);
+    });
+    session.defaultSession.setPermissionCheckHandler(function () { return false; });
+  } catch (e) {}
+  app.on('web-contents-created', function (_event, contents) {
+    contents.setWindowOpenHandler(function () {
+      writeLog('blocked window.open (web-contents-created)');
+      return { action: 'deny' };
+    });
+    contents.on('will-navigate', function (event, url) {
+      if (!isTrustedPage(url)) {
+        try { event.preventDefault(); } catch (e) {}
+      }
+    });
+    contents.on('will-redirect', function (event, url) {
+      if (!isTrustedPage(url)) {
+        try { event.preventDefault(); } catch (e) {}
+      }
+    });
+    contents.on('will-attach-webview', function (event) {
+      try { event.preventDefault(); } catch (e) {}
+    });
+  });
   createWindow();
   createTray();
   startPython();
+
+  // DL-SEC-02-A：测试模式按需创建不可信窗口（生产不生效）
+  if (TEST_HOOKS && process.env.DIGITAL_LAB_UNTRUSTED_WINDOW === '1') {
+    setTimeout(openUntrustedTestWindow, 2500);
+  }
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

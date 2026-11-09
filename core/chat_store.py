@@ -27,6 +27,7 @@ import hashlib
 import json
 import os
 import re
+import threading
 
 HISTORY_FILE_NAME = "chat_history.jsonl"
 DEFAULT_DIR_NAME = "memory"
@@ -37,6 +38,14 @@ MAX_LIMIT = 5000
 MAX_CONTENT_LEN = 12000
 ROLES = ("user", "assistant")
 _TRUTHY = {"1", "true", "yes", "on"}
+_HISTORY_LOCK = threading.RLock()
+
+
+def _locked(fn):
+    def wrapper(*args, **kwargs):
+        with _HISTORY_LOCK:
+            return fn(*args, **kwargs)
+    return wrapper
 
 
 def _base_data_dir() -> str:
@@ -114,9 +123,19 @@ def limit() -> int:
 
 
 def history_dir() -> str:
-    """生效目录：环境变量 > ai.history.dir > 默认 %APPDATA%\\DigitalLab\\memory。"""
+    """生效目录：环境变量 > ai.history.dir > 默认 %APPDATA%\\DigitalLab\\memory。
+
+    W-02：对配置目录执行同一本地路径策略；不安全值回退到应用管理默认目录。
+    """
     env = os.environ.get("DIGITAL_LAB_CHAT_HISTORY_DIR")
     raw = env.strip() if isinstance(env, str) and env.strip() else _config_dir()
+    if raw:
+        try:
+            from core import path_policy as _pp
+            _norm, _err = _pp.validate_local_dir(raw)
+            raw = _norm if not _err else ""
+        except Exception:
+            raw = ""
     if not raw:
         raw = os.path.join(_base_data_dir(), DEFAULT_DIR_NAME)
     try:
@@ -200,10 +219,12 @@ def _load_raw() -> list:
     return entries
 
 
+@_locked
 def _write_all(entries: list) -> bool:
+    tmp_path = history_file() + ".tmp"
     try:
         ensure_dir()
-        with open(history_file(), "w", encoding="utf-8") as f:
+        with open(tmp_path, "w", encoding="utf-8") as f:
             for item in entries:
                 record = {
                     "id": item.get("id", ""),
@@ -213,8 +234,14 @@ def _write_all(entries: list) -> bool:
                     "session_id": _norm_session(item.get("session_id")),
                 }
                 f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        os.replace(tmp_path, history_file())
         return True
     except Exception:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
         return False
 
 
@@ -251,6 +278,7 @@ def load(limit_n=None, session_id=None) -> list:
     return items
 
 
+@_locked
 def prune(max_entries=None, session_id=None) -> int:
     """把（指定会话的）条目裁剪到上限，返回删除条数。"""
     cap = max_entries if max_entries is not None else limit()
@@ -270,6 +298,7 @@ def prune(max_entries=None, session_id=None) -> int:
     return overflow if _write_all(kept) else 0
 
 
+@_locked
 def append(role, content, session_id=None, ts=None) -> dict:
     """追加一条消息；角色非法、内容为空或写入失败时返回 None。
 
@@ -301,6 +330,7 @@ def append(role, content, session_id=None, ts=None) -> dict:
     return entry
 
 
+@_locked
 def delete(index_or_id) -> bool:
     """按 index（load 顺序下标）或 id 删除一条；失败返回 False。"""
     items = _load_raw()
@@ -331,6 +361,7 @@ def delete(index_or_id) -> bool:
     return _write_all(kept) if removed else False
 
 
+@_locked
 def clear(session_id=None) -> bool:
     """清空历史；给出 session_id 时只清该会话。失败返回 False。"""
     try:
@@ -338,10 +369,7 @@ def clear(session_id=None) -> bool:
             target = _norm_session(session_id)
             kept = [it for it in _load_raw() if it.get("session_id") != target]
             return _write_all(kept)
-        ensure_dir()
-        with open(history_file(), "w", encoding="utf-8") as f:
-            f.write("")
-        return True
+        return _write_all([])
     except Exception:
         return False
 

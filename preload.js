@@ -1,186 +1,115 @@
+// preload.js — P0 安全边界（DL-SEC-02 / S3）
+// 只暴露固定业务函数：渲染进程无法指定 Python 命令名、无法传任意 host/port/凭据、
+// 无法调用通用 sendCommand。每个函数由 Electron 主进程做参数校验与来源校验。
 const { contextBridge, ipcRenderer } = require('electron');
 
+const invoke = (op, args) => ipcRenderer.invoke('api:' + op, args || {});
+
+const TEST_HOOKS_ARG = Array.isArray(process.argv) && process.argv.indexOf('--dl-test-hooks') >= 0;
+if (TEST_HOOKS_ARG) {
+  contextBridge.exposeInMainWorld('__c1Test', {
+    injectState(state) { return invoke('test:inject_state', { state }); },
+  });
+}
+
 contextBridge.exposeInMainWorld('digitalLab', {
+  // ── 事件订阅（只读）──
   onStateUpdate(callback) {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('state-update', handler);
     return () => ipcRenderer.removeListener('state-update', handler);
   },
-
-  getHardware() {
-    return ipcRenderer.invoke('get-hardware');
-  },
-
-  getProcesses() {
-    return ipcRenderer.invoke('get-processes');
-  },
-
-  getHistory(hours) {
-    return ipcRenderer.invoke('get-history', hours);
-  },
-
-  sendMessage(text) {
-    return ipcRenderer.invoke('send-message', text);
-  },
-
-  aiChat(messages, provider) {
-    return ipcRenderer.invoke('send-command', { cmd: 'ai_chat', messages, provider });
-  },
-
   onAiToken(callback) {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('ai-token', handler);
     return () => ipcRenderer.removeListener('ai-token', handler);
   },
-
   onAiDone(callback) {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('ai-done', handler);
     return () => ipcRenderer.removeListener('ai-done', handler);
   },
-
-  onMessage(callback) {
-    const handler = (_event, text) => callback(text);
-    ipcRenderer.on('ai-message', handler);
-    return () => ipcRenderer.removeListener('ai-message', handler);
-  },
-
   onPythonStatus(callback) {
     const handler = (_event, status) => callback(status);
     ipcRenderer.on('python-status', handler);
     return () => ipcRenderer.removeListener('python-status', handler);
   },
-
-  // 主进程 show() 之后发来的一次性事件：窗口已显示。
-  // 开屏动画用它当"确实已显示"的硬锚点（配合 rAF 停摆-恢复检测决定起跑时刻）。
   onWindowShown(callback) {
     const handler = () => callback();
     ipcRenderer.on('window-shown', handler);
     return () => ipcRenderer.removeListener('window-shown', handler);
   },
-
-  onTerminalData(callback) {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('terminal-data', handler);
-    return () => ipcRenderer.removeListener('terminal-data', handler);
-  },
-
-  // 终端建链的异步结果（1.5.1）：async 模式下 ssh_terminal_init 立即返回 pending，
-  // 真正的 session_id 或结构化错误通过这个通道回传，命令通道不再被网络等待占住。
-  onTerminalConnectResult(callback) {
-    const handler = (_event, data) => callback(data);
-    ipcRenderer.on('terminal-connect-result', handler);
-    return () => ipcRenderer.removeListener('terminal-connect-result', handler);
-  },
-
-  // NAS 连通性测试的异步结果（1.5.1）
   onNasTestResult(callback) {
     const handler = (_event, data) => callback(data);
     ipcRenderer.on('nas-test-result', handler);
     return () => ipcRenderer.removeListener('nas-test-result', handler);
   },
 
-  sendCommand(cmd) {
-    return ipcRenderer.invoke('send-command', cmd);
-  },
+  // ── 硬件与配置（配置只返回字段白名单与凭据状态）──
+  getHardware() { return invoke('hardware:get'); },
+  getConfig() { return invoke('config:get'); },
+  saveSettings(patch, dirty) { return invoke('config:save_settings', { patch, dirty }); },
+  saveDevice(device, dirty) { return invoke('config:save_device', { device, dirty }); },
+  deleteDevice(name) { return invoke('config:delete_device', { name }); },
+  clearCredential(kind, name) { return invoke('config:clear_credential', { kind, name }); },
+  reloadConfig() { return invoke('config:reload'); },
 
-  getNasDevices() {
-    return ipcRenderer.invoke('send-command', { cmd: 'get_nas_devices' });
-  },
+  // ── AI 记忆与对话历史 ──
+  chooseMemoryDir() { return invoke('memory:choose_dir'); },
+  chooseCaBundle() { return invoke('ai:choose_ca_bundle'); },
+  memoryStatus() { return invoke('memory:status'); },
+  memoryList(limit) { return invoke('memory:list', { limit }); },
+  memoryDelete(index, expectedSha256) { return invoke('memory:delete', { index, expectedSha256 }); },
+  memoryClear() { return invoke('memory:clear'); },
+  memoryDedupe() { return invoke('memory:dedupe'); },
+  historyList(limit) { return invoke('history:list', { limit }); },
+  historyAppend(role, content) { return invoke('history:append', { role, content }); },
+  historyClear() { return invoke('history:clear'); },
 
-  getConfig() {
-    return ipcRenderer.invoke('get-config');
-  },
+  // ── AI 对话（只读事件 + 受控请求）──
+  aiChat(messages, provider, lang) { return invoke('ai:chat', { messages, provider, lang }); },
 
-  // 应用版本号（1.5.0）：设置面板关于页动态读取，避免界面里硬编码版本号
-  getAppVersion() {
-    return ipcRenderer.invoke('get-app-version');
-  },
+  // ── NAS 信任与连通性 ──
+  // 信任指纹不能由 renderer 提交；probe/test 只返回主进程生成的 challengeId。
+  testNasConnection(deviceId) { return invoke('nas:test', { deviceId }); },
+  sshProbe(deviceId) { return invoke('nas:probe', { deviceId }); },
+  sshConfirmTrust(challengeId) { return invoke('nas:confirm_trust', { challengeId }); },
 
-  saveConfig(config) {
-    return ipcRenderer.invoke('save-config', config);
-  },
+  // ── 独立终端窗口：Dashboard 只能请求打开，不能持有输入/attach 能力 ──
+  terminalOpen(deviceId, cols, rows) { return invoke('terminal:open', { deviceId, cols, rows }); },
 
-  confirmMemoryDelete() {
-    return ipcRenderer.invoke('confirm-memory-delete');
-  },
+  // ── 应用信息与界面偏好（固定通道，参数由主进程校验）──
+  getAppVersion() { return ipcRenderer.invoke('get-app-version'); },
+  quit() { ipcRenderer.invoke('quit-app'); },
+  getHardwareAccel() { return ipcRenderer.invoke('get-hardware-accel'); },
+  setHardwareAccel(enabled) { return ipcRenderer.invoke('set-hardware-accel', enabled); },
+  getSplashAnimation() { return ipcRenderer.invoke('get-splash-animation'); },
+  setSplashAnimation(enabled) { return ipcRenderer.invoke('set-splash-animation', enabled); },
+  setTheme(theme) { return ipcRenderer.invoke('set-theme', theme); },
+  setLanguage(lang) { return ipcRenderer.invoke('set-language', lang); },
+  setOnboardingDone(done) { return ipcRenderer.invoke('set-onboarding-done', done); },
+  confirmQuickDeploy() { return ipcRenderer.invoke('quick-deploy-soon'); },
 
-  // 快速部署占位：功能未实现，仅弹原生提示框
-  confirmQuickDeploy() {
-    return ipcRenderer.invoke('quick-deploy-soon');
-  },
+  // 外部链接：只接受固定目的地键（issues / mailto），不接受任意 URL
+  openExternal(target) { return invoke('app:open_external', { target }); },
 
-  // 开屏动画开关（应用级配置，userData 下的 config.json）
-  getSplashAnimation() {
-    return ipcRenderer.invoke('get-splash-animation');
-  },
-
-  setSplashAnimation(enabled) {
-    return ipcRenderer.invoke('set-splash-animation', enabled);
-  },
-
-  // 启动期同步读取：开屏脚本在页面解析阶段就要决定是否渲染，异步 invoke 来不及
+  // ── 启动期同步读取（渲染进程 <head> 脚本使用）──
   getSplashAnimationSync() {
-    try {
-      return ipcRenderer.sendSync('get-splash-animation-sync') !== false;
-    } catch (e) {
-      return true;   // 读不到就按"播放"处理，保持原行为
-    }
+    try { return ipcRenderer.sendSync('get-splash-animation-sync') !== false; } catch (e) { return true; }
   },
-
-  // 主题持久化：供下次启动设置窗口底色，避免浅色主题下闪黑
-  setTheme(theme) {
-    return ipcRenderer.invoke('set-theme', theme);
-  },
-
-  // 语言：启动期同步读取（<head> 脚本要在首帧前定好 <html lang> 并装好词典），运行时切换走 invoke
   getLanguageSync() {
     try {
-      var l = ipcRenderer.sendSync('get-language-sync');
-      return typeof l === 'string' ? l : null;
-    } catch (e) {
-      return null;
-    }
+      const lang = ipcRenderer.sendSync('get-language-sync');
+      return typeof lang === 'string' ? lang : null;
+    } catch (e) { return null; }
   },
-
-  setLanguage(lang) {
-    return ipcRenderer.invoke('set-language', lang);
-  },
-
-  // 首次启动引导标志（应用级 config.json 的 onboarding_done）：
-  // 同步读给"开屏结束即判定"用；写走 invoke（true=引导已完成，false=重新运行引导）
   getOnboardingDoneSync() {
-    try {
-      return ipcRenderer.sendSync('get-onboarding-done-sync') === true;
-    } catch (e) {
-      return false;   // 读不到按"未完成"处理，保证首次启动能看到引导
-    }
+    try { return ipcRenderer.sendSync('get-onboarding-done-sync') === true; } catch (e) { return false; }
   },
-
-  setOnboardingDone(done) {
-    return ipcRenderer.invoke('set-onboarding-done', done);
-  },
-
-  // 启动期同步读取主题（config.json 是权威源）：<head> 脚本要在首帧前定好 data-theme。
-  // 读不到时返回 null，由调用方回退到 localStorage 缓存。
   getThemeSync() {
     try {
-      var t = ipcRenderer.sendSync('get-theme-sync');
-      return (t === 'light' || t === 'dark') ? t : null;
-    } catch (e) {
-      return null;
-    }
-  },
-
-  quit() {
-    ipcRenderer.invoke('quit-app');
-  },
-
-  getHardwareAccel() {
-    return ipcRenderer.invoke('get-hardware-accel');
-  },
-
-  setHardwareAccel(enabled) {
-    return ipcRenderer.invoke('set-hardware-accel', enabled);
+      const theme = ipcRenderer.sendSync('get-theme-sync');
+      return (theme === 'light' || theme === 'dark') ? theme : null;
+    } catch (e) { return null; }
   },
 });

@@ -1,5 +1,47 @@
 # Changelog
 
+## v1.6.0 - 2026-11-09
+
+### Added
+
+- Native folder/file pickers for the AI memory directory and optional CA bundle
+
+- Three-language messages for the new path, credential and AI stream safety errors
+
+### Changed
+
+- Runtime memory, reports and snapshots now live in the user data directory, never in the installation directory
+
+- Saved AI/NAS credentials are protected with the Windows user-scoped secure storage; existing plaintext credentials are migrated automatically
+
+- AI streaming responses have hard single-line, total-size and reasoning-channel limits
+
+### Fixed
+
+- Configuration changes can no longer use flat dotted keys to bypass the native sensitive-change confirmation
+
+- AI memory directory and CA bundle paths reject UNC, device, traversal and symlink redirection; external paths come from the native picker
+
+- Concurrent memory de-duplication and chat-history append/prune/clear operations no longer lose or overwrite entries; history writes are atomic and the 100-record display boundary is covered by tests
+
+- Opening a terminal twice at the same time now produces one SSH session, without an orphan session
+
+- Legacy NAS credentials in the old `config.json` are migrated to protected storage, removed from the legacy file, and are no longer used as a runtime fallback
+
+- AI memory directory changes validate both the old and new locations; migration failures preserve the old directory and data, and an existing target is never overwritten
+
+- A configured custom CA bundle that is missing or unreadable now fails the request instead of quietly falling back to system trust
+
+- Terminal window construction or page-load failure now closes the backend SSH session; normal terminal connection remains unchanged
+
+- Sensitive configuration confirmations distinguish query/fragment changes without displaying token values; high-cost AI requests, native pickers and trust-challenge state have local limits
+
+- NAS `last_error` no longer exposes raw exception text; repeated connection probes are rate-limited
+
+- The dashboard and terminal CSP no longer permits renderer network connections
+
+- Corrected the open-source license label in the About page to ISC (aligned with LICENSE and package.json)
+
 ## v1.5.0 - 2026-10-09
 
 ### Added

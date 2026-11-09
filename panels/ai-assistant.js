@@ -6,6 +6,7 @@ const T = (key, params) => (
     ? window.DigitalLabI18n.t(key, params)
     : key
 );
+import { createEl } from './safe-dom.js';
 
 // 错误标记：这是前端与 Python 之间的"协议"标记，不是界面文案，所以不进词典、也不翻译。
 //   后端：新版本已改为结构化 error（{"code","params"}），不再发这个前缀；
@@ -123,29 +124,34 @@ export async function init(container, api) {
     const sys = hw.system || {};
     const nas = state.nas || {};
 
-    let nasHtml = '';
+    const frag = document.createDocumentFragment();
+    const section = (text) => frag.appendChild(createEl('div', { className: 'ai-ctx-section', textContent: text }));
+    const row = (text) => frag.appendChild(createEl('div', { className: 'ai-ctx-row', textContent: text }));
+    section(T('ai.ctx.performance'));
+    row('CPU: ' + (m.cpu == null ? '--' : String(m.cpu)) + '%');
+    row(T('ai.ctx.memoryRow', { value: m.memory == null ? '--' : m.memory }));
+    row(T('ai.ctx.diskRow', { value: m.disk == null ? '--' : m.disk }));
+    section(T('ai.ctx.hardware'));
+    row('CPU: ' + (cpu.model || T('ai.ctx.unknown')));
+    row('GPU: ' + (gpu.name || T('ai.ctx.none')));
+    row(T('ai.ctx.memoryGb', { value: mem.total_gb || '--' }));
+    row(T('ai.ctx.system', { os: sys.os || '', edition: sys.edition || '' }));
+
     const nasKeys = Object.keys(nas);
     if (nasKeys.length > 0) {
-      nasHtml = `<div class="ai-ctx-section">${T('ai.ctx.nas')}</div>`;
-      nasKeys.forEach(k => {
-        const d = nas[k] || {};
+      section(T('ai.ctx.nas'));
+      nasKeys.slice(0, 64).forEach((name) => {
+        const d = nas[name] || {};
         const online = d.online !== false;
-        nasHtml += `<div class="ai-ctx-row"><span style="color:${online?'var(--accent)':'var(--accent-pink)'}">${online?'●':'○'}</span> ${k}: CPU ${d.cpu||'--'}% MEM ${d.memory?.percent??'--'}%</div>`;
+        const line = createEl('div', { className: 'ai-ctx-row' });
+        const dot = createEl('span', { textContent: online ? '●' : '○' });
+        dot.style.color = online ? 'var(--accent)' : 'var(--accent-pink)';
+        line.appendChild(dot);
+        line.appendChild(document.createTextNode(' ' + String(name) + ': CPU ' + (d.cpu == null ? '--' : String(d.cpu)) + '% MEM ' + (d.memory && d.memory.percent != null ? String(d.memory.percent) : '--') + '%'));
+        frag.appendChild(line);
       });
     }
-
-    contextBody.innerHTML = `
-      <div class="ai-ctx-section">${T('ai.ctx.performance')}</div>
-      <div class="ai-ctx-row">CPU: ${m.cpu||'--'}%</div>
-      <div class="ai-ctx-row">${T('ai.ctx.memoryRow', { value: m.memory||'--' })}</div>
-      <div class="ai-ctx-row">${T('ai.ctx.diskRow', { value: m.disk||'--' })}</div>
-      <div class="ai-ctx-section">${T('ai.ctx.hardware')}</div>
-      <div class="ai-ctx-row">CPU: ${cpu.model||T('ai.ctx.unknown')}</div>
-      <div class="ai-ctx-row">GPU: ${gpu.name||T('ai.ctx.none')}</div>
-      <div class="ai-ctx-row">${T('ai.ctx.memoryGb', { value: mem.total_gb||'--' })}</div>
-      <div class="ai-ctx-row">${T('ai.ctx.system', { os: sys.os||'', edition: sys.edition||'' })}</div>
-      ${nasHtml}
-    `;
+    contextBody.replaceChildren(frag);
   }
 
   // ── 滚动到底部 ──
@@ -240,7 +246,7 @@ export async function init(container, api) {
     // 兼容未转发 memory 的旧主进程：用发送前后的记忆列表差异兜底
     if (!memSnapshot) return;
     try {
-      const after = await api.sendCommand({ cmd: 'get_ai_memory' });
+      const after = await api.memoryList();
       if (!after || !after.enabled) return;
       const fresh = (after.items || [])
         .filter(it => !memSnapshot.has(memKey(it)))
@@ -289,7 +295,7 @@ export async function init(container, api) {
     // 记忆提示准备：仅在记忆开启时记录发送前的条目，供“已记住”提示兜底比对
     memSnapshot = null;
     try {
-      const snap = await api.sendCommand({ cmd: 'get_ai_memory' });
+      const snap = await api.memoryList();
       if (snap && snap.enabled) {
         memSnapshot = new Set((snap.items || []).map(memKey));
       }
@@ -302,9 +308,7 @@ export async function init(container, api) {
       // 旧后端会忽略 lang 字段（回退中文），行为不受影响。
       const reqLang = (typeof window !== 'undefined' && window.DigitalLabI18n && window.DigitalLabI18n.getLanguage)
         ? window.DigitalLabI18n.getLanguage() : 'zh-CN';
-      const result = (api && typeof api.sendCommand === 'function')
-        ? await api.sendCommand({ cmd: 'ai_chat', messages: chatMessages, provider, lang: reqLang })
-        : await api.aiChat(chatMessages, provider);   // 旧 preload 兜底
+      const result = await api.aiChat(chatMessages, provider, reqLang);
       if (result.error) {
         // result.error 是后端文案（阶段 4 范围），这里只补协议标记
         addMessage('assistant', `${ERR_MARK} ${result.error}`);
@@ -343,12 +347,9 @@ export async function init(container, api) {
     providerSel.querySelectorAll('.provider-option').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
-    // 同步保存到配置
+    // 同步保存到配置（高影响操作由主进程原生确认；取消时不产生变更）
     try {
-      const cfg = await api.getConfig();
-      if (!cfg.ai) cfg.ai = {};
-      cfg.ai.provider = provider;
-      await api.saveConfig(cfg);
+      await api.saveSettings({ ai: { provider } }, []);
     } catch (e) { /* 静默失败 */ }
   });
 
@@ -429,7 +430,7 @@ export async function init(container, api) {
       if (h.limit) historyLimit = h.limit;
     } catch (e) { /* 读不到配置按默认开启处理 */ }
     try {
-      const res = await api.sendCommand({ cmd: 'chat_history_get', limit: historyLimit, session_id: CHAT_SESSION });
+      const res = await api.historyList(historyLimit);
       if (!res || res.enabled === false) { historyEnabled = false; return; }
       if (!Array.isArray(res.items) || !res.items.length) return;
       // 用户在历史返回前已经开口：保留当前会话，不覆盖
@@ -444,12 +445,7 @@ export async function init(container, api) {
   async function persistMessage(role, content) {
     if (!historyEnabled || !content) return;
     try {
-      await api.sendCommand({
-        cmd: 'chat_history_append',
-        role: role,
-        content: content,
-        session_id: CHAT_SESSION,
-      });
+      await api.historyAppend(role, content);
     } catch (e) { /* 落盘失败不影响本次对话 */ }
   }
 

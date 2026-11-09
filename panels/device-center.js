@@ -8,6 +8,7 @@ const t = (key, params) => (
     ? window.DigitalLabI18n.t(key, params)
     : key
 );
+import { createEl } from './safe-dom.js';
 
 // 文本/属性转义：进程名与命令行来自远端 NAS，直接拼进 HTML 会破坏结构
 // （dashboard.js 的本机进程表也做了同样的转义）
@@ -17,6 +18,26 @@ function escHtml(str) {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export function processRowsHTML(processes) {
+  return (processes || []).map(p => `
+    <tr>
+      <td class="proc-pid">${escHtml(p.pid || '')}</td>
+      <td class="proc-name">${escHtml(p.name || '')}</td>
+      <td class="proc-num">${(p.cpu || 0).toFixed(1)}</td>
+      <td class="proc-num">${(p.memory || 0).toFixed(1)}</td>
+      <td class="proc-name" title="${escHtml(p.command || '')}">${escHtml(p.command || '')}</td>
+    </tr>`).join('');
+}
+
+export function dockerRowsHTML(containers) {
+  return (containers || []).map(c => `
+    <tr>
+      <td class="proc-name">${escHtml(c.name || '')}</td>
+      <td class="proc-name" style="max-width:260px">${escHtml(c.image || '')}</td>
+      <td><span class="mc-status ${c.status && c.status.toLowerCase().startsWith('up') ? 'ok' : 'danger'}"></span> ${escHtml(c.status || '')}</td>
+    </tr>`).join('');
 }
 
 function statusColor(value, thresholds) {
@@ -33,49 +54,61 @@ function statusClass(value, thresholds) {
   return 'ok';
 }
 
-function deviceCardHTML(device) {
-  const online = device.online !== false;
-  const status = online
-    ? '<span class="mc-status ok"></span>'
-    : '<span class="mc-status danger"></span>';
-  const opacity = online ? '' : 'style="opacity:0.4"';
+function safePct(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
 
-  // NAS 额外信息
-  let extraInfo = '';
+// U01：设备卡片由显式 DOM 构成；NAS 的 uptime/temperature/设备名只走 textContent。
+function deviceCardEl(device) {
+  const online = device.online !== false;
+  const cpu = safePct(device.cpu);
+  const memory = safePct(device.memory);
+  const disk = safePct(device.disk);
+  const card = createEl('div', {
+    className: 'device-card metric-card ' + (device.type === 'NAS' && !online ? 'offline' : ''),
+  });
+  card.dataset.deviceId = String(device.id == null ? '' : device.id);
+  if (!online) card.style.opacity = '0.4';
+
+  const header = createEl('div', { className: 'mc-header' });
+  header.appendChild(createEl('span', { className: 'mc-status ' + (online ? 'ok' : 'danger') }));
+  header.appendChild(createEl('span', {
+    className: 'mc-label',
+    textContent: (device.type === 'PC' ? '\u{1F4BB}' : '\u{1F4E1}') + ' ' + String(device.name == null ? '' : device.name),
+  }));
+  header.appendChild(createEl('span', { className: 'dc-card-type', textContent: String(device.type == null ? '' : device.type) }));
+  card.appendChild(header);
+
+  const multi = createEl('div', { className: 'mc-multi' });
+  const metrics = [
+    { label: 'CPU', value: cpu, thresholds: [60, 85] },
+    { label: t('dev.card.memory'), value: memory, thresholds: [70, 90] },
+    { label: t('dev.card.disk'), value: disk, thresholds: [75, 92] },
+  ];
+  metrics.forEach((metric) => {
+    const mini = createEl('div', { className: 'mc-mini' });
+    mini.appendChild(createEl('span', { className: 'mc-mini-label', textContent: metric.label }));
+    const val = createEl('span', { className: 'mc-mini-val', textContent: metric.value.toFixed(1) + '%' });
+    val.style.color = statusColor(metric.value, metric.thresholds);
+    mini.appendChild(val);
+    const wrap = createEl('div', { className: 'mc-bar-wrap' });
+    const bar = createEl('div', { className: 'mc-bar' });
+    bar.style.width = metric.value + '%';
+    bar.style.background = statusColor(metric.value, metric.thresholds);
+    wrap.appendChild(bar);
+    mini.appendChild(wrap);
+    multi.appendChild(mini);
+  });
+  card.appendChild(multi);
+
   if (device.type === 'NAS') {
     const parts = [];
-    if (device.temperature != null) parts.push(`\u{1F321} ${device.temperature}\u00B0C`);
-    if (device.uptime) parts.push(`\u23F1 ${device.uptime}`);
-    extraInfo = parts.length ? `<div class="dc-card-extra">${parts.join(' | ')}</div>` : '';
+    if (device.temperature != null) parts.push('\u{1F321} ' + String(device.temperature) + '\u00B0C');
+    if (device.uptime) parts.push('\u23F1 ' + String(device.uptime));
+    if (parts.length) card.appendChild(createEl('div', { className: 'dc-card-extra', textContent: parts.join(' | ') }));
   }
-
-  return `
-    <div class="device-card metric-card ${device.type === 'NAS' && !online ? 'offline' : ''}"
-         data-device-id="${device.id}" ${opacity}>
-      <div class="mc-header">
-        ${status}
-        <span class="mc-label">${device.type === 'PC' ? '\u{1F4BB}' : '\u{1F4E1}'} ${device.name}</span>
-        <span class="dc-card-type">${device.type}</span>
-      </div>
-      <div class="mc-multi">
-        <div class="mc-mini">
-          <span class="mc-mini-label">CPU</span>
-          <span class="mc-mini-val" style="color:${statusColor(device.cpu, [60, 85])}">${device.cpu.toFixed(1)}%</span>
-          <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.cpu}%;background:${statusColor(device.cpu, [60, 85])}"></div></div>
-        </div>
-        <div class="mc-mini">
-          <span class="mc-mini-label">${t('dev.card.memory')}</span>
-          <span class="mc-mini-val" style="color:${statusColor(device.memory, [70, 90])}">${device.memory.toFixed(1)}%</span>
-          <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.memory}%;background:${statusColor(device.memory, [70, 90])}"></div></div>
-        </div>
-        <div class="mc-mini">
-          <span class="mc-mini-label">${t('dev.card.disk')}</span>
-          <span class="mc-mini-val" style="color:${statusColor(device.disk, [75, 92])}">${device.disk.toFixed(1)}%</span>
-          <div class="mc-bar-wrap"><div class="mc-bar" style="width:${device.disk}%;background:${statusColor(device.disk, [75, 92])}"></div></div>
-        </div>
-      </div>
-      ${extraInfo}
-    </div>`;
+  return card;
 }
 
 function detailHTML(device) {
@@ -140,8 +173,8 @@ function detailHTML(device) {
   return `
     <div class="device-detail" id="dc-detail-content">
       <div class="detail-header">
-        <span>\u{1F4E1} ${device.name}</span>
-        <span style="font-size:0.75rem;color:var(--text-tertiary)">${device.type}</span>
+        <span>\u{1F4E1} ${escHtml(device.name)}</span>
+        <span style="font-size:0.75rem;color:var(--text-tertiary)">${escHtml(device.type)}</span>
         <button class="detail-close-btn" id="dc-detail-close">\u2715</button>
       </div>
       ${nasInfoHTML}
@@ -214,14 +247,7 @@ function updateDetail(device) {
   const processTbody = document.getElementById('dc-process-tbody');
   if (processTbody) {
     const processes = device.processes || [];
-    processTbody.innerHTML = processes.map(p => `
-      <tr>
-        <td class="proc-pid">${p.pid || ''}</td>
-        <td class="proc-name">${p.name || ''}</td>
-        <td class="proc-num">${(p.cpu || 0).toFixed(1)}</td>
-        <td class="proc-num">${(p.memory || 0).toFixed(1)}</td>
-        <td class="proc-name" title="${escHtml(p.command || '')}">${escHtml(p.command || '')}</td>
-      </tr>`).join('');
+    processTbody.innerHTML = processRowsHTML(processes);
   }
 
   // ── Docker 表 ──
@@ -230,12 +256,7 @@ function updateDetail(device) {
     const dockerSummary = document.getElementById('dc-docker-summary');
     const docker = device.docker;
     if (dockerTbody && docker && docker.containers && docker.containers.length > 0) {
-      dockerTbody.innerHTML = docker.containers.map(c => `
-        <tr>
-          <td class="proc-name">${c.name || ''}</td>
-          <td class="proc-name" style="max-width:260px">${c.image || ''}</td>
-          <td><span class="mc-status ${c.status && c.status.toLowerCase().startsWith('up') ? 'ok' : 'danger'}"></span> ${c.status || ''}</td>
-        </tr>`).join('');
+      dockerTbody.innerHTML = dockerRowsHTML(docker.containers);
       if (dockerSummary) {
         dockerSummary.textContent = t('dev.docker.summary', { running: docker.running || 0, total: docker.total_containers || 0 });
       }
@@ -301,7 +322,7 @@ export function init(container, api) {
     // 实测依据：一层 rAF 的回调在该帧样式计算之前执行，标记在动画判定前就位；两层 rAF 也只晚约 25ms，
     // 采样到 animation-name 先变成 cardEnter、25ms 后被打回 none（动画被取消，连 animationstart 都没派发）。
     // 标记就位后，1Hz 数据刷新重建 DOM 时不再播动画。
-    deviceGrid.innerHTML = devices.map(deviceCardHTML).join('');
+    deviceGrid.replaceChildren(...devices.map(deviceCardEl));
     if (!deviceGrid.hasAttribute('data-animated')) {
       setTimeout(() => deviceGrid.setAttribute('data-animated', '1'), 900);
     }

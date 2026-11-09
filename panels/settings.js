@@ -123,8 +123,13 @@ export function init(container, api) {
           </div>
           <div class="settings-row">
             <label>${T('set.dev.password')}</label>
-            <input type="password" class="modal-dev-pass" value="${escapeAttr(device.password || '')}" placeholder="${T('set.dev.passPh')}" />
+            <input type="password" class="modal-dev-pass" value="" placeholder="${device.password_configured ? T('set.dev.passConfigured') : T('set.dev.passPh')}" />
           </div>
+          ${isEdit && device.password_configured ? `
+          <div class="settings-row">
+            <label></label>
+            <label style="font-size:0.75rem;color:var(--accent-pink)"><input type="checkbox" class="modal-dev-clear-pass" /> ${T('set.dev.clearPass')}</label>
+          </div>` : ''}
           ${isEdit ? `
           <div class="settings-actions" style="margin-top:6px">
             <button class="test-conn-btn modal-test-btn">${T('set.dev.test')}</button>
@@ -159,27 +164,38 @@ export function init(container, api) {
     overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
 
-    // 保存按钮
+    // 保存按钮（P0：password 只在用户输入时提交；清除密码走显式操作）
     overlay.querySelector('.modal-save-btn').addEventListener('click', async () => {
       const newDevice = {
         name: overlay.querySelector('.modal-dev-name')?.value?.trim() || '',
         host: overlay.querySelector('.modal-dev-host')?.value?.trim() || '',
         port: parseInt(overlay.querySelector('.modal-dev-port')?.value) || 22,
         username: overlay.querySelector('.modal-dev-user')?.value?.trim() || '',
-        password: overlay.querySelector('.modal-dev-pass')?.value || '',
       };
-
-      if (!config.nas_devices) config.nas_devices = [];
-
-      if (isEdit) {
-        config.nas_devices[deviceIndex] = newDevice;
-      } else {
-        config.nas_devices.push(newDevice);
+      if (!newDevice.name || !newDevice.host) {
+        showToast(T('set.dev.needFields'), true);
+        return;
       }
-
-      closeModal();
-      renderNasTab();
-      await saveConfig();
+      const passVal = overlay.querySelector('.modal-dev-pass')?.value || '';
+      const dirty = passVal ? ['password'] : [];
+      if (passVal) newDevice.password = passVal;
+      const clearPass = !!overlay.querySelector('.modal-dev-clear-pass')?.checked;
+      try {
+        const res = await api.saveDevice(newDevice, dirty);
+        if (!res || !res.ok) {
+          showToast(T('common.saveFailed', { message: backendErrorText(res) || T('common.unknownError') }), true);
+          return;
+        }
+        if (clearPass) {
+          await api.clearCredential('nas_password', newDevice.name);
+        }
+        closeModal();
+        await loadConfig();
+        renderNasTab();
+        await applyReload();
+      } catch (e) {
+        showToast(T('common.saveFailed', { message: e.message }), true);
+      }
     });
 
     // 测试连接按钮（仅编辑模式）
@@ -198,12 +214,60 @@ export function init(container, api) {
         btn.textContent = T('set.dev.testing');
         if (resultEl) resultEl.textContent = '';
         try {
-          const res = await api.sendCommand({ cmd: 'test_nas_connection', device });
+          // P0（S5）：先保存为受管设备，再按 deviceId 测试；不再把 host/port/密码交给测试接口
+          const passVal = overlay.querySelector('.modal-dev-pass')?.value || '';
+          const saveDirty = passVal ? ['password'] : [];
+          const saveDevicePayload = { name: device.name, host: device.host, port: device.port, username: device.username };
+          if (passVal) saveDevicePayload.password = passVal;
+          const saved = await api.saveDevice(saveDevicePayload, saveDirty);
+          if (!saved || !saved.ok) {
+            if (resultEl) {
+              resultEl.textContent = T('set.dev.testFail', { message: backendErrorText(saved) || T('set.dev.connFailed') });
+              resultEl.style.color = 'var(--accent-pink)';
+            }
+            btn.classList.remove('testing');
+            btn.textContent = T('set.dev.test');
+            return;
+          }
+          const res = await api.testNasConnection(device.name);
           if (resultEl) {
-            resultEl.textContent = res.ok
-              ? T('set.dev.testOk')
-              : T('set.dev.testFail', { message: backendErrorText(res) || T('set.dev.connFailed') });
-            resultEl.style.color = res.ok ? 'var(--accent)' : 'var(--accent-pink)';
+            resultEl.textContent = '';
+            if (res && res.ok) {
+              resultEl.textContent = T('set.dev.testOk');
+              resultEl.style.color = 'var(--accent)';
+            } else {
+              const code = (res && res.error && res.error.code) || '';
+              const params = (res && res.error && res.error.params) || {};
+              const fp = params.fingerprint || params.new_fingerprint || '';
+              const challengeId = res && res.challengeId ? res.challengeId : '';
+              resultEl.textContent = T('set.dev.testFail', { message: backendErrorText(res) || T('set.dev.connFailed') });
+              resultEl.style.color = 'var(--accent-pink)';
+              if (challengeId && fp && (code === 'ssh.err.untrustedHost' || code === 'ssh.err.hostKeyChanged')) {
+                const box = document.createElement('div');
+                box.style.cssText = 'margin-top:8px;font-size:0.75rem;line-height:1.6';
+                const fpEl = document.createElement('div');
+                fpEl.textContent = 'SHA256: ' + fp;
+                const hint = document.createElement('div');
+                hint.textContent = T('set.dev.trustHint');
+                const okBtn = document.createElement('button');
+                okBtn.className = 'btn-secondary';
+                okBtn.textContent = T('set.dev.trustConfirm');
+                okBtn.addEventListener('click', async () => {
+                  okBtn.disabled = true;
+                  try {
+                    const r = await api.sshConfirmTrust(challengeId);
+                    showToast(r && r.ok ? T('set.dev.trustSaved') : T('set.dev.trustFailed'), !(r && r.ok));
+                  } catch (e) {
+                    showToast(T('set.dev.trustFailed'), true);
+                  }
+                  okBtn.disabled = false;
+                });
+                box.appendChild(fpEl);
+                box.appendChild(hint);
+                box.appendChild(okBtn);
+                resultEl.appendChild(box);
+              }
+            }
           }
         } catch (e) {
           if (resultEl) {
@@ -296,13 +360,24 @@ export function init(container, api) {
       });
     });
 
-    // 删除按钮
+    // 删除按钮（P0：按设备名删除，主进程原生确认）
     el.querySelectorAll('.btn-del-nas').forEach(btn => {
       btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.index);
-        config.nas_devices.splice(idx, 1);
-        renderNasTab();
-        await saveConfig();
+        const target = (config.nas_devices || [])[idx];
+        if (!target) return;
+        try {
+          const res = await api.deleteDevice(target.name);
+          if (!res || !res.ok) {
+            showToast(T('common.saveFailed', { message: backendErrorText(res) || T('common.unknownError') }), true);
+            return;
+          }
+          await loadConfig();
+          renderNasTab();
+          await applyReload();
+        } catch (e) {
+          showToast(T('common.saveFailed', { message: e.message }), true);
+        }
       });
     });
 
@@ -339,7 +414,7 @@ export function init(container, api) {
       </div>
       <div class="settings-group">
         <div class="settings-group-title">${T('ai.provider.cloud')}</div>
-        <div class="settings-row"><label>API Key</label><input type="password" id="ai-openai-key" value="${escapeAttr(openai.api_key || '')}" placeholder="sk-..." /></div>
+        <div class="settings-row"><label>API Key</label><input type="password" id="ai-openai-key" value="" placeholder="${openai.api_key && openai.api_key.configured ? T('set.ai.keyConfigured') : 'sk-...'}" /><button class="btn-secondary" id="btn-clear-ai-key">${T('set.ai.clearKey')}</button></div>
         <div class="settings-row"><label>${T('set.ai.addr')}</label><input type="text" id="ai-openai-url" value="${escapeAttr(openai.base_url || '')}" placeholder="https://api.example.com/v1" /></div>
         <div class="settings-row"><label>${T('set.ai.model')}</label><input type="text" id="ai-openai-model" value="${escapeAttr(openai.model || '')}" placeholder="gpt-4o / deepseek-chat / ..." /></div>
       </div>
@@ -405,8 +480,8 @@ export function init(container, api) {
         base_url: pickAi('#ai-ollama-url') || prevOllama.base_url || '',
         model: pickAi('#ai-ollama-model') || prevOllama.model || '',
       };
+      const typedKey = pickAi('#ai-openai-key');
       config.ai.openai = {
-        api_key: pickAi('#ai-openai-key') || prevOpenai.api_key || '',
         base_url: pickAi('#ai-openai-url') || prevOpenai.base_url || '',
         model: pickAi('#ai-openai-model') || prevOpenai.model || '',
       };
@@ -418,18 +493,41 @@ export function init(container, api) {
       if (!config.ai.history) config.ai.history = {};
       config.ai.history.enabled = !!(el.querySelector('#ai-history-toggle')?.checked);
       config.ai.history.limit = parseInt(el.querySelector('#ai-history-limit')?.value, 10) || 200;
-      await saveConfig();
-      window.dispatchEvent(new CustomEvent('ai-config-updated', { detail: { provider: config.ai.provider } }));
+      const dirty = typedKey ? ['ai.openai.api_key'] : [];
+      if (typedKey) config.ai.openai.api_key = typedKey;
+      const saved = await saveConfig(dirty);
+      if (saved) {
+        const keyInput = el.querySelector('#ai-openai-key');
+        if (keyInput) keyInput.value = '';   // P0：提交后立即清空前端输入框
+        window.dispatchEvent(new CustomEvent('ai-config-updated', { detail: { provider: config.ai.provider } }));
+        await loadConfig();
+        renderAiTab();
+      }
+    });
+
+    // 清除 API Key（显式操作；空值不会删除凭据）
+    el.querySelector('#btn-clear-ai-key')?.addEventListener('click', async () => {
+      try {
+        const res = await api.clearCredential('ai_key');
+        if (res && res.ok) {
+          showToast(T('set.ai.keyCleared'));
+          await loadConfig();
+          renderAiTab();
+        } else {
+          showToast(T('common.saveFailed', { message: backendErrorText(res) || T('common.unknownError') }), true);
+        }
+      } catch (e) {
+        showToast(T('common.saveFailed', { message: e.message }), true);
+      }
     });
 
     // 记忆：目录选择 / 查看列表 / 清空
     el.querySelector('#btn-ai-memory-dir')?.addEventListener('click', showMemoryDirModal);
     el.querySelector('#btn-ai-memory-list')?.addEventListener('click', refreshMemoryList);
     el.querySelector('#btn-ai-memory-clear')?.addEventListener('click', async () => {
-      const confirmed = await confirmMemoryDelete();
-      if (!confirmed) return;   // 取消或关闭对话框：什么都不做
       try {
-        const res = await api.sendCommand({ cmd: 'clear_ai_memory' });
+        const res = await api.memoryClear();
+        if (res && res.canceled) return;
         const ok = !!(res && res.ok);
         showToast(ok ? T('set.mem.cleared') : T('set.mem.clearFailed'), !ok);
       } catch (e) {
@@ -438,11 +536,11 @@ export function init(container, api) {
       refreshMemoryList();
     });
 
-    // 记忆去重：合并同一内容的不同写法（同一去重键只保留最早一条，不可逆，先确认）
+    // 记忆去重：合并同一内容的不同写法（主进程原生确认，不可逆）
     el.querySelector('#btn-ai-memory-dedupe')?.addEventListener('click', async () => {
-      if (!window.confirm(T('set.ai.memoryDedupeConfirm'))) return;
       try {
-        const res = await api.sendCommand({ cmd: 'dedupe_ai_memory' });
+        const res = await api.memoryDedupe();
+        if (res && res.canceled) return;
         const removed = (res && typeof res.removed === 'number') ? res.removed : 0;
         const ok = !!(res && res.ok);
         showToast(ok ? T('set.ai.memoryDedupeDone', { count: removed }) : T('set.mem.clearFailed'), !ok);
@@ -452,11 +550,11 @@ export function init(container, api) {
       refreshMemoryList();
     });
 
-    // 对话历史：清空（不可逆，先确认）
+    // 对话历史：清空（主进程原生确认，不可逆）
     el.querySelector('#btn-ai-history-clear')?.addEventListener('click', async () => {
-      if (!window.confirm(T('set.ai.historyClearConfirm'))) return;
       try {
-        const res = await api.sendCommand({ cmd: 'chat_history_clear' });
+        const res = await api.historyClear();
+        if (res && res.canceled) return;
         const ok = !!(res && res.ok);
         showToast(ok ? T('set.hist.cleared') : T('set.hist.clearFailed'), !ok);
       } catch (e) {
@@ -482,7 +580,8 @@ export function init(container, api) {
         <div class="modal-body">
           <div class="settings-row">
             <label>${T('set.memDir.label')}</label>
-            <input type="text" class="modal-mem-dir" value="${escapeAttr(current)}" placeholder="${T('set.memDir.ph')}" />
+            <input type="text" class="modal-mem-dir" value="${escapeAttr(current)}" placeholder="${T('set.memDir.ph')}" readonly />
+            <button class="btn-secondary modal-mem-pick">${T('set.ai.chooseDir')}</button>
           </div>
           <div style="color:var(--text-tertiary);font-size:0.72rem;line-height:1.6;margin-top:8px">
             ${T('set.memDir.hint1')}<br/>
@@ -506,6 +605,16 @@ export function init(container, api) {
     document.addEventListener('keydown', onKeyDown);
     overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
+    overlay.querySelector('.modal-mem-pick')?.addEventListener('click', async () => {
+      // W-02：目录必须由主进程原生选择器选定，renderer 不再手输任意路径。
+      try {
+        const res = await api.chooseMemoryDir();
+        if (res && res.ok && res.path) {
+          const input = overlay.querySelector('.modal-mem-dir');
+          if (input) input.value = res.path;
+        }
+      } catch (e) { /* 用户取消或原生选择器不可用时保持当前值 */ }
+    });
     overlay.querySelector('.modal-save-btn').addEventListener('click', () => {
       const value = overlay.querySelector('.modal-mem-dir')?.value?.trim() || '';
       const input = panelEls.ai.querySelector('#ai-memory-dir');
@@ -513,21 +622,6 @@ export function init(container, api) {
       closeModal();
       showToast(T('set.memDir.updated'));
     });
-  }
-
-  // ── AI 记忆：原生警告对话框确认（不可逆操作，最大化注意力） ──
-  async function confirmMemoryDelete() {
-    try {
-      if (!api || typeof api.confirmMemoryDelete !== 'function') {
-        console.warn(T('log.aiMemory.noConfirmApi'));
-        return false;
-      }
-      const r = await api.confirmMemoryDelete();
-      return !!(r && r.confirmed);
-    } catch (e) {
-      console.warn(T('log.aiMemory.confirmFailed', { error: e.message }));
-      return false;
-    }
   }
 
   // ── AI 记忆：列表渲染与单条删除 ──
@@ -541,7 +635,7 @@ export function init(container, api) {
     box.innerHTML = `<div style="color:var(--text-tertiary);font-size:0.75rem;padding:6px 0">${T('set.mem.loading')}</div>`;
     let data = null;
     try {
-      data = await api.sendCommand({ cmd: 'get_ai_memory' });
+      data = await api.memoryList();
     } catch (e) {
       data = null;
     }
@@ -565,7 +659,7 @@ export function init(container, api) {
             <div class="nas-device-sub">${escapeHtml(it.ts || '')}</div>
           </div>
           <div class="nas-device-actions">
-            <button class="nas-action-btn nas-action-del btn-del-memory" data-index="${it.index}">${T('common.delete')}</button>
+            <button class="nas-action-btn nas-action-del btn-del-memory" data-index="${it.index}" data-sha="${escapeAttr(it.sha256 || '')}">${T('common.delete')}</button>
           </div>
         </div>
       </div>
@@ -573,10 +667,10 @@ export function init(container, api) {
     box.querySelectorAll('.btn-del-memory').forEach(btn => {
       btn.addEventListener('click', async () => {
         const idx = parseInt(btn.dataset.index, 10);
-        const confirmed = await confirmMemoryDelete();
-        if (!confirmed) return;   // 取消或关闭对话框：不删除
         try {
-          const res = await api.sendCommand({ cmd: 'delete_ai_memory', index: idx });
+          // 主进程在 memory:delete 内部执行不可绕过的原生确认。
+          const res = await api.memoryDelete(idx, btn.dataset.sha);
+          if (res && res.canceled) { refreshMemoryList(); return; }
           const ok = !!(res && res.ok);
           showToast(ok ? T('set.mem.deleted') : T('set.mem.deleteFailed'), !ok);
         } catch (e) {
@@ -670,7 +764,7 @@ export function init(container, api) {
           <div class="settings-row" style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border)">
             <label>${T('set.language')}</label>
             <select id="cfg-language-select">
-              ${localeList.map((l) => `<option value="${l.code}"${l.code === curLang ? ' selected' : ''}>${l.nativeName || l.name || l.code}</option>`).join('')}
+              ${localeList.map((l) => `<option value="${escapeAttr(l.code)}"${l.code === curLang ? ' selected' : ''}>${escapeHtml(l.nativeName || l.name || l.code)}</option>`).join('')}
             </select>
           </div>
           <div class="settings-hint" style="font-size:0.72rem;color:var(--text-tertiary);margin-top:4px">${T('set.languageHint')}</div>
@@ -770,7 +864,7 @@ export function init(container, api) {
     const el = panelEls.about;
     el.innerHTML = `
       <div class="settings-group" style="text-align:center;padding:32px">
-        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab <span id="about-version">1.5.0</span></div>
+        <div style="font-size:1.4rem;font-weight:300;margin-bottom:8px">DigitalLab <span id="about-version">1.6.0</span></div>
         <div style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:20px">${T('set.about.slogan')}</div>
         <div style="color:var(--text-tertiary);font-size:0.75rem;line-height:1.8">
           <div>${T('set.about.features')}</div>
@@ -785,7 +879,7 @@ export function init(container, api) {
     `;
     el.querySelector('#btn-feedback').addEventListener('click', showFeedbackModal);
 
-    // 版本号动态读取（1.5.0）：先用静态文本兜底，IPC 返回后覆盖；调用失败则保留兜底值，绝不空白
+    // 版本号动态读取：先用与当前产品一致的静态兜底，IPC 返回后覆盖；读取失败时保留 1.6.0，绝不显示旧版本
     const verEl = el.querySelector('#about-version');
     if (verEl) {
       try {
@@ -838,40 +932,75 @@ export function init(container, api) {
     overlay.querySelector('.modal-close-btn').addEventListener('click', closeModal);
     overlay.querySelector('.modal-cancel-btn').addEventListener('click', closeModal);
 
-    // 邮件反馈：调起默认邮件客户端
+    // 邮件反馈：固定目的地（不接受任意 URL）
     overlay.querySelector('#feedback-mail').addEventListener('click', () => {
-      const subject = encodeURIComponent(T('set.fb.mailSubject'));
-      window.location.href = 'mailto:ZWWF0906@outlook.com?subject=' + subject;
+      api.openExternal('mailto');
     });
 
-    // GitHub 反馈：打开 Issues 创建页
+    // GitHub 反馈：固定 Issues 页面（由主进程 shell 打开）
     overlay.querySelector('#feedback-github').addEventListener('click', () => {
-      window.open('https://github.com/ZWWF0906/Digital-Lab/issues/new', '_blank');
+      api.openExternal('issues');
     });
   }
 
-  // ── 保存配置 ──
-  async function saveConfig() {
+  // ── 保存配置（P0：白名单 patch + dirty；空值不覆盖；高影响操作由主进程原生确认）──
+  function buildSettingsPatch() {
+    const patch = {};
+    if (config && config.ai) {
+      const ai = config.ai;
+      patch.ai = {
+        provider: ai.provider || 'ollama',
+        ollama: { base_url: (ai.ollama || {}).base_url || '', model: (ai.ollama || {}).model || '' },
+        openai: { base_url: (ai.openai || {}).base_url || '', model: (ai.openai || {}).model || '' },
+        memory: { enabled: !!(ai.memory || {}).enabled, dir: (ai.memory || {}).dir || '' },
+        history: {
+          enabled: (ai.history || {}).enabled !== false,
+          limit: parseInt((ai.history || {}).limit, 10) || 200,
+        },
+      };
+      if (ai.allow_insecure_http !== undefined) patch.ai.allow_insecure_http = ai.allow_insecure_http;
+      if (ai.ca_bundle !== undefined) patch.ai.ca_bundle = ai.ca_bundle;
+    }
+    ['monitor_interval', 'monitor_threshold_cpu', 'monitor_threshold_memory',
+      'monitor_threshold_disk', 'monitor_alert_cooldown', 'nas_interval', 'nas_mock_enabled'
+    ].forEach((key) => {
+      if (config && config[key] !== undefined) patch[key] = config[key];
+    });
+    return patch;
+  }
+
+  async function applyReload() {
     try {
-      const result = await api.saveConfig(config);
-      if (result.ok) {
-        showToast(T('set.saved'));
-        // 通知 Python 重载配置（含 NAS 监控重启）
-        try {
-          const reloadResult = await api.sendCommand({ cmd: 'reload_config' });
-          if (reloadResult && reloadResult.warnings && reloadResult.warnings.length > 0) {
-            showToast(T('set.savedPartial'), true);
-            console.warn('reload_config warnings:', reloadResult.warnings);
-          }
-        } catch (reloadErr) {
-          // 重载失败不阻塞保存成功提示，但给出警告
-          console.warn('reload_config failed:', reloadErr);
-        }
-      } else {
-        showToast(T('common.saveFailed', { message: backendErrorText(result) || T('common.unknownError') }), true);
+      const reloadResult = await api.reloadConfig();
+      if (reloadResult && reloadResult.warnings && reloadResult.warnings.length > 0) {
+        showToast(T('set.savedPartial'), true);
       }
+      return reloadResult;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function saveConfig(dirty) {
+    try {
+      const patch = buildSettingsPatch();
+      if (dirty && dirty.indexOf('ai.openai.api_key') >= 0 &&
+          config.ai && config.ai.openai &&
+          typeof config.ai.openai.api_key === 'string' && config.ai.openai.api_key) {
+        patch.ai.openai.api_key = config.ai.openai.api_key;
+      }
+      const result = await api.saveSettings(patch, dirty || []);
+      if (result && result.ok) {
+        showToast(T('set.saved'));
+        await applyReload();
+        return true;
+      }
+      if (result && result.canceled) return false;
+      showToast(T('common.saveFailed', { message: backendErrorText(result) || T('common.unknownError') }), true);
+      return false;
     } catch (e) {
       showToast(T('common.saveFailed', { message: e.message }), true);
+      return false;
     }
   }
 

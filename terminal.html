@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none';">
+  <title>DigitalLab Terminal</title>
+  <link rel="stylesheet" href="node_modules/@xterm/xterm/css/xterm.css">
+  <style>
+    html, body { margin: 0; height: 100%; background: #0c0c0c; color: #cccccc; font-family: "JetBrains Mono", monospace; }
+    #terminal-root { height: 100%; width: 100%; display: flex; flex-direction: column; }
+    #terminal-head { padding: 6px 10px; background: #141414; color: #9aa0a6; font-size: 12px; border-bottom: 1px solid #222; }
+    #terminal-view { flex: 1; min-height: 0; }
+    #terminal-status { padding: 4px 10px; font-size: 11px; color: #9aa0a6; }
+  </style>
+</head>
+<body>
+  <div id="terminal-root">
+    <div id="terminal-head">DigitalLab Terminal</div>
+    <div id="terminal-view"></div>
+    <div id="terminal-status">Starting…</div>
+  </div>
+  <script type="module" src="renderer-terminal.js"></script>
+</body>
+</html>

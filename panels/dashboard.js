@@ -7,6 +7,7 @@ const t = (key, params) => (
     ? window.DigitalLabI18n.t(key, params)
     : key
 );
+import { escapeHtml, escapeAttr, createEl, setText } from './safe-dom.js';
 
 const METRICS = [
   { key: 'cpu', labelKey: 'dash.metric.cpu', unit: '%', icon: '\u25C9', threshold: [60, 85] },
@@ -50,21 +51,109 @@ function fmtBytes(n) {
   return n.toFixed(1) + ' ' + u[i];
 }
 
-function renderProcesses(processes) {
+function safePct(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? Math.max(0, Math.min(100, n)) : 0;
+}
+
+// U01：NAS 卡片全部由显式 DOM 节点构造。uptime/last_error/设备名等远端文本
+// 只通过 textContent 进入 DOM，不经过 innerHTML 模板拼接。
+function nasCardEl(name, dev) {
+  const online = dev.online !== false;
+  const cpu = safePct(dev.cpu);
+  const mem = safePct(dev.memory && dev.memory.percent);
+  const disk = safePct(dev.disk && dev.disk.percent);
+  const card = createEl('div', { className: 'metric-card nas-card' });
+  if (!online) card.style.opacity = '0.35';
+
+  const header = createEl('div', { className: 'mc-header' });
+  header.appendChild(createEl('span', { className: 'mc-status ' + (online ? 'ok' : 'danger') }));
+  header.appendChild(createEl('span', { className: 'mc-label', textContent: '\u{1F4E1} ' + String(name) }));
+  if (!online) {
+    const retry = createEl('button', { className: 'nas-retry-btn', textContent: t('dash.nas.retry') });
+    retry.dataset.device = String(name);
+    header.appendChild(retry);
+  }
+  card.appendChild(header);
+
+  const multi = createEl('div', { className: 'mc-multi' });
+  const metrics = [
+    { label: 'CPU', value: cpu, thresholds: [60, 85] },
+    { label: t('dash.hw.memory'), value: mem, thresholds: [70, 90] },
+    { label: t('dash.metric.disk'), value: disk, thresholds: [75, 92] },
+  ];
+  metrics.forEach((metric) => {
+    const mini = createEl('div', { className: 'mc-mini' });
+    mini.appendChild(createEl('span', { className: 'mc-mini-label', textContent: metric.label }));
+    const val = createEl('span', { className: 'mc-mini-val', textContent: metric.value.toFixed(1) + '%' });
+    val.style.color = statusColor(metric.value, metric.thresholds);
+    mini.appendChild(val);
+    const wrap = createEl('div', { className: 'mc-bar-wrap' });
+    const bar = createEl('div', { className: 'mc-bar' });
+    bar.style.width = metric.value + '%';
+    bar.style.background = statusColor(metric.value, metric.thresholds);
+    wrap.appendChild(bar);
+    mini.appendChild(wrap);
+    multi.appendChild(mini);
+  });
+  card.appendChild(multi);
+
+  const info = createEl('div', { className: 'mc-info' });
+  if (dev.temperature != null) info.appendChild(document.createTextNode('\u{1F321} ' + String(dev.temperature) + '°C'));
+  if (dev.uptime) info.appendChild(document.createTextNode((info.textContent ? ' | ' : '') + '\u23F1 ' + String(dev.uptime)));
+  if (!online && dev.last_error) info.appendChild(document.createTextNode((info.textContent ? ' | ' : '') + '\u26A0 ' + String(dev.last_error).slice(0, 200)));
+  card.appendChild(info);
+  return card;
+}
+
+function nasEmptyEl(text) {
+  const box = createEl('div', { className: 'mc-empty' });
+  box.appendChild(document.createTextNode(text));
+  const wrap = createEl('div', { style: 'margin-top:12px' });
+  wrap.appendChild(createEl('button', { className: 'btn-secondary', id: 'nas-add-device', textContent: t('dash.nas.addDevice') }));
+  box.appendChild(wrap);
+  return box;
+}
+
+function renderNasCards(grid, entries) {
+  const frag = document.createDocumentFragment();
+  if (!entries.length) {
+    frag.appendChild(nasEmptyEl(t('dash.nas.emptyLocal')));
+    grid.replaceChildren(frag);
+    grid.removeAttribute('data-animated');
+    return;
+  }
+  if (entries.every(([, dev]) => dev && dev.online === false)) {
+    frag.appendChild(nasEmptyEl(t('dash.nas.offline')));
+  }
+  entries.forEach(([name, dev]) => frag.appendChild(nasCardEl(name, dev || {})));
+  grid.replaceChildren(frag);
+}
+
+export function renderProcesses(processes) {
   const tbody = document.getElementById('proc-tbody');
   if (!tbody) return;
   if (!processes || !processes.length) {
-    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--text-tertiary);padding:24px">${t('dash.proc.empty')}</td></tr>`;
+    const tr = createEl('tr');
+    tr.appendChild(createEl('td', {
+      colspan: '5',
+      style: 'text-align:center;color:var(--text-tertiary);padding:24px',
+      textContent: t('dash.proc.empty'),
+    }));
+    tbody.replaceChildren(tr);
     return;
   }
-  tbody.innerHTML = processes.map(p => `
-    <tr>
-      <td class="proc-name">${(p.name || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</td>
-      <td class="proc-num">${(p.cpu || 0).toFixed(1)}</td>
-      <td class="proc-num">${(p.memory || 0).toFixed(1)}</td>
-      <td class="proc-num">${fmtBytes(p.rss)}</td>
-      <td class="proc-pid">${p.pid}</td>
-    </tr>`).join('');
+  const frag = document.createDocumentFragment();
+  processes.slice(0, 15).forEach((p) => {
+    const tr = createEl('tr');
+    tr.appendChild(createEl('td', { className: 'proc-name', textContent: p.name || '' }));
+    tr.appendChild(createEl('td', { className: 'proc-num', textContent: (Number(p.cpu) || 0).toFixed(1) }));
+    tr.appendChild(createEl('td', { className: 'proc-num', textContent: (Number(p.memory) || 0).toFixed(1) }));
+    tr.appendChild(createEl('td', { className: 'proc-num', textContent: fmtBytes(p.rss) }));
+    tr.appendChild(createEl('td', { className: 'proc-pid', textContent: String(p.pid == null ? '' : p.pid) }));
+    frag.appendChild(tr);
+  });
+  tbody.replaceChildren(frag);
 }
 
 function renderHardwareLocal(hardware) {
@@ -117,10 +206,10 @@ function renderHardwareLocal(hardware) {
 
   grid.innerHTML = cards.map(c => `
     <div class="hw-card">
-      <div class="hw-icon">${c.icon}</div>
-      <div class="hw-title">${c.title}</div>
-      <div class="hw-model">${c.model.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>
-      <div class="hw-detail">${c.detail}</div>
+      <div class="hw-icon">${escapeHtml(c.icon)}</div>
+      <div class="hw-title">${escapeHtml(c.title)}</div>
+      <div class="hw-model">${escapeHtml(c.model)}</div>
+      <div class="hw-detail">${escapeHtml(c.detail)}</div>
     </div>`).join('');
 }
 
@@ -142,22 +231,22 @@ function renderHardwareNas(nasData) {
       return `
         <div class="hw-card nas-hw-card">
           <div class="hw-icon">\u{1F4E1}</div>
-          <div class="hw-title">${name}</div>
-          <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${dev.host || ''}</div>
+          <div class="hw-title">${escapeHtml(name)}</div>
+          <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${escapeHtml(dev.host || '')}</div>
           <div class="nas-hw-rows"><div class="nas-hw-row"><span>${t('dash.nasHw.collecting')}</span></div></div>
         </div>`;
     }
     return `
       <div class="hw-card nas-hw-card">
         <div class="hw-icon">\u{1F4E1}</div>
-        <div class="hw-title">${name}</div>
-        <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${dev.host || ''}</div>
+        <div class="hw-title">${escapeHtml(name)}</div>
+        <div class="hw-model" style="font-size:0.8rem;color:var(--text-secondary)">${escapeHtml(dev.host || '')}</div>
         <div class="nas-hw-rows">
-          <div class="nas-hw-row"><span>CPU</span><span>${hw.cpu_model || t('dash.unknown')}</span></div>
-          <div class="nas-hw-row"><span>${t('dash.nasHw.cores')}</span><span>${hw.cpu_cores || t('dash.unknown')}</span></div>
-          <div class="nas-hw-row"><span>${t('dash.hw.memory')}</span><span>${hw.memory_total || t('dash.unknown')}</span></div>
-          <div class="nas-hw-row"><span>${t('dash.metric.disk')}</span><span>${hw.disk_total || t('dash.unknown')} (${hw.disk_model || t('dash.unknown')})</span></div>
-          <div class="nas-hw-row"><span>${t('dash.hw.system')}</span><span>${hw.os || t('dash.unknown')}</span></div>
+          <div class="nas-hw-row"><span>CPU</span><span>${escapeHtml(hw.cpu_model || t('dash.unknown'))}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.nasHw.cores')}</span><span>${escapeHtml(hw.cpu_cores || t('dash.unknown'))}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.hw.memory')}</span><span>${escapeHtml(hw.memory_total || t('dash.unknown'))}</span></div>
+          <div class="nas-hw-row"><span>${t('dash.metric.disk')}</span><span>${escapeHtml(hw.disk_total || t('dash.unknown'))} (${escapeHtml(hw.disk_model || t('dash.unknown'))})</span></div>
+          <div class="nas-hw-row"><span>${t('dash.hw.system')}</span><span>${escapeHtml(hw.os || t('dash.unknown'))}</span></div>
         </div>
       </div>`;
   }).join('');
@@ -337,67 +426,14 @@ export function init(container, api) {
     if (nasGrid && nasSig !== lastNasSig) {
       lastNasSig = nasSig;
       const nasEntries = Object.entries(nas);
-      // 空状态块：一句说明 + "去添加设备"入口（按钮复用 .btn-secondary，不新增 CSS）
-      const nasActionBlock = (text) => `
-        <div class="mc-empty">${text}
-          <div style="margin-top:12px"><button class="btn-secondary" id="nas-add-device">${t('dash.nas.addDevice')}</button></div>
-        </div>`;
-      if (nasEntries.length === 0) {
-        // state.nas 里一个键都没有 = 从未配置过 NAS：中性说明，不用命令式口吻
-        nasGrid.innerHTML = nasActionBlock(t('dash.nas.emptyLocal'));
-        nasGrid.removeAttribute('data-animated');
-      } else {
-        // 有键但全部 offline = 配置过、只是当前都不在线：卡片照旧渲染，上方补一行离线说明
-        const allOffline = nasEntries.every(([, dev]) => dev && dev.online === false);
-        const offlineNote = allOffline ? nasActionBlock(t('dash.nas.offline')) : '';
-        nasGrid.innerHTML = offlineNote + nasEntries.map(([name, dev]) => {
-          const online = dev.online !== false;
-          const cpu = dev.cpu != null ? dev.cpu : 0;
-          const mem = dev.memory?.percent ?? 0;
-          const disk = dev.disk?.percent ?? 0;
-          const opacity = online ? '' : 'style="opacity:0.35"';
-          const status = online
-            ? '<span class="mc-status ok"></span>'
-            : '<span class="mc-status danger"></span>';
-
-          return `
-            <div class="metric-card nas-card" ${opacity}>
-              <div class="mc-header">
-                ${status}
-                <span class="mc-label">\u{1F4E1} ${name}</span>
-                ${!online ? `<button class="nas-retry-btn" data-device="${name}">${t('dash.nas.retry')}</button>` : ''}
-              </div>
-              <div class="mc-multi">
-                <div class="mc-mini">
-                  <span class="mc-mini-label">CPU</span>
-                  <span class="mc-mini-val" style="color:${statusColor(cpu, [60,85])}">${cpu.toFixed(1)}%</span>
-                  <div class="mc-bar-wrap"><div class="mc-bar" style="width:${cpu}%;background:${statusColor(cpu, [60,85])}"></div></div>
-                </div>
-                <div class="mc-mini">
-                  <span class="mc-mini-label">${t('dash.hw.memory')}</span>
-                  <span class="mc-mini-val" style="color:${statusColor(mem, [70,90])}">${mem.toFixed(1)}%</span>
-                  <div class="mc-bar-wrap"><div class="mc-bar" style="width:${mem}%;background:${statusColor(mem, [70,90])}"></div></div>
-                </div>
-                <div class="mc-mini">
-                  <span class="mc-mini-label">${t('dash.metric.disk')}</span>
-                  <span class="mc-mini-val" style="color:${statusColor(disk, [75,92])}">${disk.toFixed(1)}%</span>
-                  <div class="mc-bar-wrap"><div class="mc-bar" style="width:${disk}%;background:${statusColor(disk, [75,92])}"></div></div>
-                </div>
-              </div>
-              <div class="mc-info">
-                ${dev.temperature != null ? `\u{1F321} ${dev.temperature}°C` : ''}
-                ${dev.uptime ? ` | \u23F1 ${dev.uptime}` : ''}
-                ${!online && dev.last_error ? ` | \u26A0 ${dev.last_error.slice(0, 30)}` : ''}
-              </div>
-            </div>`;
-        }).join('');
+      renderNasCards(nasGrid, nasEntries);
 
         nasGrid.querySelectorAll('.nas-retry-btn').forEach(btn => {
           btn.addEventListener('click', async () => {
             btn.textContent = t('dash.nas.retrying');
             btn.disabled = true;
             try {
-              await api.sendCommand({ cmd: 'reload_config' });
+              await api.reloadConfig();
             } catch (e) {}
             setTimeout(() => { btn.textContent = t('dash.nas.retry'); btn.disabled = false; }, 3000);
           });
@@ -408,7 +444,6 @@ export function init(container, api) {
         if (!nasGrid.hasAttribute('data-animated')) {
           setTimeout(() => nasGrid.setAttribute('data-animated', '1'), 900);
         }
-      }
     }
 
     // Update hardware section（数据未变则跳过重建）

@@ -35,6 +35,7 @@
     'dlg.memoryDelete.message': '警告：删除记忆操作不可逆，可能涉及重要数据，谨慎操作！',
     'dlg.memoryDelete.delete':  '删除',
     'dlg.memoryDelete.cancel':  '取消',
+    'dlg.continue':             '继续',
 
     // 设置面板：语言
     'set.language':     '语言',
@@ -177,6 +178,13 @@
     'set.dev.testOk':     '✓ 连接成功',
     'set.dev.testFail':   '✗ {message}',
     'set.dev.connFailed': '连接失败',
+    'set.dev.passConfigured': '已配置（留空不修改）',
+    'set.dev.clearPass':      '清除已保存密码',
+    'set.dev.needFields':     '请填写设备名称与地址',
+    'set.dev.trustHint':      '首次连接需要在 NAS 控制台执行 ssh-keygen -lf /etc/ssh/ssh_host_*_key.pub 核对指纹，确认一致后再继续。',
+    'set.dev.trustConfirm':   '我已核对，信任此主机',
+    'set.dev.trustSaved':     '已保存主机指纹',
+    'set.dev.trustFailed':    '保存主机指纹失败',
     // AI 配置分页（提供方名称复用 ai.provider.*，不重复定义）
     'set.ai.providerTitle':    'AI 提供方',
     'set.ai.defaultModel':     '默认模型',
@@ -202,11 +210,14 @@
     'set.hist.cleared':           '对话历史已清空',
     'set.hist.clearFailed':       '清空对话历史失败',
     'set.ai.save':             '保存 AI 配置',
+    'set.ai.keyConfigured':    '已配置（输入新值可替换）',
+    'set.ai.clearKey':         '清除密钥',
+    'set.ai.keyCleared':       '已清除 API Key',
     // 记忆存储目录对话框
     'set.memDir.title':   '选择记忆存储目录',
     'set.memDir.label':   '目录',
     'set.memDir.ph':      '留空使用默认目录',
-    'set.memDir.hint1':   '填写绝对路径；留空表示使用默认目录 %APPDATA%\\DigitalLab\\memory。',
+    'set.memDir.hint1':   '使用“选择目录”按钮选择本地目录；留空表示使用默认目录 %APPDATA%\\DigitalLab\\memory。',
     'set.memDir.hint2':   '更改目录并保存后，旧记忆文件会复制到新目录，旧文件保留。',
     'set.memDir.updated': '目录已更新，保存后生效',
     // 记忆列表
@@ -251,7 +262,7 @@
     'set.about.slogan':   '个人数字实验室',
     'set.about.features': '仪表盘 · 终端 · AI 助手 · 系统监控',
     'set.about.author':   '作者：ZWWF0906',
-    'set.about.license':  'DigitalLab 开源软件，遵循 MIT 许可',
+    'set.about.license':  'DigitalLab 开源软件，遵循 ISC 许可',
     'set.about.feedback': '问题反馈',
     // 问题反馈对话框
     'set.fb.title':       '问题反馈与举报',
@@ -302,6 +313,14 @@
     'ai.err.cloudUnavailable':     '云端模型服务暂时不可用，请稍后重试',
     'ai.err.cloudHttpError':       '云端模型返回异常 (HTTP {status})',
     'ai.err.internal':             'AI 请求内部错误：{detail}',
+    'ai.err.streamTooLarge':       'AI 流式响应超过安全大小上限，已中止本次请求',
+    'ai.err.caBundleUnavailable':  '自定义 CA 证书不可用，已停止请求（不会退回系统信任）',
+    'ai.err.busy':                 '已有 AI 请求正在进行，请稍后再试',
+    'ipc.err.busy':                '当前已有同类操作正在进行，请稍后再试',
+    'cfg.err.pathNotApproved':     '该路径未通过系统选择器授权，请使用“选择目录”按钮',
+    'cfg.err.secretStorageUnavailable': '系统安全存储不可用，已拒绝以明文保存凭据',
+    'cfg.err.memoryMigrationFailed': '记忆目录迁移失败；已保留原目录和原数据，未切换配置',
+    'nas.err.rateLimited':         '操作过于频繁，请稍后再试',
     // 终端错误（main.py 的 ssh_terminal_init）
     'term.err.deviceNotConfigured': '未找到设备配置: {host}',
     'term.err.deviceUserMissing':   '设备未配置用户名: {host}',

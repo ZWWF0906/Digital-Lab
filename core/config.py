@@ -230,16 +230,9 @@ class Config:
                 data.update(user_data)
             except Exception:
                 pass
-        else:
-            # 首次迁移：config.json 中仍有敏感字段时，自动迁移到 AppData
-            sensitive_in_config = {k: data[k] for k in _SENSITIVE_KEYS if k in data}
-            if sensitive_in_config:
-                try:
-                    os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
-                    with open(user_config_path, "w", encoding="utf-8") as f:
-                        json.dump(sensitive_in_config, f, indent=2, ensure_ascii=False)
-                except Exception:
-                    pass
+        # 敏感字段迁移由 core.secret_store.ensure_credentials_ready() 在运行时入口
+        # 统一完成；这里不得再创建明文 user_config，也不得把 legacy 敏感字段
+        # 当作配置实例字段使用。
 
         data["config_file"] = config_path
         known = {f.name for f in fields(cls)}

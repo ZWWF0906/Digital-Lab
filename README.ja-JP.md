@@ -8,7 +8,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
 [![Local-First](https://img.shields.io/badge/local--first-important)](https://github.com/ZWWF0906/Digital-Lab)
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20API-9cf)](https://github.com/ZWWF0906/Digital-Lab)
@@ -23,6 +23,8 @@
 </div>
 
 個人向けデジタルラボプラットフォーム — 個人のデバイス管理、データ感知、AI 拡張のためのデスクトップアプリ。ローカル優先・モジュール式・拡張可能で、あなたのパソコンをプログラミング可能で感知可能、対話可能なデジタルワークスペースに変えます。
+
+> **リリースチャネル**：DigitalLab 1.6.0 は GitHub で単体インストーラーを提供する最後のバージョンです。1.6.1 以降の正式版は Microsoft Store のみで配布され、GitHub はソース、ドキュメント、コラボレーションの場として継続します。
 
 ---
 

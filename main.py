@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import collections
 import concurrent.futures
+import hashlib
 import io
 import sys
 import os
@@ -533,6 +534,16 @@ def cmd_json_mode():
     except Exception:
         pass
 
+    # BB-C1-01-R1：统一迁移 legacy config.json + user_config.json；失败时运行时阻断。
+    try:
+        from core import secret_store as _secret_store
+        _mig = _secret_store.ensure_credentials_ready()
+        if not _mig.get("ok"):
+            print("credential migration blocked: %s" % _mig.get("error", "failed"),
+                  file=sys.stderr, flush=True)
+    except Exception:
+        pass
+
     # 初始化
     from core.config import get_config
     from core.collector import start_collector
@@ -542,7 +553,7 @@ def cmd_json_mode():
     start_collector()
 
     # 启动 NAS 远程监控
-    from core.nas_monitor import start_nas_monitor, stop_nas_monitor
+    from core.nas_monitor import start_nas_monitor, stop_nas_monitor, sanitize_nas_state
     import atexit
     start_nas_monitor()
     atexit.register(stop_nas_monitor)
@@ -599,7 +610,7 @@ def cmd_json_mode():
                 ],
             },
             "hardware": _format_hardware(_latest_hardware),
-            "nas": snap.get("nas", {}),
+            "nas": sanitize_nas_state(snap.get("nas", {})),
             # 告警通知（阶段 1.4）：只带最近 5 条，随状态帧下发；前端按 seq 去重
             "alerts": monitor.get("alerts_history", [])[-5:],
         }
@@ -825,17 +836,21 @@ def cmd_json_mode():
             ssh_host = device.get("host", host)
             ssh_port = int(device.get("port", 22)) if device.get("port") else 22
 
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                hostname=ssh_host,
-                port=ssh_port,
-                username=username,
-                password=password,
-                timeout=10,
-                banner_timeout=10,
-                auth_timeout=10,
-            )
+            # P0（S1）：统一通过信任库建链；未信任/指纹变化在认证之前中止
+            try:
+                client = _ssh_trust.connect_ssh(
+                    ssh_host, ssh_port, username, password,
+                    timeout=10, banner_timeout=10, auth_timeout=10,
+                )
+            except _ssh_trust.UntrustedHost as e:
+                return {"error": {"code": e.code, "params": {
+                    "host": ssh_host, "port": ssh_port,
+                    "fingerprint": e.params.get("fingerprint", "")}}}
+            except _ssh_trust.HostKeyChanged as e:
+                return {"error": {"code": e.code, "params": {
+                    "host": ssh_host, "port": ssh_port,
+                    "old_fingerprint": e.params.get("old_fingerprint", ""),
+                    "new_fingerprint": e.params.get("new_fingerprint", "")}}}
 
             # 会话建立即使用前端真实尺寸，消除连接后再 resize 的首屏错位窗口期
             channel = client.invoke_shell(
@@ -872,6 +887,13 @@ def cmd_json_mode():
                     pass
                 finally:
                     _handle_terminal_close(sid)
+                    # 后端侧 channel 关闭时主动通知主进程，避免 Terminal 窗口
+                    # 在 SSH 已断开后仍显示 Connected。
+                    _safe_print(json.dumps({
+                        "session_id": sid,
+                        "closed": True,
+                        "reason": "backend_disconnected",
+                    }, ensure_ascii=False), flush=True)
 
             def _stderr_drainer():
                 """排空远端 SSH stderr（仅丢弃），防止 stderr 缓冲积压阻塞通道。"""
@@ -1216,7 +1238,18 @@ def cmd_json_mode():
                         reply_text, _found = _aim.extract_markers(result)
                     if _found and _aim.settings().get("enabled"):
                         for _item in _found:
-                            _r = _aim.append(_item)
+                            # v1.6.0：给提取到的记忆补上 kind/tags/source，
+                            # 让 1.5.0 铺设的结构化字段真正参与检索与过滤
+                            try:
+                                _meta = _aim.derive_metadata(_item)
+                            except Exception:
+                                _meta = {"kind": "fact", "tags": []}
+                            _r = _aim.append(
+                                _item,
+                                kind=_meta.get("kind", "fact"),
+                                tags=_meta.get("tags") or [],
+                                source="chat",
+                            )
                             # 库存已有相同内容（归一化比较）时跳过，不写入也不提示“已记住”
                             if _r and not _r.get("duplicate"):
                                 memory_saved.append(_item)
@@ -1243,166 +1276,761 @@ def cmd_json_mode():
         threading.Thread(target=_run, daemon=True).start()
 
     # ── 配置管理 ──
-    def _get_config_data():
-        import json, os
-        from dataclasses import asdict
-        from core.config import _get_user_config_path, _SENSITIVE_KEYS
-        config_path = cfg.config_file
-        raw = {}
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-            except Exception:
-                pass
-        # 合并用户敏感配置（nas_devices、ai、auth_token 等）
-        user_config_path = _get_user_config_path()
-        if os.path.exists(user_config_path):
-            try:
-                with open(user_config_path, "r", encoding="utf-8") as f:
-                    user_data = json.load(f)
-                raw.update(user_data)
-            except Exception:
-                pass
-        # 过滤掉 IPC 协议字段（防止 config.json 被污染后循环传染）
-        raw = {k: v for k, v in raw.items()
-               if k not in ("__cmd_response__", "requestId")}
-        defaults = asdict(cfg)
-        defaults.pop("config_file", None)
-        for k, v in defaults.items():
-            if k not in raw or not raw[k]:
-                raw[k] = v
-        return raw
+    # ══════════════════════════════════════════════════════════════════
+    # P0 安全边界（DL-SEC-02）：配置字段白名单、凭据脱敏、原子写入、
+    # NAS 目标收口、SSH 主机密钥信任（S1/S2/S5/S8）
+    # ══════════════════════════════════════════════════════════════════
+    from core import net_policy as _net_policy
+    from core import ssh_trust as _ssh_trust
+    from core.config import _get_user_config_path
+    import os
+    import re as _re
 
-    def _save_config_data(new_config):
-        import json, os
-        from core.config import _get_user_config_path, _SENSITIVE_KEYS, BASE_DATA_DIR
-        # 记忆目录变更时迁移旧文件（shutil.copy，不删旧文件；失败不影响保存）
+    _FORBIDDEN_KEYS = {"__proto__", "constructor", "prototype"}
+    _AI_PROVIDERS = {"ollama", "openai"}
+    _LANG_VALUES = {"zh-CN", "en-US", "ja-JP"}
+
+    # 渲染进程可读字段（凭据不在其中，凭据只返回 configured/mask）
+    _CONFIG_READ_FIELDS = (
+        "ai.provider",
+        "ai.ollama.base_url", "ai.ollama.model",
+        "ai.openai.base_url", "ai.openai.model",
+        "ai.memory.enabled", "ai.memory.dir",
+        "ai.history.enabled", "ai.history.limit",
+        "ai.allow_insecure_http", "ai.ca_bundle",
+        "monitor_interval", "monitor_alert_cooldown",
+        "monitor_threshold_cpu", "monitor_threshold_memory", "monitor_threshold_disk",
+        "nas_interval", "nas_mock_enabled",
+    )
+    # 渲染进程可写字段（api_key 仅 dirty 时写入；nas_devices 走 save_device）
+    _CONFIG_WRITE_FIELDS = frozenset(_CONFIG_READ_FIELDS) | {"ai.openai.api_key"}
+
+    def _err_resp(code, **params):
+        return {"ok": False, "error": {"code": code, "params": params}}
+
+    def _load_json_file(path):
         try:
-            _new_ai = new_config.get("ai") if isinstance(new_config, dict) else None
-            _new_mem = _new_ai.get("memory") if isinstance(_new_ai, dict) else None
-            _new_dir = _new_mem.get("dir") if isinstance(_new_mem, dict) else None
-            if isinstance(_new_dir, str) and _new_dir.strip():
-                from core import ai_memory as _aim
-                _old_dir = _aim.config_dir()
-                if _old_dir and os.path.abspath(_old_dir) != os.path.abspath(_new_dir.strip()):
-                    _aim.migrate(_old_dir, _new_dir.strip())
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception:
+            return {}
+
+    def _atomic_write_json(path, data):
+        """原子写 JSON：同目录 tmp + fsync + os.replace。
+
+        注意：原子替换不等于突然断电后的持久性保证（P1 迁移需分别测试
+        进程崩溃、系统崩溃与断电），这里只保证不会出现半截文件。
+        """
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+            f.flush()
+            os.fsync(f.fileno())
+        os.replace(tmp, path)
+
+    def _reject_forbidden(value, depth=0):
+        if depth > 8:
+            raise ValueError("nesting too deep")
+        if isinstance(value, dict):
+            for key, sub in value.items():
+                if not isinstance(key, str):
+                    raise ValueError("non-string key")
+                if key in _FORBIDDEN_KEYS:
+                    raise ValueError("forbidden key: " + key)
+                _reject_forbidden(sub, depth + 1)
+        elif isinstance(value, list):
+            for item in value:
+                _reject_forbidden(item, depth + 1)
+
+    def _mask_secret(value):
+        text = value if isinstance(value, str) else ""
+        if not text:
+            return {"configured": False, "mask": ""}
+        # BB-C1-01：密文也不返回尾部，避免把密文当敏感信息泄露。
+        try:
+            from core import secret_store as _ss
+            if _ss.is_protected(text):
+                return {"configured": True, "mask": "••••"}
         except Exception:
             pass
-        config_path = cfg.config_file
-        # 安全校验：确保写入路径在 APPDATA\DigitalLab 下，绝不写入安装目录（MSIX 只读）
-        _appdata_root = os.path.abspath(BASE_DATA_DIR)
-        if not os.path.abspath(config_path).startswith(_appdata_root):
-            config_path = os.path.join(BASE_DATA_DIR, "config.json")
-        # 过滤掉 IPC 协议字段和路径字段（路径由运行时自动检测，不写入配置文件）
-        _skip_keys = {
-            "__cmd_response__", "requestId",
-            "lab_root", "tools_dir", "logs_dir", "experiments_dir",
-            "notes_dir", "archive_dir", "interface_dir",
-            "monitor_db_path", "monitor_pid_path", "monitor_log_path",
-            "config_file",
-        }
-        clean = {k: v for k, v in new_config.items() if k not in _skip_keys}
-        try:
-            # 确保目录存在
-            os.makedirs(os.path.dirname(config_path), exist_ok=True)
-            # 非敏感字段写入 config.json
-            public = {k: v for k, v in clean.items() if k not in _SENSITIVE_KEYS}
-            with open(config_path, "w", encoding="utf-8") as f:
-                json.dump(public, f, indent=2, ensure_ascii=False)
-            # 敏感字段（API Key、Token 等）写入 AppData
-            sensitive = {k: v for k, v in clean.items() if k in _SENSITIVE_KEYS}
-            if sensitive:
-                user_config_path = _get_user_config_path()
-                # 安全校验：user_config_path 也必须在 APPDATA 下
-                if not os.path.abspath(user_config_path).startswith(_appdata_root):
-                    user_config_path = os.path.join(BASE_DATA_DIR, "user_config.json")
-                user_data = {}
-                if os.path.exists(user_config_path):
-                    try:
-                        with open(user_config_path, "r", encoding="utf-8") as f:
-                            user_data = json.load(f)
-                    except Exception:
-                        pass
-                user_data.update(sensitive)
-                os.makedirs(os.path.dirname(user_config_path), exist_ok=True)
-                with open(user_config_path, "w", encoding="utf-8") as f:
-                    json.dump(user_data, f, indent=2, ensure_ascii=False)
-            return {"ok": True}
-        except Exception as e:
-            return {"error": str(e)}
+        if len(text) > 8:
+            return {"configured": True, "mask": "…" + text[-4:]}
+        return {"configured": True, "mask": "…"}
 
-    def _nas_connection_test(device):
-        """同步连通性测试（真正会阻塞的部分）。"""
-        import paramiko
+    def _public_device(device):
+        if not isinstance(device, dict):
+            return None
+        out = {}
+        for key in ("name", "host", "port", "username", "interval"):
+            if key in device:
+                out[key] = device[key]
+        out["password_configured"] = bool(device.get("password"))
+        return out
+
+    def _raw_configs():
+        # 以 dataclass 默认值为底，保证全新安装（无 config.json）时白名单字段也有默认值
         try:
-            client = paramiko.SSHClient()
-            client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-            client.connect(
-                hostname=device.get("host", ""),
-                port=device.get("port", 22),
-                username=device.get("username", ""),
-                password=device.get("password", ""),
-                timeout=5,
-                banner_timeout=5,
-                auth_timeout=5,
+            from dataclasses import asdict as _asdict
+            merged = dict(_asdict(cfg))
+        except Exception:
+            merged = {}
+        public_raw = _load_json_file(cfg.config_file)
+        user = _load_json_file(_get_user_config_path())
+        # 旧 config.json 的敏感块只保留在 raw 文件中用于迁移失败时的数据保全，
+        # 绝不再进入 merged，也不提供给运行时的凭据解析。
+        public_safe = dict(public_raw)
+        try:
+            from core.secret_store import SENSITIVE_KEYS as _SENSITIVE_KEYS
+            for _k in _SENSITIVE_KEYS:
+                public_safe.pop(_k, None)
+        except Exception:
+            pass
+        merged.update(public_safe)
+        merged.update(user)
+        # 返回 raw public 供“保存非敏感配置”时不意外删除旧数据；merged 已隔离。
+        return public_raw, user, merged
+
+    def _flatten_patch(node, prefix=None, out=None):
+        prefix = list(prefix or [])
+        out = out if out is not None else {}
+        if isinstance(node, dict):
+            for key, sub in node.items():
+                # W-01：扁平点号键会与嵌套键产生等价路径，必须拒绝而非猜测。
+                if not isinstance(key, str) or not key or "." in key:
+                    raise ValueError("ambiguousPath")
+                _flatten_patch(sub, prefix + [key], out)
+        else:
+            if not prefix:
+                raise ValueError("emptyPath")
+            path = ".".join(prefix)
+            if path in out:
+                raise ValueError("duplicatePath")
+            out[path] = node
+        return out
+
+    def _apply_path(doc, path, value):
+        parts = path.split(".")
+        cur = doc
+        for part in parts[:-1]:
+            nxt = cur.get(part)
+            if not isinstance(nxt, dict):
+                nxt = {}
+                cur[part] = nxt
+            cur = nxt
+        cur[parts[-1]] = value
+
+    def _validate_url_value(value):
+        text = value.strip() if isinstance(value, str) else ""
+        if not text:
+            return None
+        from urllib.parse import urlsplit
+        try:
+            parsed = urlsplit(text)
+        except Exception:
+            return "URL 解析失败"
+        if (parsed.scheme or "").lower() not in ("http", "https"):
+            return "仅允许 http/https"
+        if parsed.username or parsed.password:
+            return "URL 不允许包含账号信息"
+        if not parsed.hostname:
+            return "URL 缺少主机"
+        return None
+
+    def _validate_http_exception(entry):
+        """HTTP 例外只允许私有/Tailscale 的 IP 字面量（可带端口）。"""
+        text = entry.strip() if isinstance(entry, str) else ""
+        if not text:
+            return "为空"
+        if "://" in text:
+            return "不允许包含协议前缀"
+        host, port = text, "80"
+        if text.startswith("[") and "]" in text:
+            host, _, rest = text[1:].partition("]")
+            port = rest.lstrip(":") or "80"
+        elif ":" in text:
+            host, _, port = text.partition(":")
+        import ipaddress
+        try:
+            ip = ipaddress.ip_address(host)
+        except Exception:
+            return "只允许 IP 字面量（域名禁止）"
+        category = _net_policy.classify_ip(ip)
+        if category not in ("private", "tailscale"):
+            return "不允许该地址类别: " + category
+        try:
+            port_num = int(port)
+        except Exception:
+            return "端口非法"
+        if port_num < 1 or port_num > 65535:
+            return "端口非法"
+        return None
+
+    def _validate_value_for_path(path, value):
+        """按白名单路径校验类型与取值范围；返回 None 表示通过。"""
+        if path == "ai.provider":
+            return None if value in _AI_PROVIDERS else "provider 取值非法"
+        if path in ("ai.ollama.base_url", "ai.openai.base_url"):
+            if not isinstance(value, str) or len(value) > 500:
+                return "长度或类型非法"
+            return _validate_url_value(value)
+        if path in ("ai.ollama.model", "ai.openai.model"):
+            return None if isinstance(value, str) and len(value) <= 200 else "长度或类型非法"
+        if path in ("ai.memory.enabled", "ai.history.enabled", "nas_mock_enabled"):
+            return None if isinstance(value, bool) else "必须是布尔值"
+        if path == "ai.memory.dir":
+            if not isinstance(value, str) or len(value) > 500:
+                return "长度或类型非法"
+            from core import path_policy as _pp
+            _norm, _err = _pp.validate_local_dir(value)
+            return _err
+        if path == "ai.history.limit":
+            return None if isinstance(value, int) and not isinstance(value, bool) and 20 <= value <= 5000 else "范围 20-5000"
+        if path == "ai.ca_bundle":
+            if not isinstance(value, str) or len(value) > 500:
+                return "长度或类型非法"
+            if not value.strip():
+                return None
+            from core import path_policy as _pp
+            _norm, _err = _pp.validate_local_file(value)
+            return _err
+        if path == "ai.allow_insecure_http":
+            if not isinstance(value, list) or len(value) > 16:
+                return "必须是长度不超过 16 的数组"
+            for entry in value:
+                problem = _validate_http_exception(entry)
+                if problem:
+                    return problem
+            return None
+        if path in ("monitor_threshold_cpu", "monitor_threshold_memory", "monitor_threshold_disk"):
+            return None if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 100 else "范围 1-100"
+        if path == "monitor_interval":
+            return None if isinstance(value, int) and not isinstance(value, bool) and 1 <= value <= 3600 else "范围 1-3600"
+        if path == "monitor_alert_cooldown":
+            return None if isinstance(value, int) and not isinstance(value, bool) and 0 <= value <= 86400 else "范围 0-86400"
+        if path == "nas_interval":
+            return None if isinstance(value, int) and not isinstance(value, bool) and 5 <= value <= 3600 else "范围 5-3600"
+        return "未知字段"
+
+    def _get_config_data():
+        """返回渲染进程可读的配置：字段白名单 + 凭据仅状态。
+
+        真实 API Key / NAS 密码永远不会出现在返回值里（DL-SEC-02 / S2）。
+        """
+        public, user, merged = _raw_configs()
+        out = {}
+
+        def _pick(path):
+            cur = merged
+            for part in path.split("."):
+                if not isinstance(cur, dict) or part not in cur:
+                    return (False, None)
+                cur = cur[part]
+            return (True, cur)
+
+        for path in _CONFIG_READ_FIELDS:
+            ok, value = _pick(path)
+            if ok:
+                _apply_path(out, path, value)
+        out.setdefault("ai", {})
+        _ok, api_key = _pick("ai.openai.api_key")
+        out["ai"].setdefault("openai", {})["api_key"] = _mask_secret(api_key)
+        _ok, token = _pick("auth_token")
+        out["auth_token"] = _mask_secret(token)
+        devices = merged.get("nas_devices")
+        out["nas_devices"] = [item for item in
+                              (_public_device(x) for x in (devices if isinstance(devices, list) else []))
+                              if item]
+        out["ok"] = True
+        return out
+
+    def _save_config_patch(patch, dirty=None):
+        """白名单字段的增量保存：未知字段拒绝、空值不覆盖、敏感字段仅 dirty 时写入。"""
+        if not isinstance(patch, dict):
+            return _err_resp("cfg.err.invalidPatch")
+        dirty = [d for d in (dirty or []) if isinstance(d, str)]
+        try:
+            _reject_forbidden(patch)
+        except ValueError as e:
+            return _err_resp("cfg.err.invalidField", detail=str(e)[:80])
+        try:
+            flat = _flatten_patch(patch)
+        except Exception:
+            return _err_resp("cfg.err.invalidField", detail="flattenFailed")
+        public, user, _merged = _raw_configs()
+        changed = False
+        old_memory_dir = ""
+        try:
+            old_memory_dir = ((user.get("ai") or {}).get("memory") or {}).get("dir") or ""
+        except Exception:
+            old_memory_dir = ""
+
+        def _effective_memory_dir(raw):
+            """W-02-R1：解析旧/新记忆目录；旧值不合法时不访问它。"""
+            from core import path_policy as _pp
+            from core.config import BASE_DATA_DIR
+            if isinstance(raw, str) and raw.strip():
+                norm, err = _pp.validate_local_dir(raw)
+                return norm, err
+            default = os.path.join(BASE_DATA_DIR, "memory")
+            norm, err = _pp.validate_local_dir(default)
+            return norm, err
+
+        old_effective_memory, old_memory_error = _effective_memory_dir(old_memory_dir)
+        for path, value in flat.items():
+            if path == "nas_devices":
+                return _err_resp("cfg.err.invalidField", detail="nas_devices 使用 save_device")
+            if path not in _CONFIG_WRITE_FIELDS:
+                return _err_resp("cfg.err.unknownField", field=path[:80])
+            if path == "ai.openai.api_key":
+                if path not in dirty:
+                    continue  # 未修改或空值：不覆盖旧凭据
+                if not isinstance(value, str):
+                    return _err_resp("cfg.err.invalidType", field=path)
+                text = value.strip()
+                if not text:
+                    continue  # 空值不覆盖；清除必须走 clear_credential
+                from core import secret_store as _ss
+                _token = _ss.protect(text[:200])
+                if not _token:
+                    return _err_resp("cfg.err.secretStorageUnavailable")
+                _apply_path(user, path, _token)
+                changed = True
+                continue
+            problem = _validate_value_for_path(path, value)
+            if problem:
+                return _err_resp("cfg.err.invalidValue", field=path, detail=str(problem)[:80])
+            # W-02：保存时必须写回规范化后的可信路径，而不是 renderer 原文。
+            if path in ("ai.memory.dir", "ai.ca_bundle") and isinstance(value, str):
+                from core import path_policy as _pp
+                if value.strip():
+                    _nv, _ne = (_pp.validate_local_dir(value) if path == "ai.memory.dir"
+                                else _pp.validate_local_file(value))
+                    if _ne:
+                        return _err_resp("cfg.err.invalidValue", field=path, detail=_ne)
+                    value = _nv
+                else:
+                    value = ""
+            if path.startswith("ai."):
+                _apply_path(user, path, value)
+            else:
+                _apply_path(public, path, value)
+            changed = True
+        if not changed:
+            return {"ok": True, "changed": False}
+        # 记忆目录变更迁移。旧配置路径只有在通过当前路径策略后才可访问；
+        # 复制失败时先不写配置，保留旧路径和旧数据，避免把用户指针切到空目录。
+        try:
+            new_memory_dir = ((user.get("ai") or {}).get("memory") or {}).get("dir") or ""
+            new_effective_memory, new_memory_error = _effective_memory_dir(new_memory_dir)
+            if new_memory_error:
+                return _err_resp("cfg.err.invalidValue", field="ai.memory.dir", detail=new_memory_error)
+            if not old_memory_error and os.path.normcase(old_effective_memory) != os.path.normcase(new_effective_memory):
+                from core import ai_memory as _aim
+                migrated = _aim.migrate(old_effective_memory, new_effective_memory)
+                if not migrated.get("ok"):
+                    return _err_resp("cfg.err.memoryMigrationFailed")
+            # old_memory_error：旧路径不安全，不访问也不迁移；用户可安全切换到新目标。
+        except Exception:
+            return _err_resp("cfg.err.memoryMigrationFailed")
+        try:
+            _atomic_write_json(cfg.config_file, public)
+            _atomic_write_json(_get_user_config_path(), user)
+        except Exception as e:
+            return _err_resp("cfg.err.writeFailed", detail=str(e)[:120])
+        return {"ok": True, "changed": True}
+
+    def _validate_device(device):
+        if not isinstance(device, dict):
+            return "device 必须是对象"
+        try:
+            _reject_forbidden(device)
+        except ValueError as e:
+            return str(e)[:80]
+        allowed = {"name", "host", "port", "username", "interval", "password"}
+        for key in device.keys():
+            if key not in allowed:
+                return "未知设备字段: " + str(key)[:40]
+        name = device.get("name")
+        if not isinstance(name, str) or not name.strip() or len(name) > 64:
+            return "name 必须为 1-64 字符"
+        host = device.get("host")
+        if not isinstance(host, str) or not host.strip() or len(host) > 255:
+            return "host 必须为 1-255 字符"
+        port = device.get("port", 22)
+        if not isinstance(port, int) or isinstance(port, bool) or not 1 <= port <= 65535:
+            return "port 范围 1-65535"
+        username = device.get("username", "")
+        if not isinstance(username, str) or len(username) > 128:
+            return "username 长度非法"
+        interval = device.get("interval", 15)
+        if not isinstance(interval, int) or isinstance(interval, bool) or not 5 <= interval <= 3600:
+            return "interval 范围 5-3600"
+        password = device.get("password", "")
+        if not isinstance(password, str) or len(password) > 256:
+            return "password 长度非法"
+        return None
+
+    def _save_device(device, dirty=None):
+        """新增或更新 NAS 设备；password 仅在 dirty 且非空时写入，空值不覆盖。"""
+        problem = _validate_device(device)
+        if problem:
+            return _err_resp("cfg.err.invalidValue", detail=problem)
+        dirty = [d for d in (dirty or []) if isinstance(d, str)]
+        _public, user, _merged = _raw_configs()
+        devices = user.get("nas_devices")
+        if not isinstance(devices, list):
+            devices = []
+        name = device.get("name").strip()
+        existing = next((d for d in devices if isinstance(d, dict) and d.get("name") == name), None)
+        fields = {k: v for k, v in device.items() if k in ("name", "host", "port", "username", "interval")}
+        if existing is None:
+            existing = {}
+            devices.append(existing)
+        existing.update(fields)
+        password = device.get("password")
+        if "password" in dirty and isinstance(password, str) and password:
+            from core import secret_store as _ss
+            _token = _ss.protect(password)
+            if not _token:
+                return _err_resp("cfg.err.secretStorageUnavailable")
+            existing["password"] = _token
+        user["nas_devices"] = devices
+        try:
+            _atomic_write_json(_get_user_config_path(), user)
+        except Exception as e:
+            return _err_resp("cfg.err.writeFailed", detail=str(e)[:120])
+        return {"ok": True, "device": _public_device(existing)}
+
+    def _delete_device(name):
+        if not isinstance(name, str) or not name.strip() or len(name) > 64:
+            return _err_resp("cfg.err.invalidValue", detail="name 非法")
+        _public, user, _merged = _raw_configs()
+        devices = user.get("nas_devices")
+        kept = [d for d in (devices if isinstance(devices, list) else [])
+                if not (isinstance(d, dict) and d.get("name") == name.strip())]
+        user["nas_devices"] = kept
+        try:
+            _atomic_write_json(_get_user_config_path(), user)
+        except Exception as e:
+            return _err_resp("cfg.err.writeFailed", detail=str(e)[:120])
+        return {"ok": True}
+
+    def _clear_credential(kind, name=None):
+        """显式清除凭据（空值不删除，删除必须调用本接口）。"""
+        _public, user, _merged = _raw_configs()
+        if kind == "ai_key":
+            ai = user.get("ai") if isinstance(user.get("ai"), dict) else {}
+            openai = ai.get("openai") if isinstance(ai.get("openai"), dict) else {}
+            openai.pop("api_key", None)
+        elif kind == "auth_token":
+            user.pop("auth_token", None)
+        elif kind == "nas_password":
+            if not isinstance(name, str) or not name.strip():
+                return _err_resp("cfg.err.invalidValue", detail="name 必填")
+            found = False
+            for item in user.get("nas_devices") or []:
+                if isinstance(item, dict) and item.get("name") == name.strip():
+                    item.pop("password", None)
+                    found = True
+            if not found:
+                return _err_resp("cfg.err.invalidValue", detail="设备不存在")
+        else:
+            return _err_resp("cfg.err.invalidValue", detail="未知凭据类型")
+        try:
+            _atomic_write_json(_get_user_config_path(), user)
+        except Exception as e:
+            return _err_resp("cfg.err.writeFailed", detail=str(e)[:120])
+        return {"ok": True}
+
+    def _get_nas_devices():
+        """内部使用：只从用户凭据配置读取并严格解密 NAS 凭据。
+
+        BB-C1-01-R1：旧 config.json 不再作为 NAS 凭据来源；迁移失败时返回空列表，
+        不把未保护的旧密码交给 Paramiko。
+        """
+        from core import secret_store as _ss
+        if not _ss.ensure_credentials_ready().get("ok"):
+            return []
+        user_config_path = _get_user_config_path()
+        if not os.path.exists(user_config_path):
+            return []
+        try:
+            with open(user_config_path, "r", encoding="utf-8") as f:
+                user_data = json.load(f)
+        except Exception:
+            return []
+        devices = user_data.get("nas_devices") if isinstance(user_data, dict) else None
+        if not isinstance(devices, list):
+            return []
+        out = []
+        for item in devices:
+            if not isinstance(item, dict):
+                continue
+            entry = dict(item)
+            if "password" in entry:
+                ok, plain = _ss.get_runtime_secret(entry.get("password"))
+                if not ok:
+                    # 失败关闭：该设备不进入运行时，旧明文也不会被使用。
+                    continue
+                entry["password"] = plain
+            out.append(entry)
+        return out
+
+    def _resolve_device(device_id):
+        """按设备名解析已保存设备；未知设备返回 None（S5：不接受任意 host/port）。"""
+        name = device_id.strip() if isinstance(device_id, str) else ""
+        if not name:
+            return None
+        for device in _get_nas_devices():
+            if isinstance(device, dict) and device.get("name") == name:
+                return device
+        return None
+
+    def _nas_connection_test(device_id):
+        """连通性测试：只接受已保存设备名；先校验主机身份，未信任不发凭据。"""
+        device = _resolve_device(device_id)
+        if device is None:
+            return _err_resp("ssh.err.deviceNotConfigured", device=str(device_id)[:64])
+        host = device.get("host", "")
+        try:
+            port = int(device.get("port") or 22)
+        except Exception:
+            port = 22
+        try:
+            client = _ssh_trust.connect_ssh(
+                host, port, device.get("username", ""), device.get("password", ""),
+                timeout=5, banner_timeout=5, auth_timeout=5,
             )
             client.close()
             return {"ok": True}
+        except _ssh_trust.UntrustedHost as e:
+            return _err_resp(e.code, host=host, port=port, fingerprint=e.params.get("fingerprint", ""))
+        except _ssh_trust.HostKeyChanged as e:
+            return _err_resp(e.code, host=host, port=port,
+                             old_fingerprint=e.params.get("old_fingerprint", ""),
+                             new_fingerprint=e.params.get("new_fingerprint", ""))
         except Exception as e:
-            return {"ok": False, "error": {"code": "net.connectFailed", "params": {"detail": str(e)}}}
+            return _err_resp("net.connectFailed", detail=_ssh_trust_sanitize(e))
 
-    def _test_nas_connection(device, request_id=None, async_mode=False):
-        """连通性测试入口：async_mode=True 时立即返回 pending，结果走 nas_test_result 事件。"""
+    def _ssh_trust_sanitize(err):
+        text = str(err)
+        text = _re.sub(r"[a-zA-Z][a-zA-Z0-9+.-]*://[^\s'\")]+", "<url>", text)
+        return text[:160]
+
+    def _test_nas_connection(device_id, request_id=None, async_mode=False):
         if not async_mode:
-            return _nas_connection_test(device)
+            return _nas_connection_test(device_id)
         return _io_submit("test_nas_connection", request_id,
-                          lambda: _nas_connection_test(device), "nas_test_result")
+                          lambda: _nas_connection_test(device_id), "nas_test_result")
 
-    def _get_nas_devices():
-        import json, os
-        from core.config import _get_user_config_path
-        config_path = cfg.config_file
-        devices = []
-        # 先从 config.json 读取基础设备列表
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    raw = json.load(f)
-                devices = raw.get("nas_devices", [])
-            except Exception:
-                pass
-        # 用户敏感配置（AppData）中的设备列表覆盖
-        user_config_path = _get_user_config_path()
-        if os.path.exists(user_config_path):
-            try:
-                with open(user_config_path, "r", encoding="utf-8") as f:
-                    user_data = json.load(f)
-                if "nas_devices" in user_data:
-                    devices = user_data["nas_devices"]
-            except Exception:
-                pass
-        return devices
+    def _ssh_probe(device_id):
+        device = _resolve_device(device_id)
+        if device is None:
+            return _err_resp("ssh.err.deviceNotConfigured")
+        host = device.get("host", "")
+        try:
+            port = int(device.get("port") or 22)
+        except Exception:
+            port = 22
+        try:
+            info = _ssh_trust.probe_host_key(host, port, timeout=5)
+        except Exception as e:
+            return _err_resp("net.connectFailed", detail=_ssh_trust_sanitize(e))
+        record = _ssh_trust.get_record(host, port)
+        return {
+            "ok": True,
+            "identity": info["identity"],
+            "host": host,
+            "port": port,
+            "key_type": info["key_type"],
+            "fingerprint": info["fingerprint"],
+            "trusted": bool(record),
+            "trusted_fingerprint": (record or {}).get("fingerprint", ""),
+        }
+
+    def _ssh_confirm_trust(device_id, fingerprint, replace=False):
+        device = _resolve_device(device_id)
+        if device is None:
+            return _err_resp("ssh.err.deviceNotConfigured")
+        host = device.get("host", "")
+        try:
+            port = int(device.get("port") or 22)
+        except Exception:
+            port = 22
+        if not isinstance(fingerprint, str) or not fingerprint.strip():
+            return _err_resp("ssh.err.fingerprintMismatch", reason="empty")
+        try:
+            if replace:
+                record = _ssh_trust.re_trust(host, port, fingerprint.strip())
+            else:
+                record = _ssh_trust.confirm_trust(host, port, fingerprint.strip())
+        except _ssh_trust.FingerprintMismatch as e:
+            return _err_resp(e.code, observed=str(e.params.get("observed", ""))[:128])
+        except Exception as e:
+            return _err_resp("ssh.err.trustStoreUnavailable", detail=_ssh_trust_sanitize(e))
+        return {"ok": True, "record": record}
+
+
+    # ── 渲染进程命令白名单与参数校验（P0 / S3）──
+    # 来源不来自渲染进程输入：只有 stdin（渲染进程经 Electron 主进程映射）进入本入口，
+    # 内部业务逻辑直接调用函数，不经过这里，因此不存在 source=internal 提权路径。
+    _RENDERER_COMMANDS = frozenset({
+        "ping", "get_hardware", "get_config",
+        "save_config_patch", "save_device", "delete_device", "clear_credential",
+        "reload_config", "ai_chat",
+        "get_ai_memory", "delete_ai_memory", "clear_ai_memory", "dedupe_ai_memory",
+        "chat_history_get", "chat_history_append", "chat_history_clear",
+        "test_nas_connection", "ssh_probe", "ssh_confirm_trust",
+        "terminal_input", "terminal_resize", "terminal_close", "terminal_attach",
+        "ssh_terminal_init",
+    })
+    _NO_PARAM_COMMANDS = frozenset({
+        "ping", "get_hardware", "get_config", "reload_config",
+        "get_ai_memory", "clear_ai_memory", "dedupe_ai_memory",
+    })
+
+    def _require_str(cmd, key, max_len=128, required=False):
+        value = cmd.get(key)
+        if value is None or value == "":
+            if required:
+                raise ValueError(key)
+            return ""
+        if not isinstance(value, str) or len(value) > max_len:
+            raise ValueError(key)
+        return value
+
+    def _require_int(cmd, key, low, high):
+        value = cmd.get(key)
+        if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
+            raise ValueError(key)
+        return value
+
+    def _require_dirty(cmd):
+        dirty = cmd.get("dirty")
+        if dirty is None:
+            return []
+        if not isinstance(dirty, list) or len(dirty) > 32:
+            raise ValueError("dirty")
+        for item in dirty:
+            if not isinstance(item, str) or len(item) > 128:
+                raise ValueError("dirty")
+        return dirty
+
+    def _validate_command(cmd, ctype):
+        if ctype in _NO_PARAM_COMMANDS:
+            return
+        if ctype == "ai_chat":
+            messages = cmd.get("messages")
+            if not isinstance(messages, list) or not 1 <= len(messages) <= 16:
+                raise ValueError("messages")
+            for msg in messages:
+                if not isinstance(msg, dict):
+                    raise ValueError("messages")
+                if msg.get("role") not in ("user", "assistant"):
+                    raise ValueError("messages.role")
+                content = msg.get("content")
+                if not isinstance(content, str) or len(content) > 4000:
+                    raise ValueError("messages.content")
+            if cmd.get("provider", "ollama") not in _AI_PROVIDERS:
+                raise ValueError("provider")
+            if cmd.get("lang", "zh-CN") not in _LANG_VALUES:
+                raise ValueError("lang")
+        elif ctype == "save_config_patch":
+            if not isinstance(cmd.get("patch"), dict):
+                raise ValueError("patch")
+            _require_dirty(cmd)
+        elif ctype == "save_device":
+            if not isinstance(cmd.get("device"), dict):
+                raise ValueError("device")
+            _require_dirty(cmd)
+        elif ctype == "delete_device":
+            _require_str(cmd, "name", 64, required=True)
+        elif ctype == "clear_credential":
+            if cmd.get("kind") not in ("ai_key", "nas_password", "auth_token"):
+                raise ValueError("kind")
+            if cmd.get("kind") == "nas_password":
+                _require_str(cmd, "name", 64, required=True)
+        elif ctype == "delete_ai_memory":
+            _require_int(cmd, "index", 0, 100000)
+            _require_str(cmd, "expected_sha256", 64, required=True)
+        elif ctype == "chat_history_get":
+            if "limit" in cmd:
+                _require_int(cmd, "limit", 1, 5000)
+            _require_str(cmd, "session_id", 64)
+        elif ctype == "chat_history_append":
+            if cmd.get("role") not in ("user", "assistant"):
+                raise ValueError("role")
+            _require_str(cmd, "content", 12000, required=True)
+            _require_str(cmd, "session_id", 64)
+        elif ctype == "chat_history_clear":
+            _require_str(cmd, "session_id", 64)
+        elif ctype in ("terminal_close", "terminal_attach"):
+            _require_str(cmd, "session_id", 64, required=True)
+        elif ctype == "terminal_input":
+            _require_str(cmd, "session_id", 64, required=True)
+            data = cmd.get("data")
+            if not isinstance(data, str) or len(data) > 8192:
+                raise ValueError("data")
+        elif ctype == "terminal_resize":
+            _require_str(cmd, "session_id", 64, required=True)
+            _require_int(cmd, "cols", 1, 500)
+            _require_int(cmd, "rows", 1, 500)
+        elif ctype == "ssh_terminal_init":
+            _require_str(cmd, "device_id", 64, required=True)
+            _require_int(cmd, "cols", 1, 500)
+            _require_int(cmd, "rows", 1, 500)
+        elif ctype == "test_nas_connection":
+            _require_str(cmd, "device_id", 64, required=True)
+        elif ctype == "ssh_probe":
+            _require_str(cmd, "device_id", 64, required=True)
+        elif ctype == "ssh_confirm_trust":
+            _require_str(cmd, "device_id", 64, required=True)
+            _require_str(cmd, "fingerprint", 128, required=True)
+        else:
+            raise ValueError("unknown")
 
     def _handle_command(cmd):
+        """渲染进程入口：白名单命令 + 参数校验（S3）；未知命令与非法参数一律拒绝。"""
+        if not isinstance(cmd, dict):
+            return json.dumps({"error": "invalid command", "__cmd_response__": True},
+                              ensure_ascii=False)
         request_id = cmd.get("requestId")
         ctype = cmd.get("cmd", "")
+        if ctype not in _RENDERER_COMMANDS:
+            resp = _err_resp("ipc.err.forbidden", command=str(ctype)[:64])
+            resp["__cmd_response__"] = True
+            if request_id:
+                resp["requestId"] = request_id
+            return json.dumps(resp, ensure_ascii=False)
+        try:
+            _validate_command(cmd, ctype)
+        except ValueError:
+            resp = _err_resp("ipc.err.invalidParams", detail="参数校验失败")
+            resp["__cmd_response__"] = True
+            if request_id:
+                resp["requestId"] = request_id
+            return json.dumps(resp, ensure_ascii=False)
         resp = None
 
         try:
-            if ctype == "get_hardware":
+            if ctype == "save_config_patch":
+                resp = _save_config_patch(cmd.get("patch"), cmd.get("dirty"))
+            elif ctype == "save_device":
+                resp = _save_device(cmd.get("device"), cmd.get("dirty"))
+            elif ctype == "delete_device":
+                resp = _delete_device(cmd.get("name"))
+            elif ctype == "clear_credential":
+                resp = _clear_credential(cmd.get("kind"), cmd.get("name"))
+            elif ctype == "ssh_probe":
+                resp = _ssh_probe(cmd.get("device_id"))
+            elif ctype == "ssh_confirm_trust":
+                resp = _ssh_confirm_trust(cmd.get("device_id"), cmd.get("fingerprint"),
+                                          bool(cmd.get("replace")))
+            elif ctype == "get_hardware":
                 payload = _format_state()
                 resp = {"hardware": payload.get("hardware")}
-            elif ctype == "get_processes":
-                payload = _format_state()
-                resp = {"processes": payload["monitor"].get("processes", [])}
-            elif ctype == "get_history":
-                hours = cmd.get("hours", 24)
-                resp = _get_history(hours)
-            elif ctype == "ai_message":
-                # 兼容旧接口：返回占位回复
-                text = cmd.get("text", "")
-                resp = {"type": "ai_response", "text": "AI \u529f\u80fd\u5df2\u91cd\u6784\uff0c\u8bf7\u4f7f\u7528\u65b0\u7684\u6d41\u5f0f\u5bf9\u8bdd\u63a5\u53e3"}
             elif ctype == "ai_chat":
                 # 流式 AI 对话：在独立线程中处理，通过 stdout 推送 token
                 messages = cmd.get("messages", [])
@@ -1430,7 +2058,22 @@ def cmd_json_mode():
                     _idx = int(cmd.get("index"))
                 except Exception:
                     _idx = -1
-                resp = {"ok": _aim.delete(_idx)}
+                _expected = str(cmd.get("expected_sha256") or "")
+                _items = _aim.list_all()
+                _digest_ok = False
+                if 0 <= _idx < len(_items):
+                    _it = _items[_idx]
+                    _raw = str(_it.get("ts", "")) + "\0" + str(_it.get("content", ""))
+                    _digest_ok = hashlib.sha256(_raw.encode("utf-8")).hexdigest() == _expected
+                if _digest_ok:
+                    # 锁内重新读取、比较摘要并原子写回，避免摘要核验与删除之间的竞态。
+                    _deleted = _aim.delete(_idx, _expected)
+                    resp = {"ok": True} if _deleted else {
+                        "ok": False,
+                        "error": {"code": "memory.err.staleTarget"},
+                    }
+                else:
+                    resp = {"ok": False, "error": {"code": "memory.err.staleTarget"}}
             elif ctype == "clear_ai_memory":
                 from core import ai_memory as _aim
                 resp = {"ok": _aim.clear()}
@@ -1470,18 +2113,12 @@ def cmd_json_mode():
                 from core import chat_store as _chat
                 resp = {"ok": _chat.clear(cmd.get("session_id")),
                         "count": _chat.count(cmd.get("session_id"))}
-            elif ctype == "chat_history_delete":
-                from core import chat_store as _chat
-                _key = cmd.get("id") if cmd.get("id") else cmd.get("index")
-                resp = {"ok": _chat.delete(_key), "count": _chat.count(cmd.get("session_id"))}
             elif ctype == "ping":
                 resp = {"pong": True}
             elif ctype == "get_config":
                 resp = _get_config_data()
-            elif ctype == "save_config":
-                resp = _save_config_data(cmd.get("config", {}))
             elif ctype == "test_nas_connection":
-                resp = _test_nas_connection(cmd.get("device", {}), request_id, bool(cmd.get("async")))
+                resp = _test_nas_connection(cmd.get("device_id"), request_id, bool(cmd.get("async")))
             elif ctype == "reload_config":
                 # 重载配置：逐步独立 try-except，单步失败不阻塞后续
                 reload_errors = []
@@ -1515,24 +2152,27 @@ def cmd_json_mode():
                     resp = {"ok": True, "message": {"code": "cfg.reloadedWithErrors", "params": {}}, "warnings": reload_errors}
                 else:
                     resp = {"ok": True, "message": {"code": "cfg.reloaded", "params": {}}}
-            elif ctype == "get_nas_devices":
-                resp = {"devices": _get_nas_devices()}
             elif ctype == "terminal_input":
-                _handle_terminal_input(cmd.get("session_id"), cmd.get("data", ""))
-                resp = {"ok": True}
+                # P0（S3）：sessionId 必须指向本进程管理的真实会话，伪造 id 不产生任何写入
+                if cmd.get("session_id") not in _terminal_sessions:
+                    resp = _err_resp("term.err.sessionGone", session_id=str(cmd.get("session_id", ""))[:64])
+                else:
+                    _handle_terminal_input(cmd.get("session_id"), cmd.get("data", ""))
+                    resp = {"ok": True}
             elif ctype == "terminal_resize":
-                _handle_terminal_resize(cmd.get("session_id"), cmd.get("cols", 80), cmd.get("rows", 24))
-                resp = {"ok": True}
+                if cmd.get("session_id") not in _terminal_sessions:
+                    resp = _err_resp("term.err.sessionGone", session_id=str(cmd.get("session_id", ""))[:64])
+                else:
+                    _handle_terminal_resize(cmd.get("session_id"), cmd.get("cols", 80), cmd.get("rows", 24))
+                    resp = {"ok": True}
             elif ctype == "terminal_close":
                 _handle_terminal_close(cmd.get("session_id"))
                 resp = {"ok": True}
-            elif ctype == "terminal_list":
-                resp = _handle_terminal_list()
             elif ctype == "terminal_attach":
                 resp = _handle_terminal_attach(cmd.get("session_id"))
             elif ctype == "ssh_terminal_init":
                 resp = _handle_ssh_terminal_init(
-                    cmd.get("host", ""), cmd.get("port", 22),
+                    cmd.get("device_id", ""), 0,
                     cmd.get("cols", 80), cmd.get("rows", 24),
                     request_id, bool(cmd.get("async")),
                 )

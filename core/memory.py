@@ -12,9 +12,9 @@ _last_aggregate_date = None
 
 
 def _memory_dir():
-    from core.config import get_config
-    cfg = get_config()
-    d = os.path.join(cfg.lab_root, "memory")
+    # BB-C1-02：运行时可写数据只进用户数据目录，不写安装目录。
+    from core.config import BASE_DATA_DIR
+    d = os.path.join(BASE_DATA_DIR, "memory")
     os.makedirs(d, exist_ok=True)
     return d
 

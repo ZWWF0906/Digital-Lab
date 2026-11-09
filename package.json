@@ -1,13 +1,16 @@
 {
   "name": "digital-lab",
-  "version": "1.5.0",
+  "version": "1.6.0",
   "description": "Personal Digital Laboratory Desktop Application",
   "main": "main.js",
   "author": "ZWWF0906",
   "license": "ISC",
   "scripts": {
     "start": "electron .",
-    "build": "electron-builder --win"
+    "build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1",
+    "build:backend": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-backend.ps1",
+    "build:electron": "electron-builder --win",
+    "build:windows": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-windows.ps1"
   },
   "build": {
     "appId": "com.digitallab.desktop",
@@ -24,11 +27,21 @@
       "i18n.js",
       "locales/**/*",
       "build/icons/**/*",
-      "build/fonts/**/*"
+      "build/fonts/**/*",
+      "core/test_hook_policy.js",
+      "theme-init.js",
+      "lang-init.js",
+      "boot-text.js",
+      "onboarding.js",
+      "splash.js",
+      "renderer.js",
+      "terminal.html",
+      "preload-terminal.js",
+      "renderer-terminal.js"
     ],
     "extraResources": [
       {
-        "from": "backend.exe",
+        "from": "dist/backend.exe",
         "to": "backend.exe"
       }
     ],
@@ -39,8 +52,25 @@
     },
     "nsis": {
       "oneClick": false,
-      "allowToChangeInstallationDirectory": true
-    }
+      "allowToChangeInstallationDirectory": true,
+      "perMachine": true,
+      "allowElevation": true
+    },
+    "appx": {
+      "identityName": "ZWWF0906.DigitalLab",
+      "publisher": "CN=3F42B0C4-82C4-4CD0-A52C-0F4D41EEF8B3",
+      "publisherDisplayName": "ZWWF0906",
+      "applicationId": "DigitalLab",
+      "backgroundColor": "#1a1a2e",
+      "showNameOnTiles": true,
+      "artifactName": "DigitalLab-${version}.${ext}",
+      "languages": [
+        "en-US",
+        "zh-CN",
+        "ja-JP"
+      ]
+    },
+    "electronDist": "node_modules/electron/dist"
   },
   "devDependencies": {
     "@fontsource-variable/inter": "^5.3.0",

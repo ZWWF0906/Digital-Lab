@@ -8,7 +8,7 @@
 
 <div align="center">
 
-[![Version](https://img.shields.io/badge/version-1.5.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
+[![Version](https://img.shields.io/badge/version-1.6.0-blue)](https://github.com/ZWWF0906/Digital-Lab)
 [![Platform](https://img.shields.io/badge/platform-Windows%2010%2B-lightgrey)](https://github.com/ZWWF0906/Digital-Lab)
 [![Local-First](https://img.shields.io/badge/local--first-important)](https://github.com/ZWWF0906/Digital-Lab)
 [![AI](https://img.shields.io/badge/AI-Ollama%20%7C%20API-9cf)](https://github.com/ZWWF0906/Digital-Lab)
@@ -23,6 +23,8 @@
 </div>
 
 A personal digital laboratory platform — a desktop application for personal device management, data awareness and AI extension. Local-first, modular and extensible, it turns your personal computer into a programmable, perceivable and conversational digital workspace.
+
+> **Release channel**: DigitalLab 1.6.0 is the last version to provide a standalone installer via GitHub. From 1.6.1 onward, formal releases are distributed only through the Microsoft Store; GitHub continues as the source, documentation and collaboration platform.
 
 ---
 
